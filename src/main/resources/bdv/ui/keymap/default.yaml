@@ -4,6 +4,10 @@
   contexts: [bdv]
   triggers: [S]
 - !mapping
+  action: LUT editor
+  contexts: [bdv]
+  triggers: [L]
+- !mapping
   action: visibility and grouping
   contexts: [bdv]
   triggers: [F6]

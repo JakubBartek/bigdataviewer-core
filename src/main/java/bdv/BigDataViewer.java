@@ -56,11 +56,15 @@ import javax.swing.filechooser.FileFilter;
 import net.imglib2.Volatile;
 import net.imglib2.converter.Converter;
 import net.imglib2.display.ColorConverter;
+import net.imglib2.display.ColorTable8;
 import net.imglib2.display.RealARGBColorConverter;
 import net.imglib2.display.ScaledARGBConverter;
 import net.imglib2.type.numeric.ARGBType;
+import net.imglib2.type.numeric.IntegerType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.real.DoubleType;
+import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.type.volatiles.VolatileARGBType;
 
 import org.jdom2.Document;
@@ -87,7 +91,9 @@ import bdv.tools.bookmarks.Bookmarks;
 import bdv.tools.bookmarks.BookmarksEditor;
 import bdv.tools.brightness.BrightnessDialog;
 import bdv.tools.brightness.ConverterSetup;
+import bdv.tools.brightness.LutEditorDialog;
 import bdv.tools.brightness.MinMaxGroup;
+import bdv.tools.brightness.RealLUTConverter;
 import bdv.tools.brightness.RealARGBColorConverterSetup;
 import bdv.tools.brightness.SetupAssignments;
 import bdv.tools.crop.CropDialog;
@@ -122,6 +128,8 @@ public class BigDataViewer
 	protected final Bookmarks bookmarks;
 
 	protected final BrightnessDialog brightnessDialog;
+
+	protected final LutEditorDialog lutEditorDialog;
 
 	protected final CropDialog cropDialog;
 
@@ -188,7 +196,12 @@ public class BigDataViewer
 	/**
 	 * Create standard converter from the given {@code type} to ARGB:
 	 * <ul>
-	 * <li>For {@code RealType}s a {@link RealARGBColorConverter} is
+	 * <li>For {@code IntegerType}s a {@link RealLUTConverter} with a default
+	 * grayscale {@link ColorTable8} is returned.</li>
+	 * <li>For floating-point {@code RealType}s a {@link RealLUTConverter} with a
+	 * default {@code [0, 1]} range and grayscale {@link ColorTable8} is
+	 * returned.</li>
+	 * <li>For other {@code RealType}s a {@link RealARGBColorConverter} is
 	 * returned.</li>
 	 * <li>For {@code ARGBType}s a {@link ScaledARGBConverter.ARGB} is
 	 * returned.</li>
@@ -199,7 +212,18 @@ public class BigDataViewer
 	@SuppressWarnings( "unchecked" )
 	public static < T extends NumericType< T > > Converter< T, ARGBType > createConverterToARGB( final T type )
 	{
-		if ( type instanceof RealType )
+		if ( type instanceof IntegerType )
+		{
+			final IntegerType< ? > t = ( IntegerType< ? > ) type;
+			final double typeMin = Math.max( 0, Math.min( t.getMinValue(), 65535 ) );
+			final double typeMax = Math.max( 0, Math.min( t.getMaxValue(), 65535 ) );
+			return ( Converter< T, ARGBType > ) new RealLUTConverter( typeMin, typeMax, new ColorTable8() );
+		}
+		else if ( type instanceof FloatType || type instanceof DoubleType )
+		{
+			return ( Converter< T, ARGBType > ) new RealLUTConverter( 0, 1, new ColorTable8() );
+		}
+		else if ( type instanceof RealType )
 		{
 			final RealType< ? > t = ( RealType< ? > ) type;
 			final double typeMin = Math.max( 0, Math.min( t.getMinValue(), 65535 ) );
@@ -393,6 +417,7 @@ public class BigDataViewer
 		}
 
 		brightnessDialog = new BrightnessDialog( viewerFrame, setupAssignments );
+		lutEditorDialog = new LutEditorDialog( viewerFrame, viewerFrame.getConverterSetups(), viewer.state(), viewer::requestRepaint );
 
 		if (spimData != null )
 			viewer.getSourceInfoOverlayRenderer().setTimePointsOrdered( spimData.getSequenceDescription().getTimePoints().getTimePointsOrdered() );

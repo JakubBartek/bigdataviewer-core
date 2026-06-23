@@ -67,6 +67,7 @@ public class BigDataViewerActions extends Actions
 	public static final String GO_TO_BOOKMARK = "go to bookmark";
 	public static final String GO_TO_BOOKMARK_ROTATION = "go to bookmark rotation";
 	public static final String PREFERENCES_DIALOG = "Preferences";
+	public static final String LUT_EDITOR = "LUT editor";
 
 	public static final String[] BRIGHTNESS_SETTINGS_KEYS         = new String[] { "S" };
 	public static final String[] VISIBILITY_AND_GROUPING_KEYS     = new String[] { "F6" };
@@ -83,6 +84,7 @@ public class BigDataViewerActions extends Actions
 	public static final String[] GO_TO_BOOKMARK_KEYS              = new String[] { "B" };
 	public static final String[] GO_TO_BOOKMARK_ROTATION_KEYS     = new String[] { "O" };
 	public static final String[] PREFERENCES_DIALOG_KEYS          = new String[] { "meta COMMA", "ctrl COMMA" };
+	public static final String[] LUT_EDITOR_KEYS                  = new String[] { "L" };
 
 	/*
 	 * Command descriptions for all provided commands
@@ -113,6 +115,7 @@ public class BigDataViewerActions extends Actions
 			descriptions.add( GO_TO_BOOKMARK, GO_TO_BOOKMARK_KEYS, "Retrieve a labeled bookmark location." );
 			descriptions.add( GO_TO_BOOKMARK_ROTATION, GO_TO_BOOKMARK_ROTATION_KEYS, "Retrieve a labeled bookmark, set only the orientation." );
 			descriptions.add( PREFERENCES_DIALOG, PREFERENCES_DIALOG_KEYS, "Show the Preferences dialog." );
+			descriptions.add( LUT_EDITOR, LUT_EDITOR_KEYS, "Show the LUT editor dialog." );
 		}
 	}
 
@@ -128,6 +131,7 @@ public class BigDataViewerActions extends Actions
 	public static void install( final Actions actions, final BigDataViewer bdv )
 	{
 		toggleDialogAction( actions, bdv.brightnessDialog, BRIGHTNESS_SETTINGS, BRIGHTNESS_SETTINGS_KEYS );
+		toggleDialogAction( actions, bdv.lutEditorDialog, LUT_EDITOR, LUT_EDITOR_KEYS );
 		toggleDialogAction( actions, bdv.activeSourcesDialog, VISIBILITY_AND_GROUPING, VISIBILITY_AND_GROUPING_KEYS );
 		toggleDialogAction( actions, bdv.helpDialog, SHOW_HELP, SHOW_HELP_KEYS );
 		toggleDialogAction( actions, bdv.cropDialog, CROP, CROP_KEYS );
@@ -213,6 +217,7 @@ public class BigDataViewerActions extends Actions
 		final BigDataViewerActions actions = new BigDataViewerActions( keyProperties );
 
 		actions.dialog( bdv.brightnessDialog );
+		actions.toggleDialogAction( bdv.lutEditorDialog, LUT_EDITOR, LUT_EDITOR_KEYS );
 		actions.dialog( bdv.activeSourcesDialog );
 		actions.dialog( bdv.helpDialog );
 		actions.dialog( bdv.cropDialog );
