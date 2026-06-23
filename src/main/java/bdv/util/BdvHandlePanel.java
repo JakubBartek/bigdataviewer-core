@@ -58,6 +58,7 @@ import bdv.tools.VisibilityAndGroupingDialog;
 import bdv.tools.bookmarks.Bookmarks;
 import bdv.tools.bookmarks.BookmarksEditor;
 import bdv.tools.brightness.BrightnessDialog;
+import bdv.tools.brightness.LutEditorDialog;
 import bdv.tools.brightness.ConverterSetup;
 import bdv.tools.brightness.SetupAssignments;
 import bdv.tools.transformation.ManualTransformationEditor;
@@ -75,6 +76,8 @@ import static bdv.BigDataViewerActions.EXPAND_CARDS_KEYS;
 public class BdvHandlePanel extends BdvHandle
 {
 	private final BrightnessDialog brightnessDialog;
+
+	private final LutEditorDialog lutEditorDialog;
 
 	private final VisibilityAndGroupingDialog activeSourcesDialog;
 
@@ -147,6 +150,7 @@ public class BdvHandlePanel extends BdvHandle
 		bookmarksEditor = new BookmarksEditor( viewer, keybindings, bookmarks );
 
 		brightnessDialog = new BrightnessDialog( dialogOwner, setupAssignments );
+		lutEditorDialog = new LutEditorDialog( dialogOwner, viewer.getConverterSetups(), viewer.state(), () -> viewer.requestRepaint() );
 		activeSourcesDialog = new VisibilityAndGroupingDialog( dialogOwner, viewer.state() );
 
 		appearanceManager.appearance().updateListeners().add( () -> SwingUtilities.getWindowAncestor( viewer ).repaint() );
@@ -159,6 +163,7 @@ public class BdvHandlePanel extends BdvHandle
 		final Actions bdvActions = new Actions( inputTriggerConfig, "bdv" );
 		bdvActions.install( keybindings, "bdv" );
 		BigDataViewerActions.dialog( bdvActions, brightnessDialog );
+		BigDataViewerActions.toggleDialogAction( bdvActions, lutEditorDialog, BigDataViewerActions.LUT_EDITOR, BigDataViewerActions.LUT_EDITOR_KEYS );
 		BigDataViewerActions.dialog( bdvActions, activeSourcesDialog );
 		BigDataViewerActions.bookmarks( bdvActions, bookmarksEditor );
 		BigDataViewerActions.manualTransform( bdvActions, manualTransformationEditor );
@@ -211,6 +216,7 @@ public class BdvHandlePanel extends BdvHandle
 	public void close()
 	{
 		brightnessDialog.dispose();
+		lutEditorDialog.dispose();
 		activeSourcesDialog.dispose();
 		super.close();
 	}
