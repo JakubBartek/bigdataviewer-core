@@ -76,6 +76,15 @@ public class ExampleCircles2D {
         // create SAC around this converter
         // (so that the SAC display will always go through our (by us controlled) converter)
         final SourceAndConverter<UnsignedByteType> sac = createSAC(img, converter, "Random Gray Circles Test");
+
+        // provide our adapter that implements ConverterSetup and is constructed around our LUT editor;
+        // this one here fakes the job and uses BDV's default ConverterSetup, and only because of this
+        // the params 'sac, '0' are required; normally only 'demoLUT' should be needed
+        final ConverterSetup cs = new DemoLutConnectorConverterSetup<>(demoLUT, sac, 0);
+
+        // this only shows an empty BDV frame and then it adds to it our SAC and our ConverterSetup
+        BdvHandleFrame handle = new BdvHandleFrame(Bdv.options().is2D());
+        handle.add(List.of(cs), List.of(sac), 1);
     }
 
     static <T extends RealType<T>>
