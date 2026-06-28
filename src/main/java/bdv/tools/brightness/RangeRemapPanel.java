@@ -28,27 +28,13 @@
  */
 package bdv.tools.brightness;
 
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Cursor;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import java.awt.*;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.util.List;
 
-import javax.swing.BorderFactory;
-import javax.swing.BoxLayout;
-import javax.swing.JButton;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JSpinner;
-import javax.swing.SpinnerNumberModel;
+import javax.swing.*;
 
 /**
  * Interactive panel for editing the range remapping.
@@ -64,7 +50,7 @@ public class RangeRemapPanel extends JPanel
 	private final IntervalBar intervalBar;
 	private int selectedInterval = 0;
 
-	private final JSpinner splitSpinner = new JSpinner( new SpinnerNumberModel( 128, 0, 255, 1 ) );
+	private final JSpinner splitSpinner = new JSpinner( new SpinnerNumberModel( 127, 0, 255, 1 ) );
 
 	private static final Color[] INTERVAL_COLORS = {
 			new Color( 70, 130, 180 ),
@@ -90,7 +76,7 @@ public class RangeRemapPanel extends JPanel
 		add( intervalBar );
 
 		// Controls
-		final JPanel controls = new JPanel( new FlowLayout( FlowLayout.LEFT, 4, 2 ) );
+		final JPanel controls = new JPanel( new FlowLayout( FlowLayout.LEFT, 4, 8 ) );
 
 		final JButton btnSplit = new JButton( "Split" );
 		btnSplit.setToolTipText( "Split selected interval at the given position" );
@@ -100,10 +86,10 @@ public class RangeRemapPanel extends JPanel
 		btnMoveLeft.setToolTipText( "Move selected interval left in the ordering" );
 		final JButton btnMoveRight = new JButton( "\u25B6" );
 		btnMoveRight.setToolTipText( "Move selected interval right in the ordering" );
-		final JButton btnMerge = new JButton( "Merge" );
-		btnMerge.setToolTipText( "Merge selected interval with the next one" );
 		final JButton btnInvert = new JButton( "Invert" );
 		btnInvert.setToolTipText( "Invert selected interval (reverse its direction)" );
+		final JButton btnMerge = new JButton( "Delete" );
+		btnMerge.setToolTipText( "Merge selected interval with the next one" );
 		final JButton btnReset = new JButton( "Reset" );
 		btnReset.setToolTipText( "Reset to single [0, 255] interval" );
 
@@ -273,11 +259,6 @@ public class RangeRemapPanel extends JPanel
 				xPos += blockWidth;
 			}
 
-			// Border
-			g2.setColor( Color.BLACK );
-			g2.setStroke( new BasicStroke( 1 ) );
-			g2.drawRect( 0, 0, w - 1, h - 1 );
-
 			// Selection indicator
 			if ( selectedInterval >= 0 && selectedInterval < intervals.size() )
 			{
@@ -289,6 +270,11 @@ public class RangeRemapPanel extends JPanel
 				g2.setStroke( new BasicStroke( 2 ) );
 				g2.drawRect( selX, 0, selW - 1, h - 1 );
 			}
+
+			// Border
+			g2.setColor( Color.BLACK );
+			g2.setStroke( new BasicStroke( 1 ) );
+			g2.drawRect( 0, 0, w - 1, h - 1 );
 		}
 
 		@Override

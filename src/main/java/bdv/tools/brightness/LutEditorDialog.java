@@ -133,7 +133,7 @@ public class LutEditorDialog extends JDialog
 		// Curve editor canvas
 		final JPanel editorPanel = new JPanel();
 		editorPanel.setLayout( new BoxLayout( editorPanel, BoxLayout.PAGE_AXIS ) );
-		editorPanel.setBorder( BorderFactory.createTitledBorder( "Curve Editor" ) );
+		editorPanel.setBorder( BorderFactory.createTitledBorder( "Editor" ) );
 
 		// Channel selector
 		final JPanel channelPanel = new JPanel( new BorderLayout( 4, 0 ) );
