@@ -30,22 +30,24 @@ package bdv.tools.brightness;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.URL;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.TreeMap;
+import java.util.stream.Stream;
 
-import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
-import javax.swing.ButtonGroup;
-import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JToggleButton;
-import javax.swing.KeyStroke;
+import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 
 import bdv.viewer.ConverterSetups;
@@ -65,6 +67,8 @@ public class LutEditorDialog extends JDialog
 	private final List< SourceAndConverter< ? > > sources = new ArrayList<>();
 
 	private final JComboBox< String > combo;
+	private final JComboBox< String > presetCombo;
+	private final List< String > lutNames = new ArrayList<>();
 	private final JLabel statusLabel;
 	private final CurveEditorPanel curveEditor;
 	private final GradientPreviewPanel gradientPreview;
@@ -84,7 +88,6 @@ public class LutEditorDialog extends JDialog
 		// Top panel: setup selector
 		final JPanel top = new JPanel( new BorderLayout( 4, 0 ) );
 		top.setBorder( BorderFactory.createEmptyBorder( 4, 4, 4, 4 ) );
-		top.add( new JLabel( "Setup:" ), BorderLayout.WEST );
 		combo = new JComboBox<>();
 		top.add( combo, BorderLayout.CENTER );
 		final JButton btnHelp = new JButton( "Help" );
@@ -97,17 +100,34 @@ public class LutEditorDialog extends JDialog
 		mainPanel.setLayout( new BoxLayout( mainPanel, BoxLayout.PAGE_AXIS ) );
 		mainPanel.setBorder( BorderFactory.createEmptyBorder( 4, 4, 4, 4 ) );
 
-		// Presets row
-		final JPanel presets = new JPanel( new GridLayout( 1, 3, 4, 0 ) );
-		final JButton btnGray = new JButton( "Grayscale" );
-		final JButton btnHot = new JButton( "Hot" );
-		final JButton btnInvert = new JButton( "Invert" );
-		presets.add( btnGray );
-		presets.add( btnHot );
-		presets.add( btnInvert );
-		normalizeButtonSizes( btnGray, btnHot, btnInvert );
-		presets.setBorder( BorderFactory.createTitledBorder( "Presets" ) );
-		mainPanel.add( presets );
+		// Presets selector
+		final JPanel presetPanel = new JPanel( new BorderLayout( 4, 0 ) );
+		// presetPanel.setBorder( BorderFactory.createTitledBorder( BorderFactory.createEmptyBorder(), "Presets" ) );
+		presetCombo = new JComboBox<>();
+		discoverLuts();
+		for ( final String name : lutNames )
+			presetCombo.addItem( name );
+
+		// Show Select Preset if no preset is selected
+		presetCombo.setRenderer(new DefaultListCellRenderer() {
+			@Override
+			public Component getListCellRendererComponent(JList<?> list, Object value,
+			                                              int index, boolean isSelected,
+			                                              boolean cellHasFocus) {
+
+				super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+
+				if (index == -1 && value == null) {
+					setText("Select Preset");
+				}
+
+				return this;
+			}
+		});
+		presetCombo.setSelectedIndex(-1);
+
+		presetPanel.add( presetCombo, BorderLayout.CENTER );
+		mainPanel.add( presetPanel );
 		mainPanel.add( Box.createVerticalStrut( 8 ) );
 
 		// Curve editor canvas
@@ -182,17 +202,11 @@ public class LutEditorDialog extends JDialog
 		add( mainPanel, BorderLayout.CENTER );
 
 		// Event listeners
-		btnGray.addActionListener( e ->
+		presetCombo.addActionListener( e ->
 		{
-			applyPreset( Preset.GRAYSCALE );
-		} );
-		btnHot.addActionListener( e ->
-		{
-			applyPreset( Preset.HOT );
-		} );
-		btnInvert.addActionListener( e ->
-		{
-			applyPreset( Preset.INVERT );
+			final int pi = presetCombo.getSelectedIndex();
+			if ( pi >= 0 && pi < lutNames.size() )
+				applyPreset( lutNames.get( pi ) );
 		} );
 
 		btnRGB.addActionListener( e ->
@@ -238,10 +252,7 @@ public class LutEditorDialog extends JDialog
 		setMinimumSize( new Dimension( 500, 500 ) );
 	}
 
-	private enum Preset
-	{GRAYSCALE, HOT, INVERT}
-
-	private void applyPreset( final Preset p )
+	private void applyPreset( final String lutName )
 	{
 		final int idx = combo.getSelectedIndex();
 		if ( idx < 0 || idx >= sources.size() )
@@ -250,26 +261,17 @@ public class LutEditorDialog extends JDialog
 		final Object conv = soc.getConverter();
 		if ( conv instanceof RealLUTConverter )
 		{
-			final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
-			final ColorTable8 ct;
-			switch ( p )
+			final ColorTable8 ct = loadLutResource( lutName );
+			if ( ct == null )
 			{
-				case GRAYSCALE:
-					ct = makeGrayscale();
-					break;
-				case HOT:
-					ct = makeHot();
-					break;
-				case INVERT:
-					ct = makeInvert();
-					break;
-				default:
-					throw new IllegalArgumentException( "Unknown preset: " + p );
+				statusLabel.setText( "Failed to load LUT: " + lutName );
+				return;
 			}
+			final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
 			lutConv.setLUT( ct );
 			lutConv.setRangeRemap( rangeRemapModel );
 			curveEditor.loadColorTable( ct );
-			statusLabel.setText( "Applied " + p.name().toLowerCase() + " LUT." );
+			statusLabel.setText( "Applied " + lutName + " LUT." );
 			if ( repaintAction != null )
 				repaintAction.run();
 		}
@@ -352,7 +354,7 @@ public class LutEditorDialog extends JDialog
 				"LUT Editor help:",
 				"",
 				"Presets:",
-				"- Pick a preset palette to apply it to the selected setup.",
+				"- Select a LUT from the dropdown to apply it to the selected setup.",
 				"",
 				"Curve editor:",
 				"- Choose All / Red / Green / Blue to edit channels.",
@@ -368,65 +370,91 @@ public class LutEditorDialog extends JDialog
 		JOptionPane.showMessageDialog( this, message, "LUT Editor Help", JOptionPane.INFORMATION_MESSAGE );
 	}
 
-	// -- preset color tables ------------------------------------------------
-	private static ColorTable8 makeGrayscale()
-	{
-		final byte[] r = new byte[ 256 ];
-		final byte[] g = new byte[ 256 ];
-		final byte[] b = new byte[ 256 ];
-		for ( int i = 0; i < 256; i++ )
-		{
-			r[ i ] = ( byte ) i;
-			g[ i ] = ( byte ) i;
-			b[ i ] = ( byte ) i;
-		}
-		return new ColorTable8( r, g, b );
-	}
+	// -- LUT loading from resources -----------------------------------------
 
-	private static ColorTable8 makeInvert()
-	{
-		final byte[] r = new byte[ 256 ];
-		final byte[] g = new byte[ 256 ];
-		final byte[] b = new byte[ 256 ];
-		for ( int i = 0; i < 256; i++ )
-		{
-			final int v = 255 - i;
-			r[ i ] = ( byte ) v;
-			g[ i ] = ( byte ) v;
-			b[ i ] = ( byte ) v;
-		}
-		return new ColorTable8( r, g, b );
-	}
+	private static final String LUT_RESOURCE_DIR = "bdv/ui/luts";
 
-	private static ColorTable8 makeHot()
+	/**
+	 * Discover available LUT names from resource files.
+	 */
+	private void discoverLuts()
 	{
-		final byte[] r = new byte[ 256 ];
-		final byte[] g = new byte[ 256 ];
-		final byte[] b = new byte[ 256 ];
-		for ( int i = 0; i < 256; i++ )
+		lutNames.clear();
+		try
 		{
-			int ri, gi, bi;
-			if ( i < 85 )
+			final URL dirUrl = LutEditorDialog.class.getClassLoader().getResource( LUT_RESOURCE_DIR );
+			if ( dirUrl == null )
+				return;
+			final URI uri = dirUrl.toURI();
+			final TreeMap< String, String > sorted = new TreeMap<>( String.CASE_INSENSITIVE_ORDER );
+			if ( "jar".equals( uri.getScheme() ) )
 			{
-				ri = Math.min( 255, 3 * i );
-				gi = 0;
-				bi = 0;
-			} else if ( i < 170 )
-			{
-				ri = 255;
-				gi = Math.min( 255, 3 * ( i - 85 ) );
-				bi = 0;
+				try ( final FileSystem fs = FileSystems.newFileSystem( uri, Collections.emptyMap() );
+				      final Stream< Path > paths = Files.walk( fs.getPath( LUT_RESOURCE_DIR ), 1 ) )
+				{
+					paths.filter( p -> p.toString().endsWith( ".txt" ) )
+							.forEach( p ->
+							{
+								final String fn = p.getFileName().toString();
+								sorted.put( fn.substring( 0, fn.length() - 4 ), fn );
+							} );
+				}
 			} else
 			{
-				ri = 255;
-				gi = 255;
-				bi = Math.min( 255, 3 * ( i - 170 ) );
+				try ( final Stream< Path > paths = Files.walk( Paths.get( uri ), 1 ) )
+				{
+					paths.filter( p -> p.toString().endsWith( ".txt" ) )
+							.forEach( p ->
+							{
+								final String fn = p.getFileName().toString();
+								sorted.put( fn.substring( 0, fn.length() - 4 ), fn );
+							} );
+				}
 			}
-			r[ i ] = ( byte ) ri;
-			g[ i ] = ( byte ) gi;
-			b[ i ] = ( byte ) bi;
+			lutNames.addAll( sorted.keySet() );
+		} catch ( final Exception e )
+		{
+			e.printStackTrace();
 		}
-		return new ColorTable8( r, g, b );
+	}
+
+	/**
+	 * Load a LUT from a resource text file. Each line has 3 space-separated R G B values (0-255).
+	 */
+	private static ColorTable8 loadLutResource( final String lutName )
+	{
+		final String path = LUT_RESOURCE_DIR + "/" + lutName + ".txt";
+		try ( final InputStream is = LutEditorDialog.class.getClassLoader().getResourceAsStream( path ) )
+		{
+			if ( is == null )
+				return null;
+			final BufferedReader reader = new BufferedReader( new InputStreamReader( is ) );
+			final byte[] r = new byte[ 256 ];
+			final byte[] g = new byte[ 256 ];
+			final byte[] b = new byte[ 256 ];
+			int idx = 0;
+			String line;
+			while ( ( line = reader.readLine() ) != null && idx < 256 )
+			{
+				line = line.trim();
+				if ( line.isEmpty() )
+					continue;
+				final String[] parts = line.split( "\\s+" );
+				if ( parts.length < 3 )
+					continue;
+				r[ idx ] = ( byte ) Integer.parseInt( parts[ 0 ] );
+				g[ idx ] = ( byte ) Integer.parseInt( parts[ 1 ] );
+				b[ idx ] = ( byte ) Integer.parseInt( parts[ 2 ] );
+				idx++;
+			}
+			if ( idx < 256 )
+				return null;
+			return new ColorTable8( r, g, b );
+		} catch ( final IOException | NumberFormatException e )
+		{
+			e.printStackTrace();
+			return null;
+		}
 	}
 
 	/**
