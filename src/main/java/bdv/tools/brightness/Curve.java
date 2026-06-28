@@ -207,6 +207,46 @@ public class Curve
 		yValues.add( 255 );
 	}
 
+	/**
+	 * Set the curve from a 256-entry byte array, using as few control points
+	 * as possible by detecting piecewise-linear segments.
+	 */
+	public void setFromLut( final byte[] lut )
+	{
+		xValues.clear();
+		yValues.clear();
+
+		if ( lut == null || lut.length == 0 )
+		{
+			reset();
+			return;
+		}
+
+		// Always add the first point
+		xValues.add( 0.0 );
+		yValues.add( lut[ 0 ] & 0xFF );
+
+		// Walk through and detect slope changes
+		for ( int i = 1; i < 255; i++ )
+		{
+			final int prev = lut[ i - 1 ] & 0xFF;
+			final int cur = lut[ i ] & 0xFF;
+			final int next = lut[ i + 1 ] & 0xFF;
+			// Check if slope changes at this point
+			final int slopeBefore = cur - prev;
+			final int slopeAfter = next - cur;
+			if ( slopeBefore != slopeAfter )
+			{
+				xValues.add( i / 255.0 );
+				yValues.add( cur );
+			}
+		}
+
+		// Always add the last point
+		xValues.add( 1.0 );
+		yValues.add( lut[ 255 ] & 0xFF );
+	}
+
 	private int clamp( final int v )
 	{
 		return Math.max( 0, Math.min( 255, v ) );

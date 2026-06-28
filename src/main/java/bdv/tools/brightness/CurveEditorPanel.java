@@ -118,6 +118,28 @@ public class CurveEditorPanel extends JPanel implements MouseListener, MouseMoti
 	}
 
 	/**
+	 * Load a ColorTable8 into the curves, extracting minimal control points.
+	 */
+	public void loadColorTable( final ColorTable8 ct )
+	{
+		final byte[] r = new byte[ 256 ];
+		final byte[] g = new byte[ 256 ];
+		final byte[] b = new byte[ 256 ];
+		for ( int i = 0; i < 256; i++ )
+		{
+			r[ i ] = ( byte ) ct.get( 0, i );
+			g[ i ] = ( byte ) ct.get( 1, i );
+			b[ i ] = ( byte ) ct.get( 2, i );
+		}
+		curveR.setFromLut( r );
+		curveG.setFromLut( g );
+		curveB.setFromLut( b );
+		draggedPoint = null;
+		repaint();
+		fireChangeListeners();
+	}
+
+	/**
 	 * Reset all curves to linear gradients.
 	 */
 	public void resetCurves()
