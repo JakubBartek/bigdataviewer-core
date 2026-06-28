@@ -27,13 +27,7 @@
  */
 package bdv.tools.brightness;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Frame;
-import java.awt.Graphics;
-import java.awt.GridLayout;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
@@ -50,7 +44,6 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JTabbedPane;
 import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
 import javax.swing.border.EmptyBorder;
@@ -75,7 +68,8 @@ public class LutEditorDialog extends JDialog
 	private final JLabel statusLabel;
 	private final CurveEditorPanel curveEditor;
 	private final GradientPreviewPanel gradientPreview;
-	private final GradientPreviewPanel presetPreview;
+	private final RangeRemapModel rangeRemapModel;
+	private final RangeRemapPanel rangeRemapPanel;
 
 	public LutEditorDialog( final Frame owner, final ConverterSetups converterSetups, final ViewerState viewerState, final Runnable repaintAction )
 	{
@@ -85,11 +79,11 @@ public class LutEditorDialog extends JDialog
 		this.repaintAction = repaintAction;
 
 		setLayout( new BorderLayout() );
-		( ( JPanel ) getContentPane() ).setBorder( new EmptyBorder( 10, 10, 10, 10 ) );
+		( ( JPanel ) getContentPane() ).setBorder( new EmptyBorder( 12, 12, 12, 12 ) );
 
 		// Top panel: setup selector
-		final JPanel top = new JPanel( new BorderLayout( 8, 0 ) );
-		top.setBorder( BorderFactory.createEmptyBorder( 0, 0, 10, 0 ) );
+		final JPanel top = new JPanel( new BorderLayout( 4, 0 ) );
+		top.setBorder( BorderFactory.createEmptyBorder( 4, 4, 4, 4 ) );
 		top.add( new JLabel( "Setup:" ), BorderLayout.WEST );
 		combo = new JComboBox<>();
 		top.add( combo, BorderLayout.CENTER );
@@ -98,17 +92,13 @@ public class LutEditorDialog extends JDialog
 		top.add( btnHelp, BorderLayout.EAST );
 		add( top, BorderLayout.NORTH );
 
-		// Tabbed pane for presets and curve editor
-		final JTabbedPane tabs = new JTabbedPane();
+		// Main content panel
+		final JPanel mainPanel = new JPanel();
+		mainPanel.setLayout( new BoxLayout( mainPanel, BoxLayout.PAGE_AXIS ) );
+		mainPanel.setBorder( BorderFactory.createEmptyBorder( 4, 4, 4, 4 ) );
 
-		// Tab 1: Presets
-		final JPanel presetsPanel = new JPanel( new BorderLayout( 0, 10 ) );
-		presetsPanel.setBorder( BorderFactory.createEmptyBorder( 4, 4, 4, 4 ) );
-
-		final JPanel presetsTop = new JPanel();
-		presetsTop.setLayout( new BoxLayout( presetsTop, BoxLayout.PAGE_AXIS ) );
-
-		final JPanel presets = new JPanel( new GridLayout( 1, 3, 8, 0 ) );
+		// Presets row
+		final JPanel presets = new JPanel( new GridLayout( 1, 3, 4, 0 ) );
 		final JButton btnGray = new JButton( "Grayscale" );
 		final JButton btnHot = new JButton( "Hot" );
 		final JButton btnInvert = new JButton( "Invert" );
@@ -116,39 +106,19 @@ public class LutEditorDialog extends JDialog
 		presets.add( btnHot );
 		presets.add( btnInvert );
 		normalizeButtonSizes( btnGray, btnHot, btnInvert );
-
-		presetsTop.add( presets );
-		presetsTop.add( Box.createVerticalStrut( 8 ) );
-
-		statusLabel = new JLabel( "LUT available for this setup." );
-		statusLabel.setPreferredSize( new Dimension( 360, 20 ) );
-		JPanel statusPanel = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
-		statusPanel.add( statusLabel );
-		presetsTop.add( statusPanel );
-		presetsPanel.add( presetsTop, BorderLayout.NORTH );
-
-		presetPreview = new GradientPreviewPanel();
-		presetPreview.setBorder( BorderFactory.createTitledBorder( "Preset preview" ) );
-		presetsPanel.add( presetPreview, BorderLayout.CENTER );
-
-		tabs.addTab( "Presets", presetsPanel );
-
-		// Tab 2: Curve Editor
-		final JPanel editorPanel = new JPanel( new BorderLayout( 0, 10 ) );
-		editorPanel.setBorder( BorderFactory.createEmptyBorder( 4, 4, 4, 4 ) );
+		presets.setBorder( BorderFactory.createTitledBorder( "Presets" ) );
+		mainPanel.add( presets );
+		mainPanel.add( Box.createVerticalStrut( 8 ) );
 
 		// Curve editor canvas
-		curveEditor = new CurveEditorPanel();
-		curveEditor.setBorder( BorderFactory.createLineBorder( new Color( 100, 100, 100 ) ) );
-		editorPanel.add( curveEditor, BorderLayout.CENTER );
-
-		final JPanel editorControls = new JPanel();
-		editorControls.setLayout( new BoxLayout( editorControls, BoxLayout.PAGE_AXIS ) );
+		final JPanel editorPanel = new JPanel();
+		editorPanel.setLayout( new BoxLayout( editorPanel, BoxLayout.PAGE_AXIS ) );
+		editorPanel.setBorder( BorderFactory.createTitledBorder( "Curve Editor" ) );
 
 		// Channel selector
-		final JPanel channelPanel = new JPanel( new BorderLayout( 8, 0 ) );
+		final JPanel channelPanel = new JPanel( new BorderLayout( 4, 0 ) );
 		channelPanel.add( new JLabel( "Channel:" ), BorderLayout.WEST );
-		final JPanel channelButtons = new JPanel( new GridLayout( 1, 4, 8, 0 ) );
+		final JPanel channelButtons = new JPanel( new GridLayout( 1, 4, 4, 0 ) );
 		final JToggleButton btnRGB = new JToggleButton( "All" );
 		final JToggleButton btnR = new JToggleButton( "Red" );
 		final JToggleButton btnG = new JToggleButton( "Green" );
@@ -165,34 +135,65 @@ public class LutEditorDialog extends JDialog
 		channelButtons.add( btnG );
 		channelButtons.add( btnB );
 		channelPanel.add( channelButtons, BorderLayout.CENTER );
-		editorControls.add( channelPanel );
-		editorControls.add( Box.createVerticalStrut( 8 ) );
+		editorPanel.add( channelPanel );
+		editorPanel.add( Box.createVerticalStrut( 8 ) );
+
+		curveEditor = new CurveEditorPanel();
+		curveEditor.setBorder( BorderFactory.createLineBorder( new Color( 100, 100, 100 ) ) );
+		editorPanel.add( curveEditor );
 
 		// Gradient preview
 		gradientPreview = new GradientPreviewPanel();
-		gradientPreview.setBorder( BorderFactory.createTitledBorder( "Curve preview" ) );
-		editorControls.add( gradientPreview );
-		editorControls.add( Box.createVerticalStrut( 8 ) );
+		gradientPreview.setBorder( BorderFactory.createTitledBorder( BorderFactory.createEmptyBorder(), "Preview" ) );
+		editorPanel.add( gradientPreview );
+
+		statusLabel = new JLabel( "" );
+
+		// Range remap panel
+		rangeRemapModel = new RangeRemapModel();
+		rangeRemapPanel = new RangeRemapPanel( rangeRemapModel );
+		rangeRemapModel.addChangeListener( () ->
+		{
+			statusLabel.setText( rangeRemapModel.splitOutOfRange ? "Out of range" : "" );
+			gradientPreview.update( curveEditor.generateColorTable() );
+		} );
+		editorPanel.add( rangeRemapPanel );
+
+		mainPanel.add( editorPanel );
+		mainPanel.add( Box.createVerticalStrut( 8 ) );
 
 		// Apply and reset buttons
-		final JPanel buttonPanel = new JPanel( new FlowLayout( FlowLayout.RIGHT, 8, 0 ) );
+		final JPanel bottomPanel = new JPanel( new BorderLayout( 4, 0 ) );
+		final JPanel statusPanel = new JPanel( new BorderLayout( 4, 0 ) );
+		statusLabel.setPreferredSize( new Dimension( 150, 20 ) );
+		statusPanel.add( statusLabel );
+
+		final JPanel btnPanel = new JPanel( new GridLayout( 1, 2, 4, 0 ) );
 		final JButton btnApply = new JButton( "Apply" );
 		final JButton btnReset = new JButton( "Reset Curves" );
 		normalizeButtonSizes( btnApply, btnReset );
-		buttonPanel.add( btnApply );
-		buttonPanel.add( btnReset );
-		editorControls.add( buttonPanel );
+		btnPanel.add( btnApply );
+		btnPanel.add( btnReset );
 
-		editorPanel.add( editorControls, BorderLayout.SOUTH );
+		bottomPanel.add( statusPanel, BorderLayout.WEST );
+		bottomPanel.add( btnPanel, BorderLayout.EAST );
+		mainPanel.add( bottomPanel );
 
-		tabs.addTab( "Editor", editorPanel );
-
-		add( tabs, BorderLayout.CENTER );
+		add( mainPanel, BorderLayout.CENTER );
 
 		// Event listeners
-		btnGray.addActionListener( e -> applyPreset( Preset.GRAYSCALE ) );
-		btnHot.addActionListener( e -> applyPreset( Preset.HOT ) );
-		btnInvert.addActionListener( e -> applyPreset( Preset.INVERT ) );
+		btnGray.addActionListener( e ->
+		{
+			applyPreset( Preset.GRAYSCALE );
+		} );
+		btnHot.addActionListener( e ->
+		{
+			applyPreset( Preset.HOT );
+		} );
+		btnInvert.addActionListener( e ->
+		{
+			applyPreset( Preset.INVERT );
+		} );
 
 		btnRGB.addActionListener( e ->
 		{
@@ -232,10 +233,9 @@ public class LutEditorDialog extends JDialog
 
 		rebuildList();
 		gradientPreview.update( curveEditor.generateColorTable() );
-		presetPreview.update( makeGrayscale() );
 
 		pack();
-		setMinimumSize( new Dimension( 500, 430 ) );
+		setMinimumSize( new Dimension( 500, 500 ) );
 	}
 
 	private enum Preset
@@ -267,7 +267,8 @@ public class LutEditorDialog extends JDialog
 					throw new IllegalArgumentException( "Unknown preset: " + p );
 			}
 			lutConv.setLUT( ct );
-			presetPreview.update( ct );
+			lutConv.setRangeRemap( rangeRemapModel );
+			curveEditor.loadColorTable( ct );
 			statusLabel.setText( "Applied " + p.name().toLowerCase() + " LUT." );
 			if ( repaintAction != null )
 				repaintAction.run();
@@ -286,7 +287,8 @@ public class LutEditorDialog extends JDialog
 			final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
 			final ColorTable8 ct = curveEditor.generateColorTable();
 			lutConv.setLUT( ct );
-			statusLabel.setText( "Applied custom curve to setup." );
+			lutConv.setRangeRemap( rangeRemapModel );
+			statusLabel.setText( "Applied custom curve." );
 			if ( repaintAction != null )
 				repaintAction.run();
 		}
@@ -321,7 +323,7 @@ public class LutEditorDialog extends JDialog
 		}
 		final Object conv = sources.get( idx ).getConverter();
 		if ( conv instanceof RealLUTConverter )
-			statusLabel.setText( "LUT available for this setup." );
+			statusLabel.setText( "" );
 		else
 			statusLabel.setText( "Converter does not use a LUT." );
 	}
@@ -349,10 +351,10 @@ public class LutEditorDialog extends JDialog
 		final String message = String.join( "\n",
 				"LUT Editor help:",
 				"",
-				"Presets tab:",
-				"- Pick a preset palette and apply it to the selected setup.",
+				"Presets:",
+				"- Pick a preset palette to apply it to the selected setup.",
 				"",
-				"Editor tab:",
+				"Curve editor:",
 				"- Choose All / Red / Green / Blue to edit channels.",
 				"- Left-click to add or select a control point.",
 				"- Drag a point vertically to adjust the curve.",

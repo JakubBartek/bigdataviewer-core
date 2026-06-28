@@ -47,6 +47,8 @@ public class RealLUTConverter< R extends RealType< R > > extends
 
 	private ColorTable lut = null;
 
+	private RangeRemapModel rangeRemap = null;
+
 	public RealLUTConverter()
 	{
 		super();
@@ -69,10 +71,27 @@ public class RealLUTConverter< R extends RealType< R > > extends
 		this.lut = lut == null ? new ColorTable8() : lut;
 	}
 
+	public RangeRemapModel getRangeRemap()
+	{
+		return rangeRemap;
+	}
+
+	public void setRangeRemap( final RangeRemapModel rangeRemap )
+	{
+		this.rangeRemap = rangeRemap;
+	}
+
 	@Override
 	public void convert( final R input, final ARGBType output )
 	{
-		final double a = input.getRealDouble();
+		double a = input.getRealDouble();
+		if ( rangeRemap != null )
+		{
+			// Normalize to [0, 255], remap, then convert back to original range
+			final double normalized = ( a - min ) / ( max - min ) * 255.0;
+			final int remapped = rangeRemap.remap( ( int ) Math.round( Math.max( 0, Math.min( 255, normalized ) ) ) );
+			a = min + remapped / 255.0 * ( max - min );
+		}
 		final int argb = lut.lookupARGB( min, max, a );
 		output.set( argb );
 	}
