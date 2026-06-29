@@ -364,6 +364,13 @@ public class LutEditorDialog extends JDialog
 				"- Apply commits the current curve to the selected setup.",
 				"- Reset Curves restores the default linear LUT.",
 				"",
+				"Range Remap:",
+				"- To change the mapping of the curve, use the Range Remap panel.",
+				"- Click on an interval to activate it.",
+				"- Then you can split/merge intervals, move, or even invert them.",
+				"- You can change the split point by dragging the split line.",
+				"- The reset button restores the default interval.",
+				"",
 				"Shortcut:",
 				"- Press F1 anywhere in this dialog to open this help." );
 
