@@ -36,6 +36,8 @@ import java.util.List;
 
 import javax.swing.*;
 
+import static java.lang.Math.abs;
+
 /**
  * Interactive panel for editing the range remapping.
  * Displays intervals as colored blocks on a horizontal bar.
@@ -194,6 +196,7 @@ public class RangeRemapPanel extends JPanel
 	private class IntervalBar extends JPanel implements MouseListener, MouseMotionListener
 	{
 		private int dragBoundaryIndex = -1;
+		private int hoverBoundaryIndex = -1;
 
 		IntervalBar()
 		{
@@ -271,6 +274,51 @@ public class RangeRemapPanel extends JPanel
 				g2.drawRect( selX, 0, selW - 1, h - 1 );
 			}
 
+
+			int shownBoundary = dragBoundaryIndex >= 0 ? dragBoundaryIndex : hoverBoundaryIndex;
+
+			if ( shownBoundary >= 0 && shownBoundary < intervals.size() - 1 )
+			{
+				// Find x-position of boundary
+				int boundaryX = 0;
+				for ( int i = 0; i <= shownBoundary; i++ )
+				{
+					boundaryX += Math.max( 1,
+							( int ) Math.round( ( double ) intervals.get( i ).size() / totalSize * w ) );
+				}
+
+				RangeRemapModel.Interval left = intervals.get( shownBoundary );
+				RangeRemapModel.Interval right = intervals.get( shownBoundary + 1 );
+				int boundaryValue = left.isInverted() ? left.low() : left.high();
+				int boundaryValue2 = right.isInverted() ? right.high() : right.low();
+				String text;
+
+				// Check if the boundary is in the middle of the interval
+				if ( abs( boundaryValue - boundaryValue2 ) <= 1 )
+				{
+					text = Integer.toString( boundaryValue );
+				} else
+				{
+					text = "Can't adjust non-adjacent intervals";
+				}
+
+
+				FontMetrics fm = g2.getFontMetrics();
+				int tw = fm.stringWidth( text );
+				int th = fm.getHeight();
+
+				int boxX = boundaryX - tw / 2 - 4;
+				int boxY = 2;
+
+				g2.setColor( new Color( 0, 0, 0 ) );
+				g2.fillRoundRect( boxX, boxY, tw + 8, th + 4, 6, 6 );
+
+				g2.setColor( Color.WHITE );
+				g2.drawRoundRect( boxX, boxY, tw + 8, th + 4, 6, 6 );
+
+				g2.drawString( text, boxX + 4, boxY + fm.getAscent() + 2 );
+			}
+
 			// Border
 			g2.setColor( Color.BLACK );
 			g2.setStroke( new BasicStroke( 1 ) );
@@ -294,7 +342,7 @@ public class RangeRemapPanel extends JPanel
 			{
 				final int blockWidth = Math.max( 1, ( int ) Math.round( ( double ) intervals.get( i ).size() / totalSize * w ) );
 				xPos += blockWidth;
-				if ( i < intervals.size() - 1 && Math.abs( e.getX() - xPos ) < 5 )
+				if ( i < intervals.size() - 1 && abs( e.getX() - xPos ) < 5 )
 				{
 					dragBoundaryIndex = i;
 					return;
@@ -371,13 +419,13 @@ public class RangeRemapPanel extends JPanel
 				{
 					newIntervals.set( dragBoundaryIndex, new RangeRemapModel.Interval( combinedLow, newLeftEnd ) );
 					newIntervals.set( dragBoundaryIndex + 1, new RangeRemapModel.Interval( newRightStart, combinedHigh ) );
-				}
-				else
+				} else
 				{
 					newIntervals.set( dragBoundaryIndex, new RangeRemapModel.Interval( newRightStart, combinedHigh ) );
 					newIntervals.set( dragBoundaryIndex + 1, new RangeRemapModel.Interval( combinedLow, newLeftEnd ) );
 				}
 				model.setIntervals( newIntervals );
+				repaint();
 			}
 		}
 
@@ -390,25 +438,33 @@ public class RangeRemapPanel extends JPanel
 		@Override
 		public void mouseMoved( final MouseEvent e )
 		{
-			// Change cursor near boundaries
 			final int w = getWidth();
 			final List< RangeRemapModel.Interval > intervals = model.getIntervals();
+
 			int totalSize = 0;
 			for ( final RangeRemapModel.Interval iv : intervals )
 				totalSize += iv.size();
 
+			hoverBoundaryIndex = -1;
+
 			int xPos = 0;
 			for ( int i = 0; i < intervals.size() - 1; i++ )
 			{
-				final int blockWidth = Math.max( 1, ( int ) Math.round( ( double ) intervals.get( i ).size() / totalSize * w ) );
+				final int blockWidth = Math.max( 1,
+						( int ) Math.round( ( double ) intervals.get( i ).size() / totalSize * w ) );
 				xPos += blockWidth;
-				if ( Math.abs( e.getX() - xPos ) < 5 )
+
+				if ( abs( e.getX() - xPos ) < 5 )
 				{
+					hoverBoundaryIndex = i;
 					setCursor( Cursor.getPredefinedCursor( Cursor.E_RESIZE_CURSOR ) );
+					repaint();
 					return;
 				}
 			}
+
 			setCursor( Cursor.getDefaultCursor() );
+			repaint();
 		}
 
 		@Override
@@ -422,9 +478,11 @@ public class RangeRemapPanel extends JPanel
 		}
 
 		@Override
-		public void mouseExited( final MouseEvent e )
+		public void mouseExited( MouseEvent e )
 		{
+			hoverBoundaryIndex = -1;
 			setCursor( Cursor.getDefaultCursor() );
+			repaint();
 		}
 
 		private static final long serialVersionUID = 1L;
