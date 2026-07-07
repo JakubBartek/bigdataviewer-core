@@ -32,6 +32,7 @@ import java.awt.*;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.*;
@@ -198,6 +199,9 @@ public class RangeRemapPanel extends JPanel
 		private int dragBoundaryIndex = -1;
 		private int hoverBoundaryIndex = -1;
 
+		private int dragStartMouseX = 0;
+		private int dragStartLowerCount = 0;
+
 		IntervalBar()
 		{
 			addMouseListener( this );
@@ -345,6 +349,11 @@ public class RangeRemapPanel extends JPanel
 				if ( i < intervals.size() - 1 && abs( e.getX() - xPos ) < 5 )
 				{
 					dragBoundaryIndex = i;
+					final RangeRemapModel.Interval left = intervals.get( dragBoundaryIndex );
+					final RangeRemapModel.Interval right = intervals.get( dragBoundaryIndex + 1 );
+					final boolean leftIsLower = left.low() <= right.low();
+					dragStartLowerCount = leftIsLower ? left.size() : right.size();
+					dragStartMouseX = e.getX();
 					return;
 				}
 			}
@@ -378,52 +387,60 @@ public class RangeRemapPanel extends JPanel
 
 				final RangeRemapModel.Interval left = intervals.get( dragBoundaryIndex );
 				final RangeRemapModel.Interval right = intervals.get( dragBoundaryIndex + 1 );
+				int boundaryValueLeft = left.isInverted() ? left.low() : left.high();
+				int boundaryValueRight = right.isInverted() ? right.high() : right.low();
 
-				// Only allow dragging between value-adjacent intervals (their ranges touch)
-				final boolean adjacent = ( left.high() + 1 == right.low() ) || ( right.high() + 1 == left.low() );
-				if ( !adjacent )
-					return;
+				// Check if the boundary is in the middle of the interval
+				if ( abs( boundaryValueLeft - boundaryValueRight ) > 1 ) return;
 
-				// Don't allow dragging inverted intervals (ambiguous resize semantics)
-				if ( left.isInverted() || right.isInverted() )
-					return;
-
-				// Calculate new boundary position in [0, 255] space
-				final double frac = ( double ) e.getX() / w;
 				int totalSize = 0;
 				for ( final RangeRemapModel.Interval iv : intervals )
 					totalSize += iv.size();
 
-				// Compute the absolute position in the combined range
-				int posBeforeLeft = 0;
-				for ( int i = 0; i < dragBoundaryIndex; i++ )
-					posBeforeLeft += intervals.get( i ).size();
-
 				final int combinedLow = Math.min( left.low(), right.low() );
 				final int combinedHigh = Math.max( left.high(), right.high() );
 
-				final int newBoundaryPos = ( int ) Math.round( frac * totalSize ) - posBeforeLeft;
-				if ( newBoundaryPos < 1 || newBoundaryPos >= left.size() + right.size() )
+				final int combinedSize = left.size() + right.size();
+				final int deltaPixels = e.getX() - dragStartMouseX;
+				final int deltaNumeric = ( int ) Math.round( ( double ) deltaPixels * totalSize / ( double ) w );
+
+				final int newBoundaryPos = ( left.low() <= right.low() )
+						? ( dragStartLowerCount + deltaNumeric )
+						: ( dragStartLowerCount - deltaNumeric );
+
+				if ( newBoundaryPos < 1 || newBoundaryPos >= combinedSize )
 					return;
 
-				// Determine new split point in value space
-				final int newLeftEnd = combinedLow + newBoundaryPos - 1;
-				final int newRightStart = newLeftEnd + 1;
+				final ArrayList< RangeRemapModel.Interval > newIntervals = new ArrayList<>( intervals );
 
-				if ( newLeftEnd < combinedLow || newRightStart > combinedHigh )
-					return;
+				final boolean leftIsLower = left.low() <= right.low();
 
-				// Preserve which interval owns which part of the value range
-				final java.util.ArrayList< RangeRemapModel.Interval > newIntervals = new java.util.ArrayList<>( intervals );
-				if ( left.low() < right.low() )
+				int newLeftLow, newLeftHigh, newRightLow2, newRightHigh;
+				if ( leftIsLower )
 				{
-					newIntervals.set( dragBoundaryIndex, new RangeRemapModel.Interval( combinedLow, newLeftEnd ) );
-					newIntervals.set( dragBoundaryIndex + 1, new RangeRemapModel.Interval( newRightStart, combinedHigh ) );
+					newLeftLow = combinedLow;
+					newLeftHigh = combinedLow + newBoundaryPos - 1;
+					newRightLow2 = newLeftHigh + 1;
+					newRightHigh = combinedHigh;
 				} else
 				{
-					newIntervals.set( dragBoundaryIndex, new RangeRemapModel.Interval( newRightStart, combinedHigh ) );
-					newIntervals.set( dragBoundaryIndex + 1, new RangeRemapModel.Interval( combinedLow, newLeftEnd ) );
+					newRightLow2 = combinedLow;
+					newRightHigh = combinedLow + newBoundaryPos - 1;
+					newLeftLow = newRightHigh + 1;
+					newLeftHigh = combinedHigh;
 				}
+
+				final RangeRemapModel.Interval newLeft = left.isInverted()
+						? new RangeRemapModel.Interval( newLeftHigh, newLeftLow )
+						: new RangeRemapModel.Interval( newLeftLow, newLeftHigh );
+
+				final RangeRemapModel.Interval newRight = right.isInverted()
+						? new RangeRemapModel.Interval( newRightHigh, newRightLow2 )
+						: new RangeRemapModel.Interval( newRightLow2, newRightHigh );
+
+				newIntervals.set( dragBoundaryIndex, newLeft );
+				newIntervals.set( dragBoundaryIndex + 1, newRight );
+
 				model.setIntervals( newIntervals );
 				repaint();
 			}
@@ -433,6 +450,8 @@ public class RangeRemapPanel extends JPanel
 		public void mouseReleased( final MouseEvent e )
 		{
 			dragBoundaryIndex = -1;
+			dragStartMouseX = 0;
+			dragStartLowerCount = 0;
 		}
 
 		@Override
