@@ -67,7 +67,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	private static final int RIGHT_MARGIN = 40;
 
-	private static final int TOP_MARGIN = 24;
+	private static final int TOP_MARGIN = 10;
 
 	private static final int LABEL_HEIGHT = 26;
 
@@ -85,7 +85,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	private static final Color POINT_BORDER = new Color( 230, 160, 20 );
 
-	private static final int[] OUTPUT_TICKS = { 0, 64, 128, 192, 255 };
+	private static final double[] OUTPUT_TICK_FRACTIONS = { 0.0, 0.25, 0.5, 0.75, 1.0 };
 
 	private final MappingModel model;
 
@@ -321,7 +321,6 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		drawCurve( g2 );
 		drawControlPoints( g2 );
 		drawOutputColorBar( g2 );
-		drawColorCountLabel( g2 );
 		drawTransformColorBar( g2 );
 	}
 
@@ -459,7 +458,9 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	 * Vertical color bar along the y (output value) axis, to the left of the
 	 * curve editor. It is the identity ramp through the palette (LUT index ==
 	 * output value) and does not depend on the mapping curve, so it always
-	 * looks the same for a given palette.
+	 * looks the same for a given palette. Tick labels show the actual
+	 * palette color index (0 to {@code palette.getLength() - 1}), the scale
+	 * that matters to the user, rather than the internal 0-255 LUT index.
 	 */
 	private void drawOutputColorBar( final Graphics2D g )
 	{
@@ -481,25 +482,13 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 		g.setColor( Color.DARK_GRAY );
 		final FontMetrics fm = g.getFontMetrics();
-		for ( final int v : OUTPUT_TICKS )
+		final int lastColor = palette.getLength() - 1;
+		for ( final double frac : OUTPUT_TICK_FRACTIONS )
 		{
-			final String text = Integer.toString( v );
-			final int py = pixelY( v );
+			final String text = Integer.toString( ( int ) Math.round( frac * lastColor ) );
+			final int py = pixelY( ( int ) Math.round( frac * 255.0 ) );
 			g.drawString( text, barLeft - fm.stringWidth( text ) - 6, py + fm.getAscent() / 2 - 1 );
 		}
-	}
-
-	/**
-	 * Caption above the output color bar showing the palette's actual number
-	 * of colors. This is what {@link RangeMode#CYCLIC} uses as its wrap
-	 * period, so it explains what determines the cycling behavior.
-	 */
-	private void drawColorCountLabel( final Graphics2D g )
-	{
-		final int n = palette.getLength();
-		final String text = n + ( n == 1 ? " color" : " colors" );
-		g.setColor( Color.DARK_GRAY );
-		g.drawString( text, LABEL_WIDTH, plotTop() - 6 );
 	}
 
 	/**
