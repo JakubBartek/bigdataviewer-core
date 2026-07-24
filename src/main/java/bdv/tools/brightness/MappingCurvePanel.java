@@ -56,8 +56,9 @@ import net.imglib2.display.ColorTable8;
  * a horizontal one below, along the x (input value) axis, which shows the
  * color actually produced after passing each input value through the curve.
  * <p>
- * Left-click adds or drags a control point of the underlying {@link Curve};
- * right-click removes one.
+ * Control points are only shown, and editable, in edit mode (see
+ * {@link #setEditMode(boolean)}); left-click adds or drags a control point of
+ * the underlying {@link Curve}, right-click removes one.
  */
 public class MappingCurvePanel extends JPanel implements MouseListener, MouseMotionListener
 {
@@ -96,6 +97,13 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	private ColorTable palette = new ColorTable8();
 
 	private Integer draggedPoint = null;
+
+	/**
+	 * Whether curve control points are shown and editable. Off by default,
+	 * since most of the time the curve is left at its preset shape and only
+	 * the palette/range settings are adjusted.
+	 */
+	private boolean editMode = false;
 
 	private final JTextField minField = new JTextField();
 
@@ -217,6 +225,18 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		repaint();
 	}
 
+	/**
+	 * Set whether curve control points are shown and can be added, dragged, or
+	 * removed. When {@code false}, the curve is still drawn and the range
+	 * fields still work, but the control points themselves are hidden and
+	 * inert.
+	 */
+	public void setEditMode( final boolean editMode )
+	{
+		this.editMode = editMode;
+		repaint();
+	}
+
 	private int plotLeft()
 	{
 		return LABEL_WIDTH + COLORBAR_WIDTH + COLORBAR_GAP;
@@ -319,7 +339,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 		drawGrid( g2 );
 		drawCurve( g2 );
-		drawControlPoints( g2 );
+		if ( editMode )
+			drawControlPoints( g2 );
 		drawOutputColorBar( g2 );
 		drawTransformColorBar( g2 );
 	}
@@ -547,6 +568,9 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	@Override
 	public void mousePressed( final MouseEvent e )
 	{
+		if ( !editMode )
+			return;
+
 		final Curve curve = model.getCurve();
 		// Convert the click through the raw input value so that, in Cyclic
 		// mode, clicking any repetition of the curve correctly hits/creates
@@ -580,7 +604,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	@Override
 	public void mouseDragged( final MouseEvent e )
 	{
-		if ( draggedPoint != null && draggedPoint >= 0 )
+		if ( editMode && draggedPoint != null && draggedPoint >= 0 )
 		{
 			model.getCurve().setPoint( draggedPoint, toValueY( e.getY() ) );
 			model.notifyCurveEdited();

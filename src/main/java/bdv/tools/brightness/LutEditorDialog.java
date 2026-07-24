@@ -229,6 +229,9 @@ public class LutEditorDialog extends JDialog
 		final JButton btnHelp = new JButton( "Help" );
 		btnHelp.setFocusable( false );
 		leftBottom.add( btnHelp );
+		final JToggleButton btnEditCurve = new JToggleButton( "Edit Curve" );
+		btnEditCurve.setFocusable( false );
+		leftBottom.add( btnEditCurve );
 		leftBottom.add( statusLabel );
 		bottomPanel.add( leftBottom, BorderLayout.WEST );
 
@@ -312,6 +315,8 @@ public class LutEditorDialog extends JDialog
 			onSourceChanged();
 			setVisible( false );
 		} );
+
+		btnEditCurve.addActionListener( e -> mappingCurvePanel.setEditMode( btnEditCurve.isSelected() ) );
 
 		btnHelp.addActionListener( e -> showHelp() );
 		getRootPane().registerKeyboardAction( e -> showHelp(), KeyStroke.getKeyStroke( KeyEvent.VK_F1, 0 ), JComponent.WHEN_IN_FOCUSED_WINDOW );
