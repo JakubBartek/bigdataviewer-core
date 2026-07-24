@@ -195,6 +195,88 @@ public class Curve
 	}
 
 	/**
+	 * Replace all control points with the given x/y arrays. The arrays must
+	 * be sorted by ascending x and are not copied defensively.
+	 */
+	public void setPoints( final double[] xs, final int[] ys )
+	{
+		xValues.clear();
+		yValues.clear();
+		for ( int i = 0; i < xs.length; i++ )
+		{
+			xValues.add( xs[ i ] );
+			yValues.add( clamp( ys[ i ] ) );
+		}
+	}
+
+	/**
+	 * Get a copy of the control points' x values, suitable for passing to
+	 * {@link #setPoints(double[], int[])} on another {@code Curve}.
+	 */
+	public double[] xsArray()
+	{
+		final double[] xs = new double[ xValues.size() ];
+		for ( int i = 0; i < xs.length; i++ )
+			xs[ i ] = xValues.get( i );
+		return xs;
+	}
+
+	/**
+	 * Get a copy of the control points' y values, suitable for passing to
+	 * {@link #setPoints(double[], int[])} on another {@code Curve}.
+	 */
+	public int[] ysArray()
+	{
+		final int[] ys = new int[ yValues.size() ];
+		for ( int i = 0; i < ys.length; i++ )
+			ys[ i ] = yValues.get( i );
+		return ys;
+	}
+
+	/**
+	 * Evaluate the curve at a normalized input position [0, 1] using the
+	 * given {@link ValueMatching} strategy. Returns a value in [0, 255].
+	 */
+	public int evaluate( final double x, final ValueMatching matching )
+	{
+		if ( matching == ValueMatching.INTERPOLATE )
+			return evaluate( x );
+		return yValues.get( stepIndex( x, matching ) );
+	}
+
+	/**
+	 * Find the control point used for step (non-interpolated) evaluation.
+	 * {@link ValueMatching#TRUNCATE} holds the value of the last control
+	 * point at or before {@code x}; {@link ValueMatching#ROUND} uses whichever
+	 * control point is nearest to {@code x} on the input axis.
+	 */
+	private int stepIndex( final double x, final ValueMatching matching )
+	{
+		if ( matching == ValueMatching.TRUNCATE )
+		{
+			int idx = 0;
+			for ( int i = 0; i < xValues.size(); i++ )
+				if ( xValues.get( i ) <= x + 1e-9 )
+					idx = i;
+			return idx;
+		}
+
+		// ROUND: nearest control point
+		int bestIdx = 0;
+		double bestDist = Double.MAX_VALUE;
+		for ( int i = 0; i < xValues.size(); i++ )
+		{
+			final double dist = Math.abs( xValues.get( i ) - x );
+			if ( dist < bestDist )
+			{
+				bestDist = dist;
+				bestIdx = i;
+			}
+		}
+		return bestIdx;
+	}
+
+	/**
 	 * Reset the curve to a linear gradient (identity mapping).
 	 */
 	public void reset()
@@ -205,46 +287,6 @@ public class Curve
 		yValues.add( 0 );
 		xValues.add( 1.0 );
 		yValues.add( 255 );
-	}
-
-	/**
-	 * Set the curve from a 256-entry byte array, using as few control points
-	 * as possible by detecting piecewise-linear segments.
-	 */
-	public void setFromLut( final byte[] lut )
-	{
-		xValues.clear();
-		yValues.clear();
-
-		if ( lut == null || lut.length == 0 )
-		{
-			reset();
-			return;
-		}
-
-		// Always add the first point
-		xValues.add( 0.0 );
-		yValues.add( lut[ 0 ] & 0xFF );
-
-		// Walk through and detect slope changes
-		for ( int i = 1; i < 255; i++ )
-		{
-			final int prev = lut[ i - 1 ] & 0xFF;
-			final int cur = lut[ i ] & 0xFF;
-			final int next = lut[ i + 1 ] & 0xFF;
-			// Check if slope changes at this point
-			final int slopeBefore = cur - prev;
-			final int slopeAfter = next - cur;
-			if ( slopeBefore != slopeAfter )
-			{
-				xValues.add( i / 255.0 );
-				yValues.add( cur );
-			}
-		}
-
-		// Always add the last point
-		xValues.add( 1.0 );
-		yValues.add( lut[ 255 ] & 0xFF );
 	}
 
 	private int clamp( final int v )

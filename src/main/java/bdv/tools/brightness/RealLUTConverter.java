@@ -38,8 +38,10 @@ import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.RealType;
 
 /**
- * RealLUTConverter contains a {@link ColorTable8}, through which samples are
- * filtered. Input values are interpreted as indices into the color table.
+ * RealLUTConverter contains a {@link ColorTable} (typically a
+ * {@link ColorTable8} or a {@link LutPalette}), through which samples are
+ * filtered. Input values are interpreted as indices into the color table,
+ * optionally reshaped first by a {@link MappingModel}.
  */
 public class RealLUTConverter< R extends RealType< R > > extends
 		AbstractLinearRange implements Converter< R, ARGBType >, ColorConverter
@@ -47,7 +49,7 @@ public class RealLUTConverter< R extends RealType< R > > extends
 
 	private ColorTable lut = null;
 
-	private RangeRemapModel rangeRemap = null;
+	private MappingModel mapping = null;
 
 	public RealLUTConverter()
 	{
@@ -71,28 +73,27 @@ public class RealLUTConverter< R extends RealType< R > > extends
 		this.lut = lut == null ? new ColorTable8() : lut;
 	}
 
-	public RangeRemapModel getRangeRemap()
+	public MappingModel getMapping()
 	{
-		return rangeRemap;
+		return mapping;
 	}
 
-	public void setRangeRemap( final RangeRemapModel rangeRemap )
+	public void setMapping( final MappingModel mapping )
 	{
-		this.rangeRemap = rangeRemap;
+		this.mapping = mapping;
 	}
 
 	@Override
 	public void convert( final R input, final ARGBType output )
 	{
-		double a = input.getRealDouble();
-		if ( rangeRemap != null )
-		{
-			// Normalize to [0, 255], remap, then convert back to original range
-			final double normalized = ( a - min ) / ( max - min ) * 255.0;
-			final int remapped = rangeRemap.remap( ( int ) Math.round( Math.max( 0, Math.min( 255, normalized ) ) ) );
-			a = min + remapped / 255.0 * ( max - min );
-		}
-		final int argb = lut.lookupARGB( min, max, a );
+		final double a = input.getRealDouble();
+		final int argb;
+		if ( mapping != null && mapping.isBackgroundValue( a, min ) )
+			argb = mapping.getBackgroundColor();
+		else if ( mapping != null )
+			argb = LutPalette.lookupARGB( lut, 0, 255, mapping.mapToLutIndex( a, min, max, lut.getLength() ), mapping.getValueMatching() );
+		else
+			argb = lut.lookupARGB( min, max, a );
 		output.set( argb );
 	}
 

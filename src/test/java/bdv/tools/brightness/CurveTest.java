@@ -20,7 +20,7 @@
  * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
  * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
  * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, AND TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  * #L%
@@ -30,12 +30,10 @@ package bdv.tools.brightness;
 import org.junit.Assert;
 import org.junit.Test;
 
-import net.imglib2.display.ColorTable8;
-
 /**
- * Test cases for Curve and CurveEditorPanel.
+ * Test cases for {@link Curve}.
  */
-public class CurveEditorTest
+public class CurveTest
 {
 	@Test
 	public void testCurveInitialization()
@@ -164,71 +162,6 @@ public class CurveEditorTest
 	}
 
 	@Test
-	public void testCurveEditorPanel()
-	{
-		final CurveEditorPanel editor = new CurveEditorPanel();
-
-		// Default channel is RGB
-		Assert.assertEquals( CurveEditorPanel.Channel.RGB, editor.getChannel() );
-
-		// Change channel
-		editor.setChannel( CurveEditorPanel.Channel.R );
-		Assert.assertEquals( CurveEditorPanel.Channel.R, editor.getChannel() );
-
-		// Generate color table
-		final ColorTable8 ct = editor.generateColorTable();
-		Assert.assertNotNull( ct );
-	}
-
-	@Test
-	public void testColorTableGeneration()
-	{
-		final CurveEditorPanel editor = new CurveEditorPanel();
-
-		// Generate color table from default curves
-		final ColorTable8 ct = editor.generateColorTable();
-
-		// Check that it's a valid color table with 256 entries
-		for ( int i = 0; i < 256; i++ )
-		{
-			final int argb = ct.lookupARGB( 0, 255, i );
-			// Should be a valid ARGB value (check that it's not null/invalid)
-			// Extract individual channels
-			final int a = ( argb >> 24 ) & 0xFF;
-			final int r = ( argb >> 16 ) & 0xFF;
-			final int g = ( argb >> 8 ) & 0xFF;
-			final int b = argb & 0xFF;
-			// All channels should be valid bytes
-			Assert.assertTrue( r >= 0 && r <= 255 );
-			Assert.assertTrue( g >= 0 && g <= 255 );
-			Assert.assertTrue( b >= 0 && b <= 255 );
-		}
-	}
-
-	@Test
-	public void testInvertCurve()
-	{
-		final CurveEditorPanel editor = new CurveEditorPanel();
-		editor.setChannel( CurveEditorPanel.Channel.RGB );
-
-		// Invert: add a point at (0.5, 0) to create an inverse relationship
-		editor.resetCurves();
-		// The curve should now start from scratch, let's just verify reset works
-		final ColorTable8 ct1 = editor.generateColorTable();
-
-		// Verify we can generate color tables
-		Assert.assertNotNull( ct1 );
-
-		// At normalized value 0, should map close to 0
-		final int val0 = ct1.lookupARGB( 0, 255, 0 ) & 0xFF;
-		Assert.assertEquals( 0, val0 );
-
-		// At normalized value 255, should map close to 255
-		final int val255 = ( ct1.lookupARGB( 0, 255, 255 ) ) & 0xFF;
-		Assert.assertEquals( 255, val255 );
-	}
-
-	@Test
 	public void testSetPoint()
 	{
 		final Curve curve = new Curve();
@@ -257,5 +190,72 @@ public class CurveEditorTest
 			final int actual = curve.evaluate( positions[ i ] );
 			Assert.assertEquals( "At position " + positions[ i ], expected[ i ], actual, 1 );
 		}
+	}
+
+	@Test
+	public void testSetPoints()
+	{
+		final Curve curve = new Curve();
+		curve.setPoints( new double[] { 0.0, 0.5, 1.0 }, new int[] { 0, 300, -50 } );
+
+		Assert.assertEquals( 3, curve.getPointCount() );
+		Assert.assertEquals( 0, curve.getY( 0 ) );
+		// values are clamped to [0, 255]
+		Assert.assertEquals( 255, curve.getY( 1 ) );
+		Assert.assertEquals( 0, curve.getY( 2 ) );
+	}
+
+	@Test
+	public void testXsArrayYsArrayRoundtrip()
+	{
+		final Curve curve = new Curve();
+		curve.addPoint( 0.25, 64 );
+		curve.addPoint( 0.75, 192 );
+
+		final Curve copy = new Curve();
+		copy.setPoints( curve.xsArray(), curve.ysArray() );
+
+		Assert.assertEquals( curve.getPointCount(), copy.getPointCount() );
+		for ( int i = 0; i < curve.getPointCount(); i++ )
+		{
+			Assert.assertEquals( curve.getX( i ), copy.getX( i ), 1e-9 );
+			Assert.assertEquals( curve.getY( i ), copy.getY( i ) );
+		}
+	}
+
+	@Test
+	public void testEvaluateInterpolate()
+	{
+		final Curve curve = new Curve();
+		curve.addPoint( 0.5, 200 );
+
+		Assert.assertEquals( curve.evaluate( 0.25 ), curve.evaluate( 0.25, ValueMatching.INTERPOLATE ) );
+	}
+
+	@Test
+	public void testEvaluateTruncate()
+	{
+		final Curve curve = new Curve();
+		curve.setPoints( new double[] { 0.0, 0.5, 1.0 }, new int[] { 0, 100, 255 } );
+
+		// Truncate holds the value of the last control point at or before x
+		Assert.assertEquals( 0, curve.evaluate( 0.0, ValueMatching.TRUNCATE ) );
+		Assert.assertEquals( 0, curve.evaluate( 0.49, ValueMatching.TRUNCATE ) );
+		Assert.assertEquals( 100, curve.evaluate( 0.5, ValueMatching.TRUNCATE ) );
+		Assert.assertEquals( 100, curve.evaluate( 0.99, ValueMatching.TRUNCATE ) );
+		Assert.assertEquals( 255, curve.evaluate( 1.0, ValueMatching.TRUNCATE ) );
+	}
+
+	@Test
+	public void testEvaluateRound()
+	{
+		final Curve curve = new Curve();
+		curve.setPoints( new double[] { 0.0, 0.5, 1.0 }, new int[] { 0, 100, 255 } );
+
+		// Round picks whichever control point is nearest on the input axis
+		Assert.assertEquals( 0, curve.evaluate( 0.2, ValueMatching.ROUND ) );
+		Assert.assertEquals( 100, curve.evaluate( 0.3, ValueMatching.ROUND ) );
+		Assert.assertEquals( 100, curve.evaluate( 0.7, ValueMatching.ROUND ) );
+		Assert.assertEquals( 255, curve.evaluate( 0.8, ValueMatching.ROUND ) );
 	}
 }

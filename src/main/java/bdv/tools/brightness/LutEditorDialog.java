@@ -28,7 +28,7 @@
 package bdv.tools.brightness;
 
 import java.awt.*;
-import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -43,6 +43,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.stream.Stream;
@@ -53,10 +54,18 @@ import javax.swing.border.EmptyBorder;
 import bdv.viewer.ConverterSetups;
 import bdv.viewer.SourceAndConverter;
 import bdv.viewer.ViewerState;
+import net.imglib2.display.ColorTable;
 import net.imglib2.display.ColorTable8;
 
 /**
- * A LUT editor dialog that allows applying predefined LUTs or interactively editing curves
+ * A LUT editor dialog. It separates two independent concerns:
+ * <ul>
+ * <li><b>Data</b>: which source/setup is being edited, and which color
+ * palette (LUT) is used to render it.</li>
+ * <li><b>Mapping</b>: how a raw source value is turned into an index into
+ * that palette, via a user-editable curve over the source's display
+ * range.</li>
+ * </ul>
  */
 public class LutEditorDialog extends JDialog
 {
@@ -70,10 +79,27 @@ public class LutEditorDialog extends JDialog
 	private final JComboBox< String > presetCombo;
 	private final List< String > lutNames = new ArrayList<>();
 	private final JLabel statusLabel;
-	private final CurveEditorPanel curveEditor;
-	private final GradientPreviewPanel gradientPreview;
-	private final RangeRemapModel rangeRemapModel;
-	private final RangeRemapPanel rangeRemapPanel;
+
+	private final GradientPreviewPanel paletteSwatch;
+	private final MappingCurvePanel mappingCurvePanel;
+
+	private final JComboBox< ValueMatching > valueMatchingCombo;
+	private final JRadioButton rbFit;
+	private final JRadioButton rbCyclic;
+	private final JCheckBox chkTreatMinAsBackground;
+	private final JButton backgroundColorButton;
+	private final JComboBox< MappingPreset > mappingPresetCombo;
+
+	/** The palette and mapping currently being edited (not yet applied until "Apply" is pressed). */
+	private ColorTable currentPalette = new ColorTable8();
+	private final MappingModel mappingModel = new MappingModel();
+
+	/** The input value range currently being edited (not yet applied until "Apply" is pressed). */
+	private double editedRangeMin = 0;
+	private double editedRangeMax = 255;
+
+	/** Guards against control listeners firing while we are programmatically syncing them. */
+	private boolean loadingControls = false;
 
 	public LutEditorDialog( final Frame owner, final ConverterSetups converterSetups, final ViewerState viewerState, final Runnable repaintAction )
 	{
@@ -85,215 +111,324 @@ public class LutEditorDialog extends JDialog
 		setLayout( new BorderLayout() );
 		( ( JPanel ) getContentPane() ).setBorder( new EmptyBorder( 12, 12, 12, 12 ) );
 
-		// Top panel: setup selector
-		final JPanel top = new JPanel( new BorderLayout( 4, 0 ) );
-		top.setBorder( BorderFactory.createEmptyBorder( 4, 4, 4, 4 ) );
+		// -- Data panel: source + color palette -----------------------------
 		combo = new JComboBox<>();
-		top.add( combo, BorderLayout.CENTER );
-		final JButton btnHelp = new JButton( "Help" );
-		btnHelp.setFocusable( false );
-		top.add( btnHelp, BorderLayout.EAST );
-		add( top, BorderLayout.NORTH );
 
-		// Main content panel
-		final JPanel mainPanel = new JPanel();
-		mainPanel.setLayout( new BoxLayout( mainPanel, BoxLayout.PAGE_AXIS ) );
-		mainPanel.setBorder( BorderFactory.createEmptyBorder( 4, 4, 4, 4 ) );
-
-		// Presets selector
-		final JPanel presetPanel = new JPanel( new BorderLayout( 4, 0 ) );
-		// presetPanel.setBorder( BorderFactory.createTitledBorder( BorderFactory.createEmptyBorder(), "Presets" ) );
 		presetCombo = new JComboBox<>();
 		discoverLuts();
 		for ( final String name : lutNames )
 			presetCombo.addItem( name );
-
-		// Show Select Preset if no preset is selected
-		presetCombo.setRenderer(new DefaultListCellRenderer() {
+		presetCombo.setRenderer( new DefaultListCellRenderer()
+		{
 			@Override
-			public Component getListCellRendererComponent(JList<?> list, Object value,
-			                                              int index, boolean isSelected,
-			                                              boolean cellHasFocus) {
-
-				super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-
-				if (index == -1 && value == null) {
-					setText("Select Preset");
-				}
-
+			public Component getListCellRendererComponent( final JList< ? > list, final Object value,
+					final int index, final boolean isSelected, final boolean cellHasFocus )
+			{
+				super.getListCellRendererComponent( list, value, index, isSelected, cellHasFocus );
+				if ( index == -1 && value == null )
+					setText( "Select Preset" );
 				return this;
 			}
-		});
-		presetCombo.setSelectedIndex(-1);
+		} );
+		presetCombo.setSelectedIndex( -1 );
 
-		presetPanel.add( presetCombo, BorderLayout.CENTER );
-		mainPanel.add( presetPanel );
-		mainPanel.add( Box.createVerticalStrut( 8 ) );
+		paletteSwatch = new GradientPreviewPanel();
+		paletteSwatch.setPreferredSize( new Dimension( 200, 16 ) );
+		paletteSwatch.setMaximumSize( new Dimension( Integer.MAX_VALUE, 16 ) );
 
-		// Curve editor canvas
-		final JPanel editorPanel = new JPanel();
-		editorPanel.setLayout( new BoxLayout( editorPanel, BoxLayout.PAGE_AXIS ) );
-		editorPanel.setBorder( BorderFactory.createTitledBorder( "Editor" ) );
+		final JPanel dataPanel = new JPanel();
+		dataPanel.setLayout( new BoxLayout( dataPanel, BoxLayout.PAGE_AXIS ) );
+		dataPanel.setBorder( BorderFactory.createTitledBorder( "Data" ) );
+		dataPanel.add( labeledRow( "Source:", combo ) );
+		dataPanel.add( Box.createVerticalStrut( 8 ) );
+		dataPanel.add( labeledRow( "Color palette:", presetCombo ) );
+		dataPanel.add( Box.createVerticalStrut( 4 ) );
+		dataPanel.add( paletteSwatch );
 
-		// Channel selector
-		final JPanel channelPanel = new JPanel( new BorderLayout( 4, 0 ) );
-		channelPanel.add( new JLabel( "Channel:" ), BorderLayout.WEST );
-		final JPanel channelButtons = new JPanel( new GridLayout( 1, 4, 4, 0 ) );
-		final JToggleButton btnRGB = new JToggleButton( "All" );
-		final JToggleButton btnR = new JToggleButton( "Red" );
-		final JToggleButton btnG = new JToggleButton( "Green" );
-		final JToggleButton btnB = new JToggleButton( "Blue" );
-		final ButtonGroup channelGroup = new ButtonGroup();
-		channelGroup.add( btnRGB );
-		channelGroup.add( btnR );
-		channelGroup.add( btnG );
-		channelGroup.add( btnB );
-		btnRGB.setSelected( true );
-		normalizeButtonSizes( btnRGB, btnR, btnG, btnB );
-		channelButtons.add( btnRGB );
-		channelButtons.add( btnR );
-		channelButtons.add( btnG );
-		channelButtons.add( btnB );
-		channelPanel.add( channelButtons, BorderLayout.CENTER );
-		editorPanel.add( channelPanel );
-		editorPanel.add( Box.createVerticalStrut( 8 ) );
+		dataPanel.setAlignmentX( Component.LEFT_ALIGNMENT );
+		dataPanel.setMaximumSize( new Dimension( Integer.MAX_VALUE, dataPanel.getPreferredSize().height ) );
 
-		curveEditor = new CurveEditorPanel();
-		curveEditor.setBorder( BorderFactory.createLineBorder( new Color( 100, 100, 100 ) ) );
-		editorPanel.add( curveEditor );
+		// -- Mapping panel: value matching, range mode, preset --------------
+		valueMatchingCombo = new JComboBox<>( ValueMatching.values() );
+		rbFit = new JRadioButton( "Fit" );
+		rbCyclic = new JRadioButton( "Cyclic" );
+		final ButtonGroup rangeModeGroup = new ButtonGroup();
+		rangeModeGroup.add( rbFit );
+		rangeModeGroup.add( rbCyclic );
+		rbFit.setSelected( true );
+		chkTreatMinAsBackground = new JCheckBox( "Treat min as Bg" );
+		chkTreatMinAsBackground.setVisible( false );
+		backgroundColorButton = new JButton();
+		backgroundColorButton.setToolTipText( "Background color" );
+		backgroundColorButton.setPreferredSize( new Dimension( 20, 20 ) );
+		backgroundColorButton.setMinimumSize( new Dimension( 20, 20 ) );
+		backgroundColorButton.setMaximumSize( new Dimension( 20, 20 ) );
+		backgroundColorButton.setBackground( new Color( 0xff000000, false ) );
+		backgroundColorButton.setVisible( false );
+		backgroundColorButton.setEnabled( false );
+		mappingPresetCombo = new JComboBox<>( MappingPreset.values() );
 
-		// Gradient preview
-		gradientPreview = new GradientPreviewPanel();
-		gradientPreview.setBorder( BorderFactory.createTitledBorder( BorderFactory.createEmptyBorder(), "Preview" ) );
-		editorPanel.add( gradientPreview );
+		final JPanel mappingPanel = new JPanel();
+		mappingPanel.setLayout( new BoxLayout( mappingPanel, BoxLayout.PAGE_AXIS ) );
+		mappingPanel.setBorder( BorderFactory.createTitledBorder( "Mapping" ) );
+		mappingPanel.add( labeledRow( "Value matching:", valueMatchingCombo ) );
+		final JPanel rangeModeRow = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
+		rangeModeRow.add( new JLabel( "Range mode:" ) );
+		rangeModeRow.add( Box.createHorizontalStrut( 8 ) );
+		rangeModeRow.add( rbFit );
+		rangeModeRow.add( Box.createHorizontalStrut( 4 ) );
+		rangeModeRow.add( rbCyclic );
+		rangeModeRow.add( Box.createHorizontalStrut( 8 ) );
+		rangeModeRow.add( chkTreatMinAsBackground );
+		rangeModeRow.add( Box.createHorizontalStrut( 4 ) );
+		rangeModeRow.add( backgroundColorButton );
+		rangeModeRow.setAlignmentX( Component.LEFT_ALIGNMENT );
+		mappingPanel.add( Box.createVerticalStrut( 4 ) );
+		mappingPanel.add( rangeModeRow );
+		mappingPanel.add( Box.createVerticalStrut( 4 ) );
+		mappingPanel.add( labeledRow( "Mapping preset:", mappingPresetCombo ) );
+		mappingPanel.setAlignmentX( Component.LEFT_ALIGNMENT );
+		mappingPanel.setMaximumSize( new Dimension( Integer.MAX_VALUE, mappingPanel.getPreferredSize().height ) );
 
+		final JPanel leftColumn = new JPanel();
+		leftColumn.setLayout( new BoxLayout( leftColumn, BoxLayout.PAGE_AXIS ) );
+		leftColumn.add( dataPanel );
+		leftColumn.add( mappingPanel );
+
+		// -- Mapping curve panel ---------------------------------------------
+		mappingCurvePanel = new MappingCurvePanel( mappingModel );
+		mappingCurvePanel.setRangeChangeListener( ( min, max ) ->
+		{
+			editedRangeMin = min;
+			editedRangeMax = max;
+		} );
+		// Wrap in a non-stretching FlowLayout so the panel renders at its own
+		// preferred size instead of being stretched to fill BorderLayout.CENTER.
+		final JPanel graphWrapper = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
+		graphWrapper.add( mappingCurvePanel );
+
+		final JPanel rightColumn = new JPanel( new BorderLayout() );
+		rightColumn.setBorder( BorderFactory.createTitledBorder( "Mapping curve" ) );
+		rightColumn.add( graphWrapper, BorderLayout.CENTER );
+
+		// Likewise, wrap rightColumn itself so its titled border hugs the graph
+		// tightly instead of stretching to fill centerPanel's CENTER slot.
+		final JPanel rightColumnWrapper = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
+		rightColumnWrapper.add( rightColumn );
+
+		final JPanel centerPanel = new JPanel( new BorderLayout( 12, 0 ) );
+		centerPanel.add( leftColumn, BorderLayout.WEST );
+		centerPanel.add( rightColumnWrapper, BorderLayout.CENTER );
+		add( centerPanel, BorderLayout.CENTER );
+
+		// -- Bottom bar: status/reset on the left, cancel/apply on the right -
 		statusLabel = new JLabel( "" );
 
-		// Range remap panel
-		rangeRemapModel = new RangeRemapModel();
-		rangeRemapPanel = new RangeRemapPanel( rangeRemapModel );
-		rangeRemapModel.addChangeListener( () ->
-		{
-			statusLabel.setText( rangeRemapModel.splitOutOfRange ? "Out of range" : "" );
-			gradientPreview.update( curveEditor.generateColorTable() );
-		} );
-		editorPanel.add( rangeRemapPanel );
+		final JPanel bottomPanel = new JPanel( new BorderLayout() );
+		final JPanel leftBottom = new JPanel( new FlowLayout( FlowLayout.LEFT, 8, 0 ) );
+		final JButton btnHelp = new JButton( "Help" );
+		btnHelp.setFocusable( false );
+		leftBottom.add( btnHelp );
+		leftBottom.add( statusLabel );
+		bottomPanel.add( leftBottom, BorderLayout.WEST );
 
-		mainPanel.add( editorPanel );
-		mainPanel.add( Box.createVerticalStrut( 8 ) );
-
-		// Apply and reset buttons
-		final JPanel bottomPanel = new JPanel( new BorderLayout( 4, 0 ) );
-		final JPanel statusPanel = new JPanel( new BorderLayout( 4, 0 ) );
-		statusLabel.setPreferredSize( new Dimension( 150, 20 ) );
-		statusPanel.add( statusLabel );
-
-		final JPanel btnPanel = new JPanel( new GridLayout( 1, 2, 4, 0 ) );
+		final JButton btnCancel = new JButton( "Cancel" );
 		final JButton btnApply = new JButton( "Apply" );
-		final JButton btnReset = new JButton( "Reset Curves" );
-		normalizeButtonSizes( btnApply, btnReset );
-		btnPanel.add( btnApply );
-		btnPanel.add( btnReset );
+		normalizeButtonSizes( btnCancel, btnApply );
+		final JPanel rightBottom = new JPanel( new GridLayout( 1, 2, 8, 0 ) );
+		rightBottom.add( btnCancel );
+		rightBottom.add( btnApply );
+		bottomPanel.add( rightBottom, BorderLayout.EAST );
 
-		bottomPanel.add( statusPanel, BorderLayout.WEST );
-		bottomPanel.add( btnPanel, BorderLayout.EAST );
-		mainPanel.add( bottomPanel );
+		add( bottomPanel, BorderLayout.SOUTH );
 
-		add( mainPanel, BorderLayout.CENTER );
+		// -- Event listeners --------------------------------------------------
+		combo.addActionListener( e -> onSourceChanged() );
 
-		// Event listeners
 		presetCombo.addActionListener( e ->
 		{
+			if ( loadingControls )
+				return;
 			final int pi = presetCombo.getSelectedIndex();
-			if ( pi >= 0 && pi < lutNames.size() )
-				applyPreset( lutNames.get( pi ) );
+			if ( pi < 0 || pi >= lutNames.size() )
+				return;
+			final ColorTable ct = loadLutResource( lutNames.get( pi ) );
+			if ( ct == null )
+			{
+				statusLabel.setText( "Failed to load LUT: " + lutNames.get( pi ) );
+				return;
+			}
+			currentPalette = ct;
+			paletteSwatch.update( ct );
+			mappingCurvePanel.setPalette( ct );
+			statusLabel.setText( "" );
 		} );
 
-		btnRGB.addActionListener( e ->
+		valueMatchingCombo.addActionListener( e ->
 		{
-			curveEditor.setChannel( CurveEditorPanel.Channel.RGB );
-			curveEditor.repaint();
-		} );
-		btnR.addActionListener( e ->
-		{
-			curveEditor.setChannel( CurveEditorPanel.Channel.R );
-			curveEditor.repaint();
-		} );
-		btnG.addActionListener( e ->
-		{
-			curveEditor.setChannel( CurveEditorPanel.Channel.G );
-			curveEditor.repaint();
-		} );
-		btnB.addActionListener( e ->
-		{
-			curveEditor.setChannel( CurveEditorPanel.Channel.B );
-			curveEditor.repaint();
+			if ( loadingControls )
+				return;
+			mappingModel.setValueMatching( ( ValueMatching ) valueMatchingCombo.getSelectedItem() );
 		} );
 
-		btnApply.addActionListener( e -> applyEditedCurve() );
-		btnReset.addActionListener( e ->
+		final ActionListener rangeModeListener = e ->
 		{
-			curveEditor.resetCurves();
-			gradientPreview.update( curveEditor.generateColorTable() );
+			setTreatMinAsBackgroundVisible( rbCyclic.isSelected() );
+			if ( loadingControls )
+				return;
+			mappingModel.setRangeMode( rbFit.isSelected() ? RangeMode.FIT : RangeMode.CYCLIC );
+		};
+		rbFit.addActionListener( rangeModeListener );
+		rbCyclic.addActionListener( rangeModeListener );
+
+		chkTreatMinAsBackground.addActionListener( e ->
+		{
+			backgroundColorButton.setEnabled( chkTreatMinAsBackground.isSelected() );
+			if ( loadingControls )
+				return;
+			mappingModel.setTreatMinAsBackground( chkTreatMinAsBackground.isSelected() );
 		} );
+
+		backgroundColorButton.addActionListener( e ->
+		{
+			final Color chosen = JColorChooser.showDialog( this, "Background Color", backgroundColorButton.getBackground() );
+			if ( chosen == null )
+				return;
+			final int argb = 0xff000000 | ( chosen.getRGB() & 0xffffff );
+			backgroundColorButton.setBackground( new Color( argb, false ) );
+			mappingModel.setBackgroundColor( argb );
+		} );
+
+		mappingPresetCombo.addActionListener( e ->
+		{
+			if ( loadingControls )
+				return;
+			mappingModel.applyPreset( ( MappingPreset ) mappingPresetCombo.getSelectedItem() );
+		} );
+
+		btnApply.addActionListener( e -> applyCurrent() );
+		btnCancel.addActionListener( e ->
+		{
+			onSourceChanged();
+			setVisible( false );
+		} );
+
 		btnHelp.addActionListener( e -> showHelp() );
 		getRootPane().registerKeyboardAction( e -> showHelp(), KeyStroke.getKeyStroke( KeyEvent.VK_F1, 0 ), JComponent.WHEN_IN_FOCUSED_WINDOW );
 
-		// Update gradient preview when curves change
-		curveEditor.addChangeListener( () ->
-				gradientPreview.update( curveEditor.generateColorTable() ) );
-
-		combo.addActionListener( ( final ActionEvent e ) -> updateStatus() );
+		mappingModel.addChangeListener( mappingCurvePanel::repaint );
 
 		rebuildList();
-		gradientPreview.update( curveEditor.generateColorTable() );
 
+		// A first pack() is needed before we can trust any preferred-size
+		// measurements below: JComboBox (and text components generally)
+		// under-measure their preferred width until the component hierarchy
+		// is actually realized (addNotify()) and real font metrics become
+		// available, so measuring leftColumn's width before this point can
+		// be significantly too narrow.
 		pack();
-		setMinimumSize( new Dimension( 500, 500 ) );
+
+		// Match the left column's actual rendered width (not just dataPanel's
+		// own preferred width: BoxLayout stretches dataPanel to leftColumn's
+		// width, which is the widest of dataPanel/mappingPanel), accounting
+		// for rightColumn's own titled border insets so the two titled panels
+		// line up exactly.
+		final Insets rightInsets = rightColumn.getBorder().getBorderInsets( rightColumn );
+		final int targetGraphWidth = leftColumn.getWidth() - rightInsets.left - rightInsets.right;
+		mappingCurvePanel.setPreferredSize( new Dimension( targetGraphWidth, mappingCurvePanel.getPreferredSize().height ) );
+
+		// Second pack() applies the corrected graph width to the final layout.
+		pack();
+		setMinimumSize( getPreferredSize() );
 	}
 
-	private void applyPreset( final String lutName )
+	/**
+	 * Load the currently applied palette and mapping (if any) of the selected
+	 * source/setup into the editor, discarding any unapplied local edits.
+	 */
+	private void onSourceChanged()
+	{
+		final int idx = combo.getSelectedIndex();
+		if ( idx < 0 || idx >= sources.size() )
+		{
+			statusLabel.setText( "no setup selected" );
+			return;
+		}
+		final SourceAndConverter< ? > soc = sources.get( idx );
+		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
+		final Object conv = soc.getConverter();
+		if ( !( conv instanceof RealLUTConverter ) )
+		{
+			statusLabel.setText( "Converter does not use a LUT." );
+			return;
+		}
+		statusLabel.setText( "" );
+
+		final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
+		currentPalette = lutConv.getLUT() != null ? lutConv.getLUT() : new ColorTable8();
+		paletteSwatch.update( currentPalette );
+
+		final MappingModel existing = lutConv.getMapping();
+		if ( existing != null )
+			mappingModel.copyFrom( existing );
+		else
+		{
+			mappingModel.setRangeMode( RangeMode.FIT );
+			mappingModel.setValueMatching( ValueMatching.INTERPOLATE );
+			mappingModel.applyPreset( MappingPreset.LINEAR );
+		}
+
+		editedRangeMin = setup != null ? setup.getDisplayRangeMin() : 0;
+		editedRangeMax = setup != null ? setup.getDisplayRangeMax() : 255;
+		mappingCurvePanel.setRange( editedRangeMin, editedRangeMax );
+		mappingCurvePanel.setPalette( currentPalette );
+
+		loadingControls = true;
+		try
+		{
+			valueMatchingCombo.setSelectedItem( mappingModel.getValueMatching() );
+			rbFit.setSelected( mappingModel.getRangeMode() == RangeMode.FIT );
+			rbCyclic.setSelected( mappingModel.getRangeMode() == RangeMode.CYCLIC );
+			chkTreatMinAsBackground.setSelected( mappingModel.isTreatMinAsBackground() );
+			backgroundColorButton.setBackground( new Color( mappingModel.getBackgroundColor(), false ) );
+			backgroundColorButton.setEnabled( mappingModel.isTreatMinAsBackground() );
+			setTreatMinAsBackgroundVisible( mappingModel.getRangeMode() == RangeMode.CYCLIC );
+			mappingPresetCombo.setSelectedItem( mappingModel.getPreset() );
+		}
+		finally
+		{
+			loadingControls = false;
+		}
+	}
+
+	/**
+	 * Commit the currently edited palette and mapping to the selected setup's
+	 * converter.
+	 */
+	private void applyCurrent()
 	{
 		final int idx = combo.getSelectedIndex();
 		if ( idx < 0 || idx >= sources.size() )
 			return;
 		final SourceAndConverter< ? > soc = sources.get( idx );
 		final Object conv = soc.getConverter();
-		if ( conv instanceof RealLUTConverter )
-		{
-			final ColorTable8 ct = loadLutResource( lutName );
-			if ( ct == null )
-			{
-				statusLabel.setText( "Failed to load LUT: " + lutName );
-				return;
-			}
-			final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
-			lutConv.setLUT( ct );
-			lutConv.setRangeRemap( rangeRemapModel );
-			curveEditor.loadColorTable( ct );
-			statusLabel.setText( "Applied " + lutName + " LUT." );
-			if ( repaintAction != null )
-				repaintAction.run();
-		}
-	}
-
-	private void applyEditedCurve()
-	{
-		final int idx = combo.getSelectedIndex();
-		if ( idx < 0 || idx >= sources.size() )
+		if ( !( conv instanceof RealLUTConverter ) )
 			return;
-		final SourceAndConverter< ? > soc = sources.get( idx );
-		final Object conv = soc.getConverter();
-		if ( conv instanceof RealLUTConverter )
-		{
-			final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
-			final ColorTable8 ct = curveEditor.generateColorTable();
-			lutConv.setLUT( ct );
-			lutConv.setRangeRemap( rangeRemapModel );
-			statusLabel.setText( "Applied custom curve." );
-			if ( repaintAction != null )
-				repaintAction.run();
-		}
+
+		final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
+		lutConv.setLUT( currentPalette );
+
+		final MappingModel committed = lutConv.getMapping() != null ? lutConv.getMapping() : new MappingModel();
+		committed.copyFrom( mappingModel );
+		lutConv.setMapping( committed );
+
+		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
+		if ( setup != null )
+			setup.setDisplayRange( editedRangeMin, editedRangeMax );
+
+		statusLabel.setText( "Applied." );
+		if ( repaintAction != null )
+			repaintAction.run();
 	}
 
 	private void rebuildList()
@@ -303,7 +438,7 @@ public class LutEditorDialog extends JDialog
 		final List< SourceAndConverter< ? > > stateSources = viewerState.getSources();
 		for ( final SourceAndConverter< ? > soc : stateSources )
 		{
-			final bdv.tools.brightness.ConverterSetup setup = converterSetups.getConverterSetup( soc );
+			final ConverterSetup setup = converterSetups.getConverterSetup( soc );
 			if ( setup == null )
 				continue;
 			sources.add( soc );
@@ -312,22 +447,29 @@ public class LutEditorDialog extends JDialog
 		}
 		if ( combo.getItemCount() > 0 )
 			combo.setSelectedIndex( 0 );
-		updateStatus();
+		onSourceChanged();
 	}
 
-	private void updateStatus()
+	private void setTreatMinAsBackgroundVisible( final boolean visible )
 	{
-		final int idx = combo.getSelectedIndex();
-		if ( idx < 0 || idx >= sources.size() )
-		{
-			statusLabel.setText( "no setup selected" );
+		if ( chkTreatMinAsBackground.isVisible() == visible )
 			return;
-		}
-		final Object conv = sources.get( idx ).getConverter();
-		if ( conv instanceof RealLUTConverter )
-			statusLabel.setText( "" );
-		else
-			statusLabel.setText( "Converter does not use a LUT." );
+		chkTreatMinAsBackground.setVisible( visible );
+		backgroundColorButton.setVisible( visible );
+		chkTreatMinAsBackground.getParent().revalidate();
+		chkTreatMinAsBackground.getParent().repaint();
+	}
+
+	private static JPanel labeledRow( final String label, final JComponent component )
+	{
+		final JPanel row = new JPanel( new BorderLayout( 8, 0 ) );
+		row.add( new JLabel( label ), BorderLayout.WEST );
+		row.add( component, BorderLayout.CENTER );
+
+		row.setMaximumSize( new Dimension( Integer.MAX_VALUE, row.getPreferredSize().height ) );
+		row.setAlignmentX( Component.LEFT_ALIGNMENT );
+
+		return row;
 	}
 
 	private static void normalizeButtonSizes( final JComponent... components )
@@ -353,23 +495,37 @@ public class LutEditorDialog extends JDialog
 		final String message = String.join( "\n",
 				"LUT Editor help:",
 				"",
-				"Presets:",
-				"- Select a LUT from the dropdown to apply it to the selected setup.",
+				"Data:",
+				"- Source selects which setup you are editing.",
+				"- Color palette selects the LUT colors the mapped value is looked up in.",
 				"",
-				"Curve editor:",
-				"- Choose All / Red / Green / Blue to edit channels.",
-				"- Left-click to add or select a control point.",
-				"- Drag a point vertically to adjust the curve.",
+				"Mapping:",
+				"- Value matching controls how the curve is evaluated between control points:",
+				"  Interpolate (smooth), Round (nearest point), or Truncate (hold previous point).",
+				"- Range mode controls how input values are handled:",
+				"  Fit clamps values to [min, max]. Cyclic ignores max and instead cycles",
+				"  values through the palette's actual number of colors (shown above the",
+				"  color bar on the left), anchored at min -- e.g. with a 10-color palette",
+				"  and min=5, value 5 gets the palette's first color, value 15 gets the",
+				"  same color again, and so on.",
+				"- When Cyclic is selected, \"Treat min as Background\" forces the range's min",
+				"  value (the left value of the range), and anything below it, to always map",
+				"  to a dedicated background color, instead of cycling like other values.",
+				"  Values above min still cycle normally. Click the swatch next to the",
+				"  checkbox to choose that color (defaults to black). It is not one of the",
+				"  palette's cycled colors.",
+				"- Mapping preset replaces the curve with a predefined shape (Linear, Percentile",
+				"  Stretch, Log, Exp, Sigmoid, α-Sigmoid, Tan, Atan). The curve can still be",
+				"  adjusted afterwards.",
+				"",
+				"Mapping curve:",
+				"- Left-click to add or drag a control point.",
 				"- Right-click a point to remove it.",
-				"- Apply commits the current curve to the selected setup.",
-				"- Reset Curves restores the default linear LUT.",
+				"- The color bar on the right previews the resulting LUT color across the input range.",
+				"- The boxes at the left/right ends of the x axis set the input value range.",
 				"",
-				"Range Remap:",
-				"- To change the mapping of the curve, use the Range Remap panel.",
-				"- Click on an interval to activate it.",
-				"- Then you can split/merge intervals, move, or even invert them.",
-				"- You can change the split point by dragging the split line.",
-				"- The reset button restores the default interval.",
+				"- Apply commits the palette and mapping to the selected setup.",
+				"- Cancel discards unapplied edits.",
 				"",
 				"Shortcut:",
 				"- Press F1 anywhere in this dialog to open this help." );
@@ -426,9 +582,12 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Load a LUT from a resource text file. Each line has 3 space-separated R G B values (0-255).
+	 * Load a LUT from a resource text file. Each line is a control point with
+	 * 5 space-separated values: {@code position red green blue alpha}, all in
+	 * [0, 1]. The number of control points is arbitrary (not tied to 256);
+	 * colors between control points are obtained by linear interpolation.
 	 */
-	private static ColorTable8 loadLutResource( final String lutName )
+	private static ColorTable loadLutResource( final String lutName )
 	{
 		final String path = LUT_RESOURCE_DIR + "/" + lutName + ".txt";
 		try ( final InputStream is = LutEditorDialog.class.getClassLoader().getResourceAsStream( path ) )
@@ -436,27 +595,43 @@ public class LutEditorDialog extends JDialog
 			if ( is == null )
 				return null;
 			final BufferedReader reader = new BufferedReader( new InputStreamReader( is ) );
-			final byte[] r = new byte[ 256 ];
-			final byte[] g = new byte[ 256 ];
-			final byte[] b = new byte[ 256 ];
-			int idx = 0;
+			final List< double[] > rows = new ArrayList<>();
 			String line;
-			while ( ( line = reader.readLine() ) != null && idx < 256 )
+			while ( ( line = reader.readLine() ) != null )
 			{
 				line = line.trim();
 				if ( line.isEmpty() )
 					continue;
 				final String[] parts = line.split( "\\s+" );
-				if ( parts.length < 3 )
+				if ( parts.length < 4 )
 					continue;
-				r[ idx ] = ( byte ) Integer.parseInt( parts[ 0 ] );
-				g[ idx ] = ( byte ) Integer.parseInt( parts[ 1 ] );
-				b[ idx ] = ( byte ) Integer.parseInt( parts[ 2 ] );
-				idx++;
+				final double position = Double.parseDouble( parts[ 0 ] );
+				final double r = Double.parseDouble( parts[ 1 ] );
+				final double g = Double.parseDouble( parts[ 2 ] );
+				final double b = Double.parseDouble( parts[ 3 ] );
+				final double a = parts.length >= 5 ? Double.parseDouble( parts[ 4 ] ) : 1.0;
+				rows.add( new double[] { position, r, g, b, a } );
 			}
-			if ( idx < 256 )
+			if ( rows.size() < 2 )
 				return null;
-			return new ColorTable8( r, g, b );
+			rows.sort( Comparator.comparingDouble( row -> row[ 0 ] ) );
+
+			final int n = rows.size();
+			final double[] positions = new double[ n ];
+			final double[] red = new double[ n ];
+			final double[] green = new double[ n ];
+			final double[] blue = new double[ n ];
+			final double[] alpha = new double[ n ];
+			for ( int i = 0; i < n; i++ )
+			{
+				final double[] row = rows.get( i );
+				positions[ i ] = row[ 0 ];
+				red[ i ] = row[ 1 ];
+				green[ i ] = row[ 2 ];
+				blue[ i ] = row[ 3 ];
+				alpha[ i ] = row[ 4 ];
+			}
+			return new LutPalette( positions, red, green, blue, alpha );
 		} catch ( final IOException | NumberFormatException e )
 		{
 			e.printStackTrace();
@@ -465,19 +640,19 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * A preview panel showing the current color gradient as a horizontal bar.
+	 * A preview panel showing a color table as a horizontal gradient bar.
 	 */
 	private static class GradientPreviewPanel extends JPanel
 	{
-		private ColorTable8 colorTable;
+		private ColorTable colorTable;
 
 		public GradientPreviewPanel()
 		{
-			setPreferredSize( new Dimension( 300, 40 ) );
+			setPreferredSize( new Dimension( 300, 16 ) );
 			this.colorTable = new ColorTable8();
 		}
 
-		public void update( final ColorTable8 ct )
+		public void update( final ColorTable ct )
 		{
 			this.colorTable = ct;
 			repaint();
@@ -502,7 +677,6 @@ public class LutEditorDialog extends JDialog
 				}
 			}
 
-			// Border
 			g.setColor( Color.BLACK );
 			g.drawRect( 0, 0, w - 1, h - 1 );
 		}
