@@ -109,6 +109,27 @@ public class LutPalette implements ColorTable
 	}
 
 	/**
+	 * The normalized positions (in [0, 1]) of {@code lut}'s colors, in order.
+	 * For a {@link LutPalette} these are its actual control point positions,
+	 * which are not necessarily evenly spaced (e.g. a categorical palette may
+	 * deliberately cluster some colors closer together than others); for any
+	 * other {@link ColorTable} (e.g. the fixed-256-entry
+	 * {@link net.imglib2.display.ColorTable8}) they are assumed evenly
+	 * spaced, since that is how such tables are always laid out.
+	 */
+	public static double[] colorPositions( final ColorTable lut )
+	{
+		if ( lut instanceof LutPalette )
+			return ( ( LutPalette ) lut ).positions.clone();
+
+		final int n = Math.max( 1, lut.getLength() );
+		final double[] positions = new double[ n ];
+		for ( int i = 0; i < n; i++ )
+			positions[ i ] = n > 1 ? i / ( double ) ( n - 1 ) : 0.0;
+		return positions;
+	}
+
+	/**
 	 * The normalized position (in [0, 1]) that {@code t} snaps to under
 	 * {@code matching} -- i.e. the position of whichever control point
 	 * {@link #lookupARGB(ColorTable, double, double, double, ValueMatching)}

@@ -200,9 +200,15 @@ public class MappingModel
 	}
 
 	/**
-	 * Map a raw source value to a LUT index in [0, 255]. Does not account for
-	 * {@link #isBackgroundValue}; callers should check that first and use
+	 * Map a raw source value to a LUT index in [0, 255], assuming the target
+	 * LUT's {@code lutColorCount} colors are evenly spaced. Does not account
+	 * for {@link #isBackgroundValue}; callers should check that first and use
 	 * {@link #getBackgroundColor()} directly instead of calling this method.
+	 * <p>
+	 * Real palettes are not always evenly spaced (e.g. a LUT resource file can
+	 * declare arbitrary control point positions); when the actual positions
+	 * are known, prefer {@link #mapToLutIndex(double, double, double, double[])}
+	 * (see {@link LutPalette#colorPositions(net.imglib2.display.ColorTable)}).
 	 *
 	 * @param value
 	 * 		the raw source value.
@@ -219,8 +225,32 @@ public class MappingModel
 	 */
 	public int mapToLutIndex( final double value, final double min, final double max, final int lutColorCount )
 	{
+		return mapToLutIndex( value, min, max, uniformColorPositions( lutColorCount ) );
+	}
+
+	/**
+	 * Map a raw source value to a LUT index in [0, 255]. Does not account for
+	 * {@link #isBackgroundValue}; callers should check that first and use
+	 * {@link #getBackgroundColor()} directly instead of calling this method.
+	 *
+	 * @param value
+	 * 		the raw source value.
+	 * @param min
+	 * 		source value mapped to the start of the range; only used in
+	 * 		{@link RangeMode#FIT}.
+	 * @param max
+	 * 		source value mapped to the end of the range; only used in
+	 * 		{@link RangeMode#FIT}.
+	 * @param colorPositions
+	 * 		the target LUT's colors' normalized positions, in order (see
+	 * 		{@link LutPalette#colorPositions(net.imglib2.display.ColorTable)});
+	 * 		only used in {@link RangeMode#CYCLIC}, whose wrap period is the
+	 * 		array's length.
+	 */
+	public int mapToLutIndex( final double value, final double min, final double max, final double[] colorPositions )
+	{
 		final double t = rangeMode == RangeMode.CYCLIC
-				? cyclicPosition( value, min, lutColorCount, treatMinAsBackground )
+				? cyclicPosition( value, min, colorPositions, treatMinAsBackground )
 				: fitPosition( value, min, max );
 		// Always smooth here -- see the class javadoc for why ValueMatching
 		// is applied only once, at the palette-color stage, instead of here too.
@@ -241,18 +271,31 @@ public class MappingModel
 	}
 
 	/**
-	 * Normalized curve position for a raw value in {@link RangeMode#CYCLIC}:
-	 * the value cycles through the palette's {@code lutColorCount} colors,
-	 * anchored at {@code min} (a raw value of exactly {@code min} always
-	 * lands on the palette's first color -- e.g. setting min to 5 means value
-	 * 5 gets whatever color is first in the palette) and otherwise ignoring
-	 * min/max, landing exactly on a palette color for integer inputs.
-	 * Package-visible so the UI can reuse the exact same formula used by
-	 * {@link #mapToLutIndex}.
+	 * Same as {@link #cyclicPosition(double, double, double[], boolean)},
+	 * assuming the palette's {@code lutColorCount} colors are evenly spaced.
 	 */
 	static double cyclicPosition( final double value, final double min, final int lutColorCount, final boolean treatMinAsBackground )
 	{
-		final int n = Math.max( 1, lutColorCount );
+		return cyclicPosition( value, min, uniformColorPositions( lutColorCount ), treatMinAsBackground );
+	}
+
+	/**
+	 * Normalized curve position for a raw value in {@link RangeMode#CYCLIC}:
+	 * the value cycles through the palette's colors (one per entry of
+	 * {@code colorPositions}), anchored at {@code min} (a raw value of
+	 * exactly {@code min} always lands on the palette's first color -- e.g.
+	 * setting min to 5 means value 5 gets whatever color is first in the
+	 * palette) and otherwise ignoring min/max, landing exactly on
+	 * {@code colorPositions[k]} for integer inputs {@code k} steps past min.
+	 * Non-integer inputs interpolate linearly between the two neighboring
+	 * colors' actual positions, so unevenly-spaced palettes (not all LUTs
+	 * have evenly-spaced colors) are still followed correctly rather than
+	 * assuming a uniform {@code k / (n - 1)} step. Package-visible so the UI
+	 * can reuse the exact same formula used by {@link #mapToLutIndex}.
+	 */
+	static double cyclicPosition( final double value, final double min, final double[] colorPositions, final boolean treatMinAsBackground )
+	{
+		final int n = colorPositions.length;
 		if ( n <= 1 )
 			return 0.0;
 		final double shifted = value - min;
@@ -263,7 +306,60 @@ public class MappingModel
 		double m = treatMinAsBackground ? ( shifted - 1 ) % n : shifted % n;
 		if ( m < 0 )
 			m += n;
-		return m / ( n - 1 );
+		// The last unit interval before wrapping back to color 0 (m in
+		// [n - 1, n)) holds flat at the last color, rather than blending
+		// into the next cycle's first color.
+		if ( m >= n - 1 )
+			return colorPositions[ n - 1 ];
+		final int k = ( int ) Math.floor( m );
+		final double frac = m - k;
+		return colorPositions[ k ] + frac * ( colorPositions[ k + 1 ] - colorPositions[ k ] );
+	}
+
+	/**
+	 * The inverse of {@link #cyclicPosition(double, double, double[], boolean)}:
+	 * given a normalized curve position {@code t}, the corresponding "raw
+	 * value minus min" offset within a single cycle. Used to draw/hit-test a
+	 * curve control point at its correct raw input value in
+	 * {@link RangeMode#CYCLIC} (repeated every {@code colorPositions.length}
+	 * raw units), without assuming evenly-spaced colors.
+	 */
+	static double inverseCyclicPosition( final double t, final double[] colorPositions, final boolean treatMinAsBackground )
+	{
+		final int n = colorPositions.length;
+		if ( n <= 1 )
+			return treatMinAsBackground ? 1 : 0;
+
+		final double raw;
+		if ( t >= colorPositions[ n - 1 ] )
+		{
+			raw = n - 1;
+		}
+		else
+		{
+			int k = 0;
+			while ( k < n - 2 && colorPositions[ k + 1 ] < t )
+				k++;
+			final double span = colorPositions[ k + 1 ] - colorPositions[ k ];
+			final double frac = span > 0 ? ( t - colorPositions[ k ] ) / span : 0.0;
+			raw = k + frac;
+		}
+		return treatMinAsBackground ? raw + 1 : raw;
+	}
+
+	/**
+	 * Positions {@code 0, 1/(n-1), 2/(n-1), ..., 1} for {@code n} evenly
+	 * spaced colors ({@code n = max(1, lutColorCount)}), matching how
+	 * {@link net.imglib2.display.ColorTable8} and similar fixed-resolution
+	 * color tables are laid out.
+	 */
+	private static double[] uniformColorPositions( final int lutColorCount )
+	{
+		final int n = Math.max( 1, lutColorCount );
+		final double[] positions = new double[ n ];
+		for ( int i = 0; i < n; i++ )
+			positions[ i ] = n > 1 ? i / ( double ) ( n - 1 ) : 0.0;
+		return positions;
 	}
 
 	/**

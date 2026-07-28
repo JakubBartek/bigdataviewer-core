@@ -314,6 +314,91 @@ public class MappingModelTest
 		}
 	}
 
+	/**
+	 * Not all LUTs have evenly-spaced colors (e.g. a categorical palette's
+	 * control points can cluster some colors closer together than others).
+	 * {@link MappingModel#cyclicPosition(double, double, double[], boolean)}
+	 * must land integer inputs exactly on the corresponding entry of the
+	 * actual, unevenly-spaced positions array -- not on an assumed uniform
+	 * {@code k / (n - 1)} step.
+	 */
+	@Test
+	public void testCyclicPositionRespectsUnevenColorSpacing()
+	{
+		final double[] uneven = { 0.0, 0.05, 0.9, 1.0 };
+
+		Assert.assertEquals( uneven[ 0 ], MappingModel.cyclicPosition( 0, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 1 ], MappingModel.cyclicPosition( 1, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 2 ], MappingModel.cyclicPosition( 2, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 3 ], MappingModel.cyclicPosition( 3, 0, uneven, false ), 1e-9 );
+
+		// Halfway between two colors interpolates linearly between their
+		// actual (unevenly spaced) positions, not a uniform step.
+		Assert.assertEquals( ( uneven[ 1 ] + uneven[ 2 ] ) / 2, MappingModel.cyclicPosition( 1.5, 0, uneven, false ), 1e-9 );
+
+		// Wraps every n = uneven.length values, back to the first color.
+		Assert.assertEquals( uneven[ 0 ], MappingModel.cyclicPosition( 4, 0, uneven, false ), 1e-9 );
+	}
+
+	/**
+	 * The inverse used by {@link MappingCurvePanel} to draw/hit-test control
+	 * points must round-trip {@link MappingModel#cyclicPosition} even when
+	 * the palette's colors are unevenly spaced.
+	 */
+	@Test
+	public void testInverseCyclicPositionRoundTripsUnevenColorSpacing()
+	{
+		final double[] uneven = { 0.0, 0.05, 0.9, 1.0 };
+
+		for ( double raw = 0; raw < uneven.length - 1; raw += 0.25 )
+		{
+			final double t = MappingModel.cyclicPosition( raw, 0, uneven, false );
+			Assert.assertEquals( "raw=" + raw, raw, MappingModel.inverseCyclicPosition( t, uneven, false ), 1e-9 );
+		}
+	}
+
+	/**
+	 * Regression test for the "missing colors" bug, this time with a
+	 * genuinely unevenly-spaced palette (see {@link LutPalette#colorPositions}):
+	 * every color must still be reachable by cycling through raw label
+	 * values 0..n-1, no matter which ValueMatching mode is selected.
+	 */
+	@Test
+	public void testAllPaletteColorsReachableInCyclicModeWithUnevenSpacing()
+	{
+		final double[] positions = { 0.0, 0.05, 0.1, 0.9, 1.0 };
+		final int n = positions.length;
+		final double[] red = new double[ n ];
+		final double[] green = new double[ n ];
+		final double[] blue = new double[ n ];
+		final double[] alpha = new double[ n ];
+		for ( int i = 0; i < n; i++ )
+		{
+			red[ i ] = i / ( double ) ( n - 1 ); // a distinct red level per color
+			green[ i ] = 0;
+			blue[ i ] = 0;
+			alpha[ i ] = 1;
+		}
+		final LutPalette palette = new LutPalette( positions, red, green, blue, alpha );
+		final double[] colorPositions = LutPalette.colorPositions( palette );
+
+		for ( final ValueMatching matching : ValueMatching.values() )
+		{
+			final MappingModel model = new MappingModel();
+			model.setRangeMode( RangeMode.CYCLIC );
+			model.setValueMatching( matching );
+
+			final Set< Integer > seenReds = new HashSet<>();
+			for ( int label = 0; label < n; label++ )
+			{
+				final int lutIndex = model.mapToLutIndex( label, 0, 1000, colorPositions );
+				final int argb = LutPalette.lookupARGB( palette, 0, 255, lutIndex, matching );
+				seenReds.add( ( argb >> 16 ) & 0xFF );
+			}
+			Assert.assertEquals( "matching=" + matching, n, seenReds.size() );
+		}
+	}
+
 	@Test
 	public void testCopyFromDoesNotAlias()
 	{

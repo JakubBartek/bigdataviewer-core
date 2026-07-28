@@ -49,6 +49,9 @@ public class RealLUTConverter< R extends RealType< R > > extends
 
 	private ColorTable lut = null;
 
+	/** {@link LutPalette#colorPositions(ColorTable)} of {@link #lut}, cached since {@link #convert} runs per pixel. */
+	private double[] lutColorPositions = null;
+
 	private MappingModel mapping = null;
 
 	public RealLUTConverter()
@@ -71,6 +74,7 @@ public class RealLUTConverter< R extends RealType< R > > extends
 	public void setLUT( final ColorTable lut )
 	{
 		this.lut = lut == null ? new ColorTable8() : lut;
+		this.lutColorPositions = LutPalette.colorPositions( this.lut );
 	}
 
 	public MappingModel getMapping()
@@ -91,7 +95,7 @@ public class RealLUTConverter< R extends RealType< R > > extends
 		if ( mapping != null && mapping.isBackgroundValue( a, min ) )
 			argb = mapping.getBackgroundColor();
 		else if ( mapping != null )
-			argb = LutPalette.lookupARGB( lut, 0, 255, mapping.mapToLutIndex( a, min, max, lut.getLength() ), mapping.getValueMatching() );
+			argb = LutPalette.lookupARGB( lut, 0, 255, mapping.mapToLutIndex( a, min, max, lutColorPositions ), mapping.getValueMatching() );
 		else
 			argb = lut.lookupARGB( min, max, a );
 		output.set( argb );

@@ -96,6 +96,9 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	private ColorTable palette = new ColorTable8();
 
+	/** {@link LutPalette#colorPositions(ColorTable)} of {@link #palette}, cached since painting reuses it per pixel column. */
+	private double[] paletteColorPositions = LutPalette.colorPositions( palette );
+
 	private Integer draggedPoint = null;
 
 	/**
@@ -222,6 +225,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	public void setPalette( final ColorTable palette )
 	{
 		this.palette = palette == null ? new ColorTable8() : palette;
+		this.paletteColorPositions = LutPalette.colorPositions( this.palette );
 		repaint();
 	}
 
@@ -310,7 +314,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	private double valueToCurveX( final double value )
 	{
 		return model.getRangeMode() == RangeMode.CYCLIC
-				? MappingModel.cyclicPosition( value, rangeMin, palette.getLength(), model.isTreatMinAsBackground() )
+				? MappingModel.cyclicPosition( value, rangeMin, paletteColorPositions, model.isTreatMinAsBackground() )
 				: MappingModel.fitPosition( value, rangeMin, rangeMax );
 	}
 
@@ -410,7 +414,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 				continue;
 			}
 
-			final int smoothY = model.mapToLutIndex( value, rangeMin, rangeMax, n );
+			final int smoothY = model.mapToLutIndex( value, rangeMin, rangeMax, paletteColorPositions );
 			final double steppedT = LutPalette.steppedPosition( palette, smoothY / 255.0, matching );
 			final int py = pixelY( ( int ) Math.round( steppedT * 255.0 ) );
 
@@ -428,19 +432,20 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	 * Draws each curve control point. In {@link RangeMode#CYCLIC}, the cycle
 	 * is anchored at rangeMin (see {@link MappingModel#cyclicPosition}), so a
 	 * control point at normalized x corresponds to a raw value of
-	 * {@code k*n + rangeMin + backgroundShift + x*(n-1)} for every repetition
-	 * {@code k} (where {@code backgroundShift} is 1 if min is reserved for
-	 * the background color, so the cycle starts at min+1 instead of min); it
-	 * is drawn once per repetition that falls within the visible
-	 * [rangeMin, rangeMax] range, matching the repeated segments drawn by
-	 * {@link #drawCurve}.
+	 * {@code k*n + rangeMin + offset} for every repetition {@code k}, where
+	 * {@code offset} is {@link MappingModel#inverseCyclicPosition} of the
+	 * point's x -- i.e. the inverse of {@link MappingModel#cyclicPosition},
+	 * so this lines up correctly even when the palette's colors are not
+	 * evenly spaced; it is drawn once per repetition that falls within the
+	 * visible [rangeMin, rangeMax] range, matching the repeated segments
+	 * drawn by {@link #drawCurve}.
 	 */
 	private void drawControlPoints( final Graphics2D g )
 	{
 		final Curve curve = model.getCurve();
-		final int n = palette.getLength();
+		final int n = paletteColorPositions.length;
 		final boolean cyclic = model.getRangeMode() == RangeMode.CYCLIC && n > 1;
-		final double backgroundShift = model.isTreatMinAsBackground() ? 1 : 0;
+		final boolean treatMinAsBackground = model.isTreatMinAsBackground();
 
 		for ( int i = 0; i < curve.getPointCount(); i++ )
 		{
@@ -448,7 +453,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 			if ( cyclic )
 			{
-				final double offset = rangeMin + backgroundShift + curve.getX( i ) * ( n - 1 );
+				final double offset = rangeMin + MappingModel.inverseCyclicPosition( curve.getX( i ), paletteColorPositions, treatMinAsBackground );
 				final int kMin = ( int ) Math.floor( ( rangeMin - offset ) / n ) - 1;
 				final int kMax = ( int ) Math.ceil( ( rangeMax - offset ) / n ) + 1;
 				for ( int k = kMin; k <= kMax; k++ )
@@ -534,7 +539,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			}
 			else
 			{
-				final int lutIndex = model.mapToLutIndex( value, rangeMin, rangeMax, palette.getLength() );
+				final int lutIndex = model.mapToLutIndex( value, rangeMin, rangeMax, paletteColorPositions );
 				argb = LutPalette.lookupARGB( palette, 0, 255, lutIndex, model.getValueMatching() );
 			}
 			g.setColor( new Color( argb ) );
