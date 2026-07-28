@@ -341,7 +341,12 @@ public class LutEditorDialog extends JDialog
 			setVisible( false );
 		} );
 
-		btnEditCurve.addActionListener( e -> mappingCurvePanel.setEditMode( btnEditCurve.isSelected() ) );
+		btnEditCurve.addActionListener( e ->
+		{
+			final boolean editMode = btnEditCurve.isSelected();
+			mappingCurvePanel.setEditMode( editMode );
+			statusLabel.setText( editMode ? "Edit mode activated." : "" );
+		} );
 
 		btnHelp.addActionListener( e -> showHelp() );
 		getRootPane().registerKeyboardAction( e -> showHelp(), KeyStroke.getKeyStroke( KeyEvent.VK_F1, 0 ), JComponent.WHEN_IN_FOCUSED_WINDOW );
