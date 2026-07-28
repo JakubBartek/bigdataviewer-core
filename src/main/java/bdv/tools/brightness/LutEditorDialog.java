@@ -133,7 +133,7 @@ public class LutEditorDialog extends JDialog
 		this.viewerState = viewerState;
 		this.repaintAction = repaintAction;
 
-		setLayout( new BorderLayout() );
+		setLayout( new BorderLayout( 0, 4 ) );
 		( ( JPanel ) getContentPane() ).setBorder( new EmptyBorder( 12, 12, 12, 12 ) );
 
 		// -- Data panel: source + color palette -----------------------------
