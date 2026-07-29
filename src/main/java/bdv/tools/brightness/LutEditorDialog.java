@@ -115,8 +115,23 @@ public class LutEditorDialog extends JDialog
 	private final JButton buttonBackgroundColor;
 	private final JComboBox< MappingPreset > comboMappingPreset;
 
+	/**
+	 * A black-to-white gradient used as a placeholder before any real palette
+	 * is loaded (e.g. no source selected yet, or a converter with no LUT of
+	 * its own). Deliberately a small, generic {@link LutPalette} rather than
+	 * {@link ColorTable8}: the latter is always fixed at 256 entries, which
+	 * would be a nonsensical wrap period if Cyclic mode were toggled before
+	 * a real (typically much smaller) palette is chosen.
+	 */
+	private static final ColorTable DEFAULT_PALETTE = new LutPalette(
+			new double[] { 0.0, 1.0 },
+			new double[] { 0.0, 1.0 },
+			new double[] { 0.0, 1.0 },
+			new double[] { 0.0, 1.0 },
+			new double[] { 1.0, 1.0 } );
+
 	/** The palette and mapping currently being edited (not yet applied until "Apply" is pressed). */
-	private ColorTable currentPalette = new ColorTable8();
+	private ColorTable currentPalette = DEFAULT_PALETTE;
 	private final MappingModel mappingModel = new MappingModel();
 
 	/** The input value range currently being edited (not yet applied until "Apply" is pressed). */
@@ -400,7 +415,7 @@ public class LutEditorDialog extends JDialog
 		labelStatus.setText( "" );
 
 		final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
-		currentPalette = lutConv.getLUT() != null ? lutConv.getLUT() : new ColorTable8();
+		currentPalette = lutConv.getLUT() != null ? lutConv.getLUT() : DEFAULT_PALETTE;
 		panelPaletteSwatch.update( currentPalette );
 
 		final MappingModel existing = lutConv.getMapping();
@@ -687,7 +702,7 @@ public class LutEditorDialog extends JDialog
 		public GradientPreviewPanel()
 		{
 			setPreferredSize( new Dimension( 300, 16 ) );
-			this.colorTable = new ColorTable8();
+			this.colorTable = DEFAULT_PALETTE;
 		}
 
 		public void update( final ColorTable ct )
