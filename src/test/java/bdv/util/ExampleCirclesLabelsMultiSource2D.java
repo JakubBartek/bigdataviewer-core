@@ -5,6 +5,9 @@ import java.util.Arrays;
 import java.util.List;
 
 import bdv.tools.brightness.ConverterSetup;
+import bdv.tools.brightness.MappingModel;
+import bdv.tools.brightness.RangeMode;
+import bdv.tools.brightness.RealLUTConverter;
 import bdv.tools.brightness.lut.DemoLutConnector;
 import bdv.tools.brightness.lut.DemoLutConnectorConverterSetup;
 import bdv.viewer.SourceAndConverter;
@@ -117,11 +120,30 @@ public class ExampleCirclesLabelsMultiSource2D {
                                    final String title) {
         final DemoLutConnector<UnsignedByteType> demoLUT = new DemoLutConnector<>(img);
         final Converter<UnsignedByteType, ARGBType> converter = demoLUT.getConverter();
+        makeBackgroundTransparent(converter);
+
         final SourceAndConverter<UnsignedByteType> sac = createSAC(img, converter, title);
         final ConverterSetup cs = new DemoLutConnectorConverterSetup<>(demoLUT, sac, converterSetups.size());
 
         converterSetups.add(cs);
         sourcesAndConverters.add(sac);
+    }
+
+    /**
+     * Makes raw value 0 (the background) render fully transparent instead of
+     * opaque black. BDV's Fused display mode additively sums the R/G/B/A of
+     * every visible source at each pixel (see AccumulateProjectorARGB); since
+     * every source here has background covering nearly the whole canvas, an
+     * opaque background on any one source would wash out the combined image.
+     */
+    @SuppressWarnings("unchecked")
+    private static void makeBackgroundTransparent(final Converter<UnsignedByteType, ARGBType> converter) {
+        final RealLUTConverter<UnsignedByteType> lutConverter = (RealLUTConverter<UnsignedByteType>) converter;
+        final MappingModel mapping = new MappingModel();
+        mapping.setRangeMode(RangeMode.CYCLIC);
+        mapping.setTreatMinAsBackground(true);
+        mapping.setBackgroundColor(0x00000000);
+        lutConverter.setMapping(mapping);
     }
 
     static <T extends RealType<T>>
