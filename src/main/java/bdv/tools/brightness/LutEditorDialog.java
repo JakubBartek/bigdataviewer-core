@@ -100,20 +100,20 @@ public class LutEditorDialog extends JDialog
 
 	private final List< SourceAndConverter< ? > > sources = new ArrayList<>();
 
-	private final JComboBox< String > combo;
-	private final JComboBox< String > presetCombo;
+	private final JComboBox< String > comboSource;
+	private final JComboBox< String > comboPalette;
 	private final List< String > lutNames = new ArrayList<>();
-	private final JLabel statusLabel;
+	private final JLabel labelStatus;
 
-	private final GradientPreviewPanel paletteSwatch;
-	private final MappingCurvePanel mappingCurvePanel;
+	private final GradientPreviewPanel panelPaletteSwatch;
+	private final MappingCurvePanel panelMappingCurve;
 
-	private final JComboBox< ValueMatching > valueMatchingCombo;
-	private final JRadioButton rbFit;
-	private final JRadioButton rbCyclic;
-	private final JCheckBox chkTreatMinAsBackground;
-	private final JButton backgroundColorButton;
-	private final JComboBox< MappingPreset > mappingPresetCombo;
+	private final JComboBox< ValueMatching > comboValueMatching;
+	private final JRadioButton radioFit;
+	private final JRadioButton radioCyclic;
+	private final JCheckBox checkTreatMinAsBackground;
+	private final JButton buttonBackgroundColor;
+	private final JComboBox< MappingPreset > comboMappingPreset;
 
 	/** The palette and mapping currently being edited (not yet applied until "Apply" is pressed). */
 	private ColorTable currentPalette = new ColorTable8();
@@ -137,13 +137,13 @@ public class LutEditorDialog extends JDialog
 		( ( JPanel ) getContentPane() ).setBorder( new EmptyBorder( 12, 12, 12, 12 ) );
 
 		// -- Data panel: source + color palette -----------------------------
-		combo = new JComboBox<>();
+		comboSource = new JComboBox<>();
 
-		presetCombo = new JComboBox<>();
+		comboPalette = new JComboBox<>();
 		discoverLuts();
 		for ( final String name : lutNames )
-			presetCombo.addItem( name );
-		presetCombo.setRenderer( new DefaultListCellRenderer()
+			comboPalette.addItem( name );
+		comboPalette.setRenderer( new DefaultListCellRenderer()
 		{
 			@Override
 			public Component getListCellRendererComponent( final JList< ? > list, final Object value,
@@ -155,203 +155,203 @@ public class LutEditorDialog extends JDialog
 				return this;
 			}
 		} );
-		presetCombo.setSelectedIndex( -1 );
+		comboPalette.setSelectedIndex( -1 );
 
-		paletteSwatch = new GradientPreviewPanel();
-		paletteSwatch.setPreferredSize( new Dimension( 200, 16 ) );
-		paletteSwatch.setMaximumSize( new Dimension( Integer.MAX_VALUE, 16 ) );
+		panelPaletteSwatch = new GradientPreviewPanel();
+		panelPaletteSwatch.setPreferredSize( new Dimension( 200, 16 ) );
+		panelPaletteSwatch.setMaximumSize( new Dimension( Integer.MAX_VALUE, 16 ) );
 
-		final JPanel dataPanel = new JPanel();
-		dataPanel.setLayout( new BoxLayout( dataPanel, BoxLayout.PAGE_AXIS ) );
-		dataPanel.setBorder( BorderFactory.createTitledBorder( "Data" ) );
-		dataPanel.add( labeledRow( "Source:", combo ) );
-		dataPanel.add( Box.createVerticalStrut( 8 ) );
-		dataPanel.add( labeledRow( "Color palette:", presetCombo ) );
-		dataPanel.add( Box.createVerticalStrut( 4 ) );
-		dataPanel.add( paletteSwatch );
+		final JPanel panelData = new JPanel();
+		panelData.setLayout( new BoxLayout( panelData, BoxLayout.PAGE_AXIS ) );
+		panelData.setBorder( BorderFactory.createTitledBorder( "Data" ) );
+		panelData.add( labeledRow( "Source:", comboSource ) );
+		panelData.add( Box.createVerticalStrut( 8 ) );
+		panelData.add( labeledRow( "Color palette:", comboPalette ) );
+		panelData.add( Box.createVerticalStrut( 4 ) );
+		panelData.add( panelPaletteSwatch );
 
-		dataPanel.setAlignmentX( Component.LEFT_ALIGNMENT );
-		dataPanel.setMaximumSize( new Dimension( Integer.MAX_VALUE, dataPanel.getPreferredSize().height ) );
+		panelData.setAlignmentX( Component.LEFT_ALIGNMENT );
+		panelData.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelData.getPreferredSize().height ) );
 
 		// -- Mapping panel: value matching, range mode, preset --------------
-		valueMatchingCombo = new JComboBox<>( ValueMatching.values() );
-		rbFit = new JRadioButton( "Fit" );
-		rbCyclic = new JRadioButton( "Cyclic" );
-		final ButtonGroup rangeModeGroup = new ButtonGroup();
-		rangeModeGroup.add( rbFit );
-		rangeModeGroup.add( rbCyclic );
-		rbFit.setSelected( true );
-		chkTreatMinAsBackground = new JCheckBox( "Treat min as Bg" );
-		chkTreatMinAsBackground.setVisible( false );
-		backgroundColorButton = new JButton();
-		backgroundColorButton.setToolTipText( "Background color" );
-		backgroundColorButton.setPreferredSize( new Dimension( 20, 20 ) );
-		backgroundColorButton.setMinimumSize( new Dimension( 20, 20 ) );
-		backgroundColorButton.setMaximumSize( new Dimension( 20, 20 ) );
-		backgroundColorButton.setBackground( new Color( 0xff000000, false ) );
-		backgroundColorButton.setVisible( false );
-		backgroundColorButton.setEnabled( false );
-		mappingPresetCombo = new JComboBox<>( MappingPreset.values() );
+		comboValueMatching = new JComboBox<>( ValueMatching.values() );
+		radioFit = new JRadioButton( "Fit" );
+		radioCyclic = new JRadioButton( "Cyclic" );
+		final ButtonGroup groupRangeMode = new ButtonGroup();
+		groupRangeMode.add( radioFit );
+		groupRangeMode.add( radioCyclic );
+		radioFit.setSelected( true );
+		checkTreatMinAsBackground = new JCheckBox( "Treat min as Bg" );
+		checkTreatMinAsBackground.setVisible( false );
+		buttonBackgroundColor = new JButton();
+		buttonBackgroundColor.setToolTipText( "Background color" );
+		buttonBackgroundColor.setPreferredSize( new Dimension( 20, 20 ) );
+		buttonBackgroundColor.setMinimumSize( new Dimension( 20, 20 ) );
+		buttonBackgroundColor.setMaximumSize( new Dimension( 20, 20 ) );
+		buttonBackgroundColor.setBackground( new Color( 0xff000000, false ) );
+		buttonBackgroundColor.setVisible( false );
+		buttonBackgroundColor.setEnabled( false );
+		comboMappingPreset = new JComboBox<>( MappingPreset.values() );
 
-		final JPanel mappingPanel = new JPanel();
-		mappingPanel.setLayout( new BoxLayout( mappingPanel, BoxLayout.PAGE_AXIS ) );
-		mappingPanel.setBorder( BorderFactory.createTitledBorder( "Mapping" ) );
-		mappingPanel.add( labeledRow( "Value matching:", valueMatchingCombo ) );
-		final JPanel rangeModeRow = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
-		rangeModeRow.add( new JLabel( "Range mode:" ) );
-		rangeModeRow.add( Box.createHorizontalStrut( 8 ) );
-		rangeModeRow.add( rbFit );
-		rangeModeRow.add( Box.createHorizontalStrut( 4 ) );
-		rangeModeRow.add( rbCyclic );
-		rangeModeRow.add( Box.createHorizontalStrut( 8 ) );
-		rangeModeRow.add( chkTreatMinAsBackground );
-		rangeModeRow.add( Box.createHorizontalStrut( 4 ) );
-		rangeModeRow.add( backgroundColorButton );
-		rangeModeRow.setAlignmentX( Component.LEFT_ALIGNMENT );
-		mappingPanel.add( Box.createVerticalStrut( 4 ) );
-		mappingPanel.add( rangeModeRow );
-		mappingPanel.add( Box.createVerticalStrut( 4 ) );
-		mappingPanel.add( labeledRow( "Mapping preset:", mappingPresetCombo ) );
-		mappingPanel.setAlignmentX( Component.LEFT_ALIGNMENT );
-		mappingPanel.setMaximumSize( new Dimension( Integer.MAX_VALUE, mappingPanel.getPreferredSize().height ) );
+		final JPanel panelMapping = new JPanel();
+		panelMapping.setLayout( new BoxLayout( panelMapping, BoxLayout.PAGE_AXIS ) );
+		panelMapping.setBorder( BorderFactory.createTitledBorder( "Mapping" ) );
+		panelMapping.add( labeledRow( "Value matching:", comboValueMatching ) );
+		final JPanel panelRangeMode = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
+		panelRangeMode.add( new JLabel( "Range mode:" ) );
+		panelRangeMode.add( Box.createHorizontalStrut( 8 ) );
+		panelRangeMode.add( radioFit );
+		panelRangeMode.add( Box.createHorizontalStrut( 4 ) );
+		panelRangeMode.add( radioCyclic );
+		panelRangeMode.add( Box.createHorizontalStrut( 8 ) );
+		panelRangeMode.add( checkTreatMinAsBackground );
+		panelRangeMode.add( Box.createHorizontalStrut( 4 ) );
+		panelRangeMode.add( buttonBackgroundColor );
+		panelRangeMode.setAlignmentX( Component.LEFT_ALIGNMENT );
+		panelMapping.add( Box.createVerticalStrut( 4 ) );
+		panelMapping.add( panelRangeMode );
+		panelMapping.add( Box.createVerticalStrut( 4 ) );
+		panelMapping.add( labeledRow( "Mapping preset:", comboMappingPreset ) );
+		panelMapping.setAlignmentX( Component.LEFT_ALIGNMENT );
+		panelMapping.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelMapping.getPreferredSize().height ) );
 
-		final JPanel leftColumn = new JPanel();
-		leftColumn.setLayout( new BoxLayout( leftColumn, BoxLayout.PAGE_AXIS ) );
-		leftColumn.add( dataPanel );
-		leftColumn.add( mappingPanel );
+		final JPanel panelLeftColumn = new JPanel();
+		panelLeftColumn.setLayout( new BoxLayout( panelLeftColumn, BoxLayout.PAGE_AXIS ) );
+		panelLeftColumn.add( panelData );
+		panelLeftColumn.add( panelMapping );
 
 		// -- Mapping curve panel ---------------------------------------------
-		mappingCurvePanel = new MappingCurvePanel( mappingModel );
-		mappingCurvePanel.setRangeChangeListener( ( min, max ) ->
+		panelMappingCurve = new MappingCurvePanel( mappingModel );
+		panelMappingCurve.setRangeChangeListener( ( min, max ) ->
 		{
 			editedRangeMin = min;
 			editedRangeMax = max;
 		} );
 		// Wrap in a non-stretching FlowLayout so the panel renders at its own
 		// preferred size instead of being stretched to fill BorderLayout.CENTER.
-		final JPanel graphWrapper = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
-		graphWrapper.add( mappingCurvePanel );
+		final JPanel panelGraphWrapper = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
+		panelGraphWrapper.add( panelMappingCurve );
 
-		final JPanel rightColumn = new JPanel( new BorderLayout() );
-		rightColumn.setBorder( BorderFactory.createTitledBorder( "Mapping curve" ) );
-		rightColumn.add( graphWrapper, BorderLayout.CENTER );
+		final JPanel panelRightColumn = new JPanel( new BorderLayout() );
+		panelRightColumn.setBorder( BorderFactory.createTitledBorder( "Mapping curve" ) );
+		panelRightColumn.add( panelGraphWrapper, BorderLayout.CENTER );
 
-		// Likewise, wrap rightColumn itself so its titled border hugs the graph
-		// tightly instead of stretching to fill centerPanel's CENTER slot.
-		final JPanel rightColumnWrapper = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
-		rightColumnWrapper.add( rightColumn );
+		// Likewise, wrap panelRightColumn itself so its titled border hugs the graph
+		// tightly instead of stretching to fill panelCenter's CENTER slot.
+		final JPanel panelRightColumnWrapper = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
+		panelRightColumnWrapper.add( panelRightColumn );
 
-		final JPanel centerPanel = new JPanel( new BorderLayout( 12, 0 ) );
-		centerPanel.add( leftColumn, BorderLayout.WEST );
-		centerPanel.add( rightColumnWrapper, BorderLayout.CENTER );
-		add( centerPanel, BorderLayout.CENTER );
+		final JPanel panelCenter = new JPanel( new BorderLayout( 12, 0 ) );
+		panelCenter.add( panelLeftColumn, BorderLayout.WEST );
+		panelCenter.add( panelRightColumnWrapper, BorderLayout.CENTER );
+		add( panelCenter, BorderLayout.CENTER );
 
 		// -- Bottom bar: status/reset on the left, cancel/apply on the right -
-		statusLabel = new JLabel( "" );
+		labelStatus = new JLabel( "" );
 
-		final JPanel bottomPanel = new JPanel( new BorderLayout() );
-		final JPanel leftBottom = new JPanel( new FlowLayout( FlowLayout.LEFT, 8, 0 ) );
-		final JButton btnHelp = new JButton( "Help" );
-		btnHelp.setFocusable( false );
-		leftBottom.add( btnHelp );
-		final JToggleButton btnEditCurve = new JToggleButton( "Edit Curve" );
-		btnEditCurve.setFocusable( false );
-		leftBottom.add( btnEditCurve );
-		leftBottom.add( statusLabel );
-		bottomPanel.add( leftBottom, BorderLayout.WEST );
+		final JPanel panelBottom = new JPanel( new BorderLayout() );
+		final JPanel panelLeftBottom = new JPanel( new FlowLayout( FlowLayout.LEFT, 8, 0 ) );
+		final JButton buttonHelp = new JButton( "Help" );
+		buttonHelp.setFocusable( false );
+		panelLeftBottom.add( buttonHelp );
+		final JToggleButton toggleEditCurve = new JToggleButton( "Edit Curve" );
+		toggleEditCurve.setFocusable( false );
+		panelLeftBottom.add( toggleEditCurve );
+		panelLeftBottom.add( labelStatus );
+		panelBottom.add( panelLeftBottom, BorderLayout.WEST );
 
-		final JButton btnCancel = new JButton( "Cancel" );
-		final JButton btnApply = new JButton( "Apply" );
-		normalizeButtonSizes( btnCancel, btnApply );
-		final JPanel rightBottom = new JPanel( new GridLayout( 1, 2, 8, 0 ) );
-		rightBottom.add( btnCancel );
-		rightBottom.add( btnApply );
-		bottomPanel.add( rightBottom, BorderLayout.EAST );
+		final JButton buttonCancel = new JButton( "Cancel" );
+		final JButton buttonApply = new JButton( "Apply" );
+		normalizeButtonSizes( buttonCancel, buttonApply );
+		final JPanel panelRightBottom = new JPanel( new GridLayout( 1, 2, 8, 0 ) );
+		panelRightBottom.add( buttonCancel );
+		panelRightBottom.add( buttonApply );
+		panelBottom.add( panelRightBottom, BorderLayout.EAST );
 
-		add( bottomPanel, BorderLayout.SOUTH );
+		add( panelBottom, BorderLayout.SOUTH );
 
 		// -- Event listeners --------------------------------------------------
-		combo.addActionListener( e -> onSourceChanged() );
+		comboSource.addActionListener( e -> onSourceChanged() );
 
-		presetCombo.addActionListener( e ->
+		comboPalette.addActionListener( e ->
 		{
 			if ( loadingControls )
 				return;
-			final int pi = presetCombo.getSelectedIndex();
+			final int pi = comboPalette.getSelectedIndex();
 			if ( pi < 0 || pi >= lutNames.size() )
 				return;
 			final ColorTable ct = loadLutResource( lutNames.get( pi ) );
 			if ( ct == null )
 			{
-				statusLabel.setText( "Failed to load LUT: " + lutNames.get( pi ) );
+				labelStatus.setText( "Failed to load LUT: " + lutNames.get( pi ) );
 				return;
 			}
 			currentPalette = ct;
-			paletteSwatch.update( ct );
-			mappingCurvePanel.setPalette( ct );
-			statusLabel.setText( "" );
+			panelPaletteSwatch.update( ct );
+			panelMappingCurve.setPalette( ct );
+			labelStatus.setText( "" );
 		} );
 
-		valueMatchingCombo.addActionListener( e ->
+		comboValueMatching.addActionListener( e ->
 		{
 			if ( loadingControls )
 				return;
-			mappingModel.setValueMatching( ( ValueMatching ) valueMatchingCombo.getSelectedItem() );
+			mappingModel.setValueMatching( ( ValueMatching ) comboValueMatching.getSelectedItem() );
 		} );
 
-		final ActionListener rangeModeListener = e ->
+		final ActionListener listenerRangeMode = e ->
 		{
-			setTreatMinAsBackgroundVisible( rbCyclic.isSelected() );
+			setTreatMinAsBackgroundVisible( radioCyclic.isSelected() );
 			if ( loadingControls )
 				return;
-			mappingModel.setRangeMode( rbFit.isSelected() ? RangeMode.FIT : RangeMode.CYCLIC );
+			mappingModel.setRangeMode( radioFit.isSelected() ? RangeMode.FIT : RangeMode.CYCLIC );
 		};
-		rbFit.addActionListener( rangeModeListener );
-		rbCyclic.addActionListener( rangeModeListener );
+		radioFit.addActionListener( listenerRangeMode );
+		radioCyclic.addActionListener( listenerRangeMode );
 
-		chkTreatMinAsBackground.addActionListener( e ->
+		checkTreatMinAsBackground.addActionListener( e ->
 		{
-			backgroundColorButton.setEnabled( chkTreatMinAsBackground.isSelected() );
+			buttonBackgroundColor.setEnabled( checkTreatMinAsBackground.isSelected() );
 			if ( loadingControls )
 				return;
-			mappingModel.setTreatMinAsBackground( chkTreatMinAsBackground.isSelected() );
+			mappingModel.setTreatMinAsBackground( checkTreatMinAsBackground.isSelected() );
 		} );
 
-		backgroundColorButton.addActionListener( e ->
+		buttonBackgroundColor.addActionListener( e ->
 		{
-			final Color chosen = JColorChooser.showDialog( this, "Background Color", backgroundColorButton.getBackground() );
+			final Color chosen = JColorChooser.showDialog( this, "Background Color", buttonBackgroundColor.getBackground() );
 			if ( chosen == null )
 				return;
 			final int argb = 0xff000000 | ( chosen.getRGB() & 0xffffff );
-			backgroundColorButton.setBackground( new Color( argb, false ) );
+			buttonBackgroundColor.setBackground( new Color( argb, false ) );
 			mappingModel.setBackgroundColor( argb );
 		} );
 
-		mappingPresetCombo.addActionListener( e ->
+		comboMappingPreset.addActionListener( e ->
 		{
 			if ( loadingControls )
 				return;
-			mappingModel.applyPreset( ( MappingPreset ) mappingPresetCombo.getSelectedItem() );
+			mappingModel.applyPreset( ( MappingPreset ) comboMappingPreset.getSelectedItem() );
 		} );
 
-		btnApply.addActionListener( e -> applyCurrent() );
-		btnCancel.addActionListener( e ->
+		buttonApply.addActionListener( e -> applyCurrent() );
+		buttonCancel.addActionListener( e ->
 		{
 			onSourceChanged();
 			setVisible( false );
 		} );
 
-		btnEditCurve.addActionListener( e ->
+		toggleEditCurve.addActionListener( e ->
 		{
-			final boolean editMode = btnEditCurve.isSelected();
-			mappingCurvePanel.setEditMode( editMode );
-			statusLabel.setText( editMode ? "Edit mode activated." : "" );
+			final boolean editMode = toggleEditCurve.isSelected();
+			panelMappingCurve.setEditMode( editMode );
+			labelStatus.setText( editMode ? "Edit mode activated." : "" );
 		} );
 
-		btnHelp.addActionListener( e -> showHelp() );
+		buttonHelp.addActionListener( e -> showHelp() );
 		getRootPane().registerKeyboardAction( e -> showHelp(), KeyStroke.getKeyStroke( KeyEvent.VK_F1, 0 ), JComponent.WHEN_IN_FOCUSED_WINDOW );
 
-		mappingModel.addChangeListener( mappingCurvePanel::repaint );
+		mappingModel.addChangeListener( panelMappingCurve::repaint );
 
 		rebuildList();
 
@@ -359,18 +359,18 @@ public class LutEditorDialog extends JDialog
 		// measurements below: JComboBox (and text components generally)
 		// under-measure their preferred width until the component hierarchy
 		// is actually realized (addNotify()) and real font metrics become
-		// available, so measuring leftColumn's width before this point can
+		// available, so measuring panelLeftColumn's width before this point can
 		// be significantly too narrow.
 		pack();
 
-		// Match the left column's actual rendered width (not just dataPanel's
-		// own preferred width: BoxLayout stretches dataPanel to leftColumn's
-		// width, which is the widest of dataPanel/mappingPanel), accounting
-		// for rightColumn's own titled border insets so the two titled panels
+		// Match the left column's actual rendered width (not just panelData's
+		// own preferred width: BoxLayout stretches panelData to panelLeftColumn's
+		// width, which is the widest of panelData/panelMapping), accounting
+		// for panelRightColumn's own titled border insets so the two titled panels
 		// line up exactly.
-		final Insets rightInsets = rightColumn.getBorder().getBorderInsets( rightColumn );
-		final int targetGraphWidth = leftColumn.getWidth() - rightInsets.left - rightInsets.right;
-		mappingCurvePanel.setPreferredSize( new Dimension( targetGraphWidth, mappingCurvePanel.getPreferredSize().height ) );
+		final Insets insetsRight = panelRightColumn.getBorder().getBorderInsets( panelRightColumn );
+		final int targetGraphWidth = panelLeftColumn.getWidth() - insetsRight.left - insetsRight.right;
+		panelMappingCurve.setPreferredSize( new Dimension( targetGraphWidth, panelMappingCurve.getPreferredSize().height ) );
 
 		// Second pack() applies the corrected graph width to the final layout.
 		pack();
@@ -383,10 +383,10 @@ public class LutEditorDialog extends JDialog
 	 */
 	private void onSourceChanged()
 	{
-		final int idx = combo.getSelectedIndex();
+		final int idx = comboSource.getSelectedIndex();
 		if ( idx < 0 || idx >= sources.size() )
 		{
-			statusLabel.setText( "no setup selected" );
+			labelStatus.setText( "no setup selected" );
 			return;
 		}
 		final SourceAndConverter< ? > soc = sources.get( idx );
@@ -394,14 +394,14 @@ public class LutEditorDialog extends JDialog
 		final Object conv = soc.getConverter();
 		if ( !( conv instanceof RealLUTConverter ) )
 		{
-			statusLabel.setText( "Converter does not use a LUT." );
+			labelStatus.setText( "Converter does not use a LUT." );
 			return;
 		}
-		statusLabel.setText( "" );
+		labelStatus.setText( "" );
 
 		final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
 		currentPalette = lutConv.getLUT() != null ? lutConv.getLUT() : new ColorTable8();
-		paletteSwatch.update( currentPalette );
+		panelPaletteSwatch.update( currentPalette );
 
 		final MappingModel existing = lutConv.getMapping();
 		if ( existing != null )
@@ -415,20 +415,20 @@ public class LutEditorDialog extends JDialog
 
 		editedRangeMin = setup != null ? setup.getDisplayRangeMin() : 0;
 		editedRangeMax = setup != null ? setup.getDisplayRangeMax() : 255;
-		mappingCurvePanel.setRange( editedRangeMin, editedRangeMax );
-		mappingCurvePanel.setPalette( currentPalette );
+		panelMappingCurve.setRange( editedRangeMin, editedRangeMax );
+		panelMappingCurve.setPalette( currentPalette );
 
 		loadingControls = true;
 		try
 		{
-			valueMatchingCombo.setSelectedItem( mappingModel.getValueMatching() );
-			rbFit.setSelected( mappingModel.getRangeMode() == RangeMode.FIT );
-			rbCyclic.setSelected( mappingModel.getRangeMode() == RangeMode.CYCLIC );
-			chkTreatMinAsBackground.setSelected( mappingModel.isTreatMinAsBackground() );
-			backgroundColorButton.setBackground( new Color( mappingModel.getBackgroundColor(), false ) );
-			backgroundColorButton.setEnabled( mappingModel.isTreatMinAsBackground() );
+			comboValueMatching.setSelectedItem( mappingModel.getValueMatching() );
+			radioFit.setSelected( mappingModel.getRangeMode() == RangeMode.FIT );
+			radioCyclic.setSelected( mappingModel.getRangeMode() == RangeMode.CYCLIC );
+			checkTreatMinAsBackground.setSelected( mappingModel.isTreatMinAsBackground() );
+			buttonBackgroundColor.setBackground( new Color( mappingModel.getBackgroundColor(), false ) );
+			buttonBackgroundColor.setEnabled( mappingModel.isTreatMinAsBackground() );
 			setTreatMinAsBackgroundVisible( mappingModel.getRangeMode() == RangeMode.CYCLIC );
-			mappingPresetCombo.setSelectedItem( mappingModel.getPreset() );
+			comboMappingPreset.setSelectedItem( mappingModel.getPreset() );
 		}
 		finally
 		{
@@ -442,7 +442,7 @@ public class LutEditorDialog extends JDialog
 	 */
 	private void applyCurrent()
 	{
-		final int idx = combo.getSelectedIndex();
+		final int idx = comboSource.getSelectedIndex();
 		if ( idx < 0 || idx >= sources.size() )
 			return;
 		final SourceAndConverter< ? > soc = sources.get( idx );
@@ -461,14 +461,14 @@ public class LutEditorDialog extends JDialog
 		if ( setup != null )
 			setup.setDisplayRange( editedRangeMin, editedRangeMax );
 
-		statusLabel.setText( "Applied." );
+		labelStatus.setText( "Applied." );
 		if ( repaintAction != null )
 			repaintAction.run();
 	}
 
 	private void rebuildList()
 	{
-		combo.removeAllItems();
+		comboSource.removeAllItems();
 		sources.clear();
 		final List< SourceAndConverter< ? > > stateSources = viewerState.getSources();
 		for ( final SourceAndConverter< ? > soc : stateSources )
@@ -478,21 +478,21 @@ public class LutEditorDialog extends JDialog
 				continue;
 			sources.add( soc );
 			final String name = soc.getSpimSource() != null ? soc.getSpimSource().getName() : Integer.toString( setup.getSetupId() );
-			combo.addItem( "[" + setup.getSetupId() + "] " + name );
+			comboSource.addItem( "[" + setup.getSetupId() + "] " + name );
 		}
-		if ( combo.getItemCount() > 0 )
-			combo.setSelectedIndex( 0 );
+		if ( comboSource.getItemCount() > 0 )
+			comboSource.setSelectedIndex( 0 );
 		onSourceChanged();
 	}
 
 	private void setTreatMinAsBackgroundVisible( final boolean visible )
 	{
-		if ( chkTreatMinAsBackground.isVisible() == visible )
+		if ( checkTreatMinAsBackground.isVisible() == visible )
 			return;
-		chkTreatMinAsBackground.setVisible( visible );
-		backgroundColorButton.setVisible( visible );
-		chkTreatMinAsBackground.getParent().revalidate();
-		chkTreatMinAsBackground.getParent().repaint();
+		checkTreatMinAsBackground.setVisible( visible );
+		buttonBackgroundColor.setVisible( visible );
+		checkTreatMinAsBackground.getParent().revalidate();
+		checkTreatMinAsBackground.getParent().repaint();
 	}
 
 	private static JPanel labeledRow( final String label, final JComponent component )
