@@ -27,7 +27,6 @@
  */
 package bdv.tools.brightness;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -40,10 +39,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.TreeMap;
 import java.util.stream.Stream;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import net.imglib2.display.ColorTable;
 
@@ -53,15 +55,20 @@ import net.imglib2.display.ColorTable;
  * discovery/parsing computation lives outside the (visual) dialog. The dialog
  * only asks this for names and colors.
  * <p>
- * A LUT resource is a text file, one control point per line, with 5
- * space-separated values {@code position red green blue alpha}, all in
- * [0, 1]. The number of control points is arbitrary (not tied to 256); colors
- * between control points are obtained by linear interpolation (see
- * {@link ColorTableLut}).
+ * A LUT resource is a JSON file with a {@code fixes_RGBA} object mapping each
+ * color's index (as a string, e.g. {@code "0"}, {@code "1"}, ...) to its
+ * {@code [red, green, blue, alpha]} components, all in [0, 1]. The number of
+ * colors is arbitrary (not tied to 256); colors between them are obtained by
+ * linear interpolation, evenly spaced in index order (see {@link ColorTableLut}).
+ * A top-level {@code color_interpolation} boolean declares whether the
+ * palette is meant to be smoothly interpolated or used as discrete colors
+ * (see {@link #isColorInterpolated(String)}).
  */
 public final class LutPalettes
 {
 	private static final String LUT_RESOURCE_DIR = "bdv/ui/luts";
+
+	private static final String LUT_RESOURCE_EXTENSION = ".json";
 
 	private LutPalettes()
 	{
@@ -69,7 +76,7 @@ public final class LutPalettes
 
 	/**
 	 * The names of all available LUT resources, sorted case-insensitively.
-	 * A name is the resource file name without its {@code .txt} extension,
+	 * A name is the resource file name without its {@code .json} extension,
 	 * and is what {@link #load(String)} expects.
 	 */
 	public static List< String > discoverNames()
@@ -106,11 +113,11 @@ public final class LutPalettes
 
 	private static void collectNames( final Stream< Path > paths, final TreeMap< String, String > sorted )
 	{
-		paths.filter( p -> p.toString().endsWith( ".txt" ) )
+		paths.filter( p -> p.toString().endsWith( LUT_RESOURCE_EXTENSION ) )
 				.forEach( p ->
 				{
 					final String fn = p.getFileName().toString();
-					sorted.put( fn.substring( 0, fn.length() - 4 ), fn );
+					sorted.put( fn.substring( 0, fn.length() - LUT_RESOURCE_EXTENSION.length() ), fn );
 				} );
 	}
 
@@ -123,50 +130,71 @@ public final class LutPalettes
 	 */
 	public static ColorTable load( final String name )
 	{
-		final String path = LUT_RESOURCE_DIR + "/" + name + ".txt";
+		final JsonObject root = readRoot( name );
+		if ( root == null )
+			return null;
+		final JsonObject colors = root.getAsJsonObject( "fixes_RGBA" );
+		if ( colors == null )
+			return null;
+
+		final List< Integer > indices = new ArrayList<>();
+		for ( final String key : colors.keySet() )
+			indices.add( Integer.parseInt( key ) );
+		Collections.sort( indices );
+
+		final int n = indices.size();
+		if ( n < 2 )
+			return null;
+
+		final double[] positions = new double[ n ];
+		final double[] red = new double[ n ];
+		final double[] green = new double[ n ];
+		final double[] blue = new double[ n ];
+		final double[] alpha = new double[ n ];
+		for ( int i = 0; i < n; i++ )
+		{
+			final JsonArray rgba = colors.getAsJsonArray( Integer.toString( indices.get( i ) ) );
+			positions[ i ] = i / ( double ) ( n - 1 );
+			red[ i ] = rgba.get( 0 ).getAsDouble();
+			green[ i ] = rgba.get( 1 ).getAsDouble();
+			blue[ i ] = rgba.get( 2 ).getAsDouble();
+			alpha[ i ] = rgba.get( 3 ).getAsDouble();
+		}
+		return new ColorTableLut( positions, red, green, blue, alpha );
+	}
+
+	/**
+	 * Whether the named LUT resource declares itself as meant to be smoothly
+	 * interpolated ({@code color_interpolation: true}, e.g. a continuous
+	 * palette like viridis) rather than used as discrete, individually
+	 * chosen colors ({@code false}, e.g. a qualitative/categorical palette
+	 * like tab10). Defaults to {@code true} if the resource is missing,
+	 * unparsable, or does not declare the field.
+	 *
+	 * @param name
+	 * 		a name as returned by {@link #discoverNames()}.
+	 */
+	public static boolean isColorInterpolated( final String name )
+	{
+		final JsonObject root = readRoot( name );
+		if ( root == null || !root.has( "color_interpolation" ) )
+			return true;
+		return root.get( "color_interpolation" ).getAsBoolean();
+	}
+
+	/**
+	 * Read and parse the named LUT resource's root JSON object, or
+	 * {@code null} if it cannot be found or parsed.
+	 */
+	private static JsonObject readRoot( final String name )
+	{
+		final String path = LUT_RESOURCE_DIR + "/" + name + LUT_RESOURCE_EXTENSION;
 		try ( final InputStream is = LutPalettes.class.getClassLoader().getResourceAsStream( path ) )
 		{
 			if ( is == null )
 				return null;
-			final BufferedReader reader = new BufferedReader( new InputStreamReader( is ) );
-			final List< double[] > rows = new ArrayList<>();
-			String line;
-			while ( ( line = reader.readLine() ) != null )
-			{
-				line = line.trim();
-				if ( line.isEmpty() )
-					continue;
-				final String[] parts = line.split( "\\s+" );
-				if ( parts.length < 4 )
-					continue;
-				final double position = Double.parseDouble( parts[ 0 ] );
-				final double r = Double.parseDouble( parts[ 1 ] );
-				final double g = Double.parseDouble( parts[ 2 ] );
-				final double b = Double.parseDouble( parts[ 3 ] );
-				final double a = parts.length >= 5 ? Double.parseDouble( parts[ 4 ] ) : 1.0;
-				rows.add( new double[] { position, r, g, b, a } );
-			}
-			if ( rows.size() < 2 )
-				return null;
-			rows.sort( Comparator.comparingDouble( row -> row[ 0 ] ) );
-
-			final int n = rows.size();
-			final double[] positions = new double[ n ];
-			final double[] red = new double[ n ];
-			final double[] green = new double[ n ];
-			final double[] blue = new double[ n ];
-			final double[] alpha = new double[ n ];
-			for ( int i = 0; i < n; i++ )
-			{
-				final double[] row = rows.get( i );
-				positions[ i ] = row[ 0 ];
-				red[ i ] = row[ 1 ];
-				green[ i ] = row[ 2 ];
-				blue[ i ] = row[ 3 ];
-				alpha[ i ] = row[ 4 ];
-			}
-			return new ColorTableLut( positions, red, green, blue, alpha );
-		} catch ( final IOException | NumberFormatException e )
+			return JsonParser.parseReader( new InputStreamReader( is ) ).getAsJsonObject();
+		} catch ( final IOException | RuntimeException e )
 		{
 			e.printStackTrace();
 			return null;

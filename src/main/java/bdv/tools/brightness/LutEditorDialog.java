@@ -157,7 +157,7 @@ public class LutEditorDialog extends JDialog
 		} );
 		comboPalette.setSelectedIndex( -1 );
 
-		panelPaletteSwatch = new GradientPreviewPanel();
+		panelPaletteSwatch = new GradientPreviewPanel( mappingModel );
 		panelPaletteSwatch.setPreferredSize( new Dimension( 200, 16 ) );
 		panelPaletteSwatch.setMaximumSize( new Dimension( Integer.MAX_VALUE, 16 ) );
 
@@ -280,16 +280,34 @@ public class LutEditorDialog extends JDialog
 			final int pi = comboPalette.getSelectedIndex();
 			if ( pi < 0 || pi >= lutNames.size() )
 				return;
-			final ColorTable ct = LutPalettes.load( lutNames.get( pi ) );
+			final String name = lutNames.get( pi );
+			final ColorTable ct = LutPalettes.load( name );
 			if ( ct == null )
 			{
-				labelStatus.setText( "Failed to load LUT: " + lutNames.get( pi ) );
+				labelStatus.setText( "Failed to load LUT: " + name );
 				return;
 			}
 			currentPalette = ct;
 			panelPaletteSwatch.update( ct );
 			panelMappingCurve.setPalette( ct );
 			labelStatus.setText( "" );
+
+			// A palette that declares itself non-interpolated (e.g. a
+			// qualitative/categorical palette like tab10) is meant to be used
+			// as discrete colors, not blended -- Truncate is the closest
+			// match to how such palettes are typically read (each raw value
+			// holds the color of the control point at or before it).
+			ValueMatching valueMatching = LutPalettes.isColorInterpolated( name ) ? ValueMatching.INTERPOLATE : ValueMatching.TRUNCATE;
+			mappingModel.setValueMatching( valueMatching );
+				loadingControls = true;
+				try
+				{
+					comboValueMatching.setSelectedItem( valueMatching );
+				}
+				finally
+				{
+					loadingControls = false;
+				}
 		} );
 
 		comboValueMatching.addActionListener( e ->
@@ -352,6 +370,7 @@ public class LutEditorDialog extends JDialog
 		getRootPane().registerKeyboardAction( e -> showHelp(), KeyStroke.getKeyStroke( KeyEvent.VK_F1, 0 ), JComponent.WHEN_IN_FOCUSED_WINDOW );
 
 		mappingModel.addChangeListener( panelMappingCurve::repaint );
+		mappingModel.addChangeListener( panelPaletteSwatch::repaint );
 
 		rebuildList();
 
@@ -572,14 +591,19 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * A preview panel showing a color table as a horizontal gradient bar.
+	 * A preview panel showing a color table as a horizontal gradient bar,
+	 * honoring the current {@link ValueMatching} (e.g. a Truncate/Round
+	 * palette shows discrete color bands instead of a smooth blend).
 	 */
 	private static class GradientPreviewPanel extends JPanel
 	{
+		private final MappingModel model;
+
 		private ColorTable colorTable;
 
-		public GradientPreviewPanel()
+		public GradientPreviewPanel( final MappingModel model )
 		{
+			this.model = model;
 			setPreferredSize( new Dimension( 300, 16 ) );
 			this.colorTable = DEFAULT_PALETTE;
 		}
@@ -600,10 +624,11 @@ public class LutEditorDialog extends JDialog
 
 			if ( colorTable != null )
 			{
+				final ValueMatching matching = model.getValueMatching();
 				for ( int i = 0; i < w; i++ )
 				{
 					final int idx = ( int ) ( i * 255.0 / w );
-					final int argb = colorTable.lookupARGB( 0, 255, idx );
+					final int argb = ColorTableLut.lookupARGB( colorTable, 0, 255, idx, matching );
 					g.setColor( new Color( argb ) );
 					g.fillRect( i, 0, 1, h );
 				}
