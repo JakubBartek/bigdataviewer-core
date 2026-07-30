@@ -33,14 +33,14 @@ import org.junit.Test;
 import net.imglib2.display.ColorTable8;
 
 /**
- * Test cases for {@link LutPalette}.
+ * Test cases for {@link ColorTableLut}.
  */
-public class LutPaletteTest
+public class ColorTableLutTest
 {
 	@Test
 	public void testEndpoints()
 	{
-		final LutPalette lut = new LutPalette(
+		final ColorTableLut lut = new ColorTableLut(
 				new double[] { 0.0, 1.0 },
 				new double[] { 0.0, 1.0 },
 				new double[] { 0.0, 0.0 },
@@ -54,7 +54,7 @@ public class LutPaletteTest
 	@Test
 	public void testInterpolatesBetweenControlPoints()
 	{
-		final LutPalette lut = new LutPalette(
+		final ColorTableLut lut = new ColorTableLut(
 				new double[] { 0.0, 1.0 },
 				new double[] { 0.0, 1.0 },
 				new double[] { 0.0, 0.0 },
@@ -70,7 +70,7 @@ public class LutPaletteTest
 	public void testWorksWithFewControlPoints()
 	{
 		// A sparse, unevenly spaced categorical-style palette.
-		final LutPalette lut = new LutPalette(
+		final ColorTableLut lut = new ColorTableLut(
 				new double[] { 0.0, 0.2, 1.0 },
 				new double[] { 1.0, 0.0, 0.0 },
 				new double[] { 0.0, 1.0, 0.0 },
@@ -85,7 +85,7 @@ public class LutPaletteTest
 	@Test
 	public void testClampsOutOfRangeValues()
 	{
-		final LutPalette lut = new LutPalette(
+		final ColorTableLut lut = new ColorTableLut(
 				new double[] { 0.0, 1.0 },
 				new double[] { 0.0, 1.0 },
 				new double[] { 0.0, 0.0 },
@@ -99,15 +99,15 @@ public class LutPaletteTest
 	@Test( expected = IllegalArgumentException.class )
 	public void testRejectsTooFewControlPoints()
 	{
-		new LutPalette( new double[] { 0.0 }, new double[] { 0.0 }, new double[] { 0.0 }, new double[] { 0.0 }, new double[] { 1.0 } );
+		new ColorTableLut( new double[] { 0.0 }, new double[] { 0.0 }, new double[] { 0.0 }, new double[] { 0.0 }, new double[] { 1.0 } );
 	}
 
 	/**
 	 * Three distinctly-colored control points at t = 0, 0.5, 1.0.
 	 */
-	private static LutPalette threeColorPalette()
+	private static ColorTableLut threeColorPalette()
 	{
-		return new LutPalette(
+		return new ColorTableLut(
 				new double[] { 0.0, 0.5, 1.0 },
 				new double[] { 1.0, 0.0, 0.0 },
 				new double[] { 0.0, 1.0, 0.0 },
@@ -118,38 +118,38 @@ public class LutPaletteTest
 	@Test
 	public void testStaticLookupInterpolateMatchesPlainLookup()
 	{
-		final LutPalette lut = threeColorPalette();
-		Assert.assertEquals( lut.lookupARGB( 0, 1, 0.3 ), LutPalette.lookupARGB( lut, 0, 1, 0.3, ValueMatching.INTERPOLATE ) );
+		final ColorTableLut lut = threeColorPalette();
+		Assert.assertEquals( lut.lookupARGB( 0, 1, 0.3 ), ColorTableLut.lookupARGB( lut, 0, 1, 0.3, ValueMatching.INTERPOLATE ) );
 	}
 
 	@Test
 	public void testStaticLookupRoundSnapsToNearestControlPointWithoutBlending()
 	{
-		final LutPalette lut = threeColorPalette();
+		final ColorTableLut lut = threeColorPalette();
 
 		// t=0.24 is nearest to the control point at t=0 (red).
-		Assert.assertEquals( 0xffff0000, LutPalette.lookupARGB( lut, 0, 1, 0.24, ValueMatching.ROUND ) );
+		Assert.assertEquals( 0xffff0000, ColorTableLut.lookupARGB( lut, 0, 1, 0.24, ValueMatching.ROUND ) );
 		// t=0.3 is nearest to the control point at t=0.5 (green).
-		Assert.assertEquals( 0xff00ff00, LutPalette.lookupARGB( lut, 0, 1, 0.3, ValueMatching.ROUND ) );
+		Assert.assertEquals( 0xff00ff00, ColorTableLut.lookupARGB( lut, 0, 1, 0.3, ValueMatching.ROUND ) );
 		// Confirm this differs from the blended (interpolated) color at the same t.
 		Assert.assertNotEquals(
-				LutPalette.lookupARGB( lut, 0, 1, 0.3, ValueMatching.INTERPOLATE ),
-				LutPalette.lookupARGB( lut, 0, 1, 0.3, ValueMatching.ROUND ) );
+				ColorTableLut.lookupARGB( lut, 0, 1, 0.3, ValueMatching.INTERPOLATE ),
+				ColorTableLut.lookupARGB( lut, 0, 1, 0.3, ValueMatching.ROUND ) );
 	}
 
 	@Test
 	public void testStaticLookupTruncateHoldsPreviousControlPointWithoutBlending()
 	{
-		final LutPalette lut = threeColorPalette();
+		final ColorTableLut lut = threeColorPalette();
 
 		// Anything in [0, 0.5) holds the color at t=0 (red).
-		Assert.assertEquals( 0xffff0000, LutPalette.lookupARGB( lut, 0, 1, 0.0, ValueMatching.TRUNCATE ) );
-		Assert.assertEquals( 0xffff0000, LutPalette.lookupARGB( lut, 0, 1, 0.49, ValueMatching.TRUNCATE ) );
+		Assert.assertEquals( 0xffff0000, ColorTableLut.lookupARGB( lut, 0, 1, 0.0, ValueMatching.TRUNCATE ) );
+		Assert.assertEquals( 0xffff0000, ColorTableLut.lookupARGB( lut, 0, 1, 0.49, ValueMatching.TRUNCATE ) );
 		// [0.5, 1.0) holds the color at t=0.5 (green).
-		Assert.assertEquals( 0xff00ff00, LutPalette.lookupARGB( lut, 0, 1, 0.5, ValueMatching.TRUNCATE ) );
-		Assert.assertEquals( 0xff00ff00, LutPalette.lookupARGB( lut, 0, 1, 0.99, ValueMatching.TRUNCATE ) );
+		Assert.assertEquals( 0xff00ff00, ColorTableLut.lookupARGB( lut, 0, 1, 0.5, ValueMatching.TRUNCATE ) );
+		Assert.assertEquals( 0xff00ff00, ColorTableLut.lookupARGB( lut, 0, 1, 0.99, ValueMatching.TRUNCATE ) );
 		// t=1.0 holds the color at t=1.0 (blue).
-		Assert.assertEquals( 0xff0000ff, LutPalette.lookupARGB( lut, 0, 1, 1.0, ValueMatching.TRUNCATE ) );
+		Assert.assertEquals( 0xff0000ff, ColorTableLut.lookupARGB( lut, 0, 1, 1.0, ValueMatching.TRUNCATE ) );
 	}
 
 	@Test
@@ -160,34 +160,34 @@ public class LutPaletteTest
 		// Round/Truncate must fall back to its normal (interpolated) lookup.
 		Assert.assertEquals(
 				ct.lookupARGB( 0, 255, 100 ),
-				LutPalette.lookupARGB( ct, 0, 255, 100, ValueMatching.ROUND ) );
+				ColorTableLut.lookupARGB( ct, 0, 255, 100, ValueMatching.ROUND ) );
 		Assert.assertEquals(
 				ct.lookupARGB( 0, 255, 100 ),
-				LutPalette.lookupARGB( ct, 0, 255, 100, ValueMatching.TRUNCATE ) );
+				ColorTableLut.lookupARGB( ct, 0, 255, 100, ValueMatching.TRUNCATE ) );
 	}
 
 	@Test
 	public void testSteppedPositionMatchesWhicheverControlPointLookupWouldPick()
 	{
-		final LutPalette lut = threeColorPalette();
+		final ColorTableLut lut = threeColorPalette();
 
 		// INTERPOLATE: unchanged.
-		Assert.assertEquals( 0.3, LutPalette.steppedPosition( lut, 0.3, ValueMatching.INTERPOLATE ), 1e-9 );
+		Assert.assertEquals( 0.3, ColorTableLut.steppedPosition( lut, 0.3, ValueMatching.INTERPOLATE ), 1e-9 );
 
 		// ROUND: snaps to the nearest control point's own position (0.5), not
 		// blended, and not the curve's own resolution.
-		Assert.assertEquals( 0.5, LutPalette.steppedPosition( lut, 0.3, ValueMatching.ROUND ), 1e-9 );
+		Assert.assertEquals( 0.5, ColorTableLut.steppedPosition( lut, 0.3, ValueMatching.ROUND ), 1e-9 );
 
 		// TRUNCATE: holds the position of the last control point at or before t.
-		Assert.assertEquals( 0.0, LutPalette.steppedPosition( lut, 0.3, ValueMatching.TRUNCATE ), 1e-9 );
-		Assert.assertEquals( 0.5, LutPalette.steppedPosition( lut, 0.5, ValueMatching.TRUNCATE ), 1e-9 );
+		Assert.assertEquals( 0.0, ColorTableLut.steppedPosition( lut, 0.3, ValueMatching.TRUNCATE ), 1e-9 );
+		Assert.assertEquals( 0.5, ColorTableLut.steppedPosition( lut, 0.5, ValueMatching.TRUNCATE ), 1e-9 );
 	}
 
 	@Test
 	public void testSteppedPositionIgnoresMatchingForNonLutPaletteColorTables()
 	{
 		final ColorTable8 ct = new ColorTable8();
-		Assert.assertEquals( 0.3, LutPalette.steppedPosition( ct, 0.3, ValueMatching.ROUND ), 1e-9 );
-		Assert.assertEquals( 0.3, LutPalette.steppedPosition( ct, 0.3, ValueMatching.TRUNCATE ), 1e-9 );
+		Assert.assertEquals( 0.3, ColorTableLut.steppedPosition( ct, 0.3, ValueMatching.ROUND ), 1e-9 );
+		Assert.assertEquals( 0.3, ColorTableLut.steppedPosition( ct, 0.3, ValueMatching.TRUNCATE ), 1e-9 );
 	}
 }

@@ -39,7 +39,7 @@ import net.imglib2.type.numeric.RealType;
 
 /**
  * RealLUTConverter contains a {@link ColorTable} (typically a
- * {@link ColorTable8} or a {@link LutPalette}), through which samples are
+ * {@link ColorTable8} or a {@link ColorTableLut}), through which samples are
  * filtered. Input values are interpreted as indices into the color table,
  * optionally reshaped first by a {@link MappingModel}.
  */
@@ -49,7 +49,7 @@ public class RealLUTConverter< R extends RealType< R > > extends
 
 	private ColorTable lut = null;
 
-	/** {@link LutPalette#colorPositions(ColorTable)} of {@link #lut}, cached since {@link #convert} runs per pixel. */
+	/** {@link ColorTableLut#colorPositions(ColorTable)} of {@link #lut}, cached since {@link #convert} runs per pixel. */
 	private double[] lutColorPositions = null;
 
 	private MappingModel mapping = null;
@@ -74,7 +74,7 @@ public class RealLUTConverter< R extends RealType< R > > extends
 	public void setLUT( final ColorTable lut )
 	{
 		this.lut = lut == null ? new ColorTable8() : lut;
-		this.lutColorPositions = LutPalette.colorPositions( this.lut );
+		this.lutColorPositions = ColorTableLut.colorPositions( this.lut );
 	}
 
 	public MappingModel getMapping()
@@ -95,7 +95,7 @@ public class RealLUTConverter< R extends RealType< R > > extends
 		if ( mapping != null && mapping.isBackgroundValue( a, min ) )
 			argb = mapping.getBackgroundColor();
 		else if ( mapping != null )
-			argb = LutPalette.lookupARGB( lut, 0, 255, mapping.mapToLutIndex( a, min, max, lutColorPositions ), mapping.getValueMatching() );
+			argb = ColorTableLut.lookupARGB( lut, 0, 255, mapping.mapToLutIndex( a, min, max, lutColorPositions ), mapping.getValueMatching() );
 		else
 			argb = lut.lookupARGB( min, max, a );
 		output.set( argb );

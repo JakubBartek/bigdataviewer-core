@@ -110,7 +110,7 @@ public class LookupTableConverterTest
 	@Test
 	public void realLutConverterUsesBackgroundColorForWholeUnitIntervalNotJustExactMin()
 	{
-		final LutPalette palette = new LutPalette(
+		final ColorTableLut palette = new ColorTableLut(
 				new double[] { 0.0, 1.0 / 3, 2.0 / 3, 1.0 },
 				new double[] { 0.0, 0.0, 0.0, 1.0 },
 				new double[] { 0.0, 0.0, 0.0, 0.0 },

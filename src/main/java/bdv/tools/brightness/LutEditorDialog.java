@@ -38,23 +38,8 @@ import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URI;
-import java.net.URL;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
-import java.util.TreeMap;
-import java.util.stream.Stream;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -118,12 +103,12 @@ public class LutEditorDialog extends JDialog
 	/**
 	 * A black-to-white gradient used as a placeholder before any real palette
 	 * is loaded (e.g. no source selected yet, or a converter with no LUT of
-	 * its own). Deliberately a small, generic {@link LutPalette} rather than
+	 * its own). Deliberately a small, generic {@link ColorTableLut} rather than
 	 * {@link ColorTable8}: the latter is always fixed at 256 entries, which
 	 * would be a nonsensical wrap period if Cyclic mode were toggled before
 	 * a real (typically much smaller) palette is chosen.
 	 */
-	private static final ColorTable DEFAULT_PALETTE = new LutPalette(
+	private static final ColorTable DEFAULT_PALETTE = new ColorTableLut(
 			new double[] { 0.0, 1.0 },
 			new double[] { 0.0, 1.0 },
 			new double[] { 0.0, 1.0 },
@@ -155,7 +140,7 @@ public class LutEditorDialog extends JDialog
 		comboSource = new JComboBox<>();
 
 		comboPalette = new JComboBox<>();
-		discoverLuts();
+		lutNames.addAll( LutPalettes.discoverNames() );
 		for ( final String name : lutNames )
 			comboPalette.addItem( name );
 		comboPalette.setRenderer( new DefaultListCellRenderer()
@@ -295,7 +280,7 @@ public class LutEditorDialog extends JDialog
 			final int pi = comboPalette.getSelectedIndex();
 			if ( pi < 0 || pi >= lutNames.size() )
 				return;
-			final ColorTable ct = loadLutResource( lutNames.get( pi ) );
+			final ColorTable ct = LutPalettes.load( lutNames.get( pi ) );
 			if ( ct == null )
 			{
 				labelStatus.setText( "Failed to load LUT: " + lutNames.get( pi ) );
@@ -584,112 +569,6 @@ public class LutEditorDialog extends JDialog
 				"- Press F1 anywhere in this dialog to open this help." );
 
 		JOptionPane.showMessageDialog( this, message, "LUT Editor Help", JOptionPane.INFORMATION_MESSAGE );
-	}
-
-	// -- LUT loading from resources -----------------------------------------
-
-	private static final String LUT_RESOURCE_DIR = "bdv/ui/luts";
-
-	/**
-	 * Discover available LUT names from resource files.
-	 */
-	private void discoverLuts()
-	{
-		lutNames.clear();
-		try
-		{
-			final URL dirUrl = LutEditorDialog.class.getClassLoader().getResource( LUT_RESOURCE_DIR );
-			if ( dirUrl == null )
-				return;
-			final URI uri = dirUrl.toURI();
-			final TreeMap< String, String > sorted = new TreeMap<>( String.CASE_INSENSITIVE_ORDER );
-			if ( "jar".equals( uri.getScheme() ) )
-			{
-				try ( final FileSystem fs = FileSystems.newFileSystem( uri, Collections.emptyMap() );
-				      final Stream< Path > paths = Files.walk( fs.getPath( LUT_RESOURCE_DIR ), 1 ) )
-				{
-					paths.filter( p -> p.toString().endsWith( ".txt" ) )
-							.forEach( p ->
-							{
-								final String fn = p.getFileName().toString();
-								sorted.put( fn.substring( 0, fn.length() - 4 ), fn );
-							} );
-				}
-			} else
-			{
-				try ( final Stream< Path > paths = Files.walk( Paths.get( uri ), 1 ) )
-				{
-					paths.filter( p -> p.toString().endsWith( ".txt" ) )
-							.forEach( p ->
-							{
-								final String fn = p.getFileName().toString();
-								sorted.put( fn.substring( 0, fn.length() - 4 ), fn );
-							} );
-				}
-			}
-			lutNames.addAll( sorted.keySet() );
-		} catch ( final Exception e )
-		{
-			e.printStackTrace();
-		}
-	}
-
-	/**
-	 * Load a LUT from a resource text file. Each line is a control point with
-	 * 5 space-separated values: {@code position red green blue alpha}, all in
-	 * [0, 1]. The number of control points is arbitrary (not tied to 256);
-	 * colors between control points are obtained by linear interpolation.
-	 */
-	private static ColorTable loadLutResource( final String lutName )
-	{
-		final String path = LUT_RESOURCE_DIR + "/" + lutName + ".txt";
-		try ( final InputStream is = LutEditorDialog.class.getClassLoader().getResourceAsStream( path ) )
-		{
-			if ( is == null )
-				return null;
-			final BufferedReader reader = new BufferedReader( new InputStreamReader( is ) );
-			final List< double[] > rows = new ArrayList<>();
-			String line;
-			while ( ( line = reader.readLine() ) != null )
-			{
-				line = line.trim();
-				if ( line.isEmpty() )
-					continue;
-				final String[] parts = line.split( "\\s+" );
-				if ( parts.length < 4 )
-					continue;
-				final double position = Double.parseDouble( parts[ 0 ] );
-				final double r = Double.parseDouble( parts[ 1 ] );
-				final double g = Double.parseDouble( parts[ 2 ] );
-				final double b = Double.parseDouble( parts[ 3 ] );
-				final double a = parts.length >= 5 ? Double.parseDouble( parts[ 4 ] ) : 1.0;
-				rows.add( new double[] { position, r, g, b, a } );
-			}
-			if ( rows.size() < 2 )
-				return null;
-			rows.sort( Comparator.comparingDouble( row -> row[ 0 ] ) );
-
-			final int n = rows.size();
-			final double[] positions = new double[ n ];
-			final double[] red = new double[ n ];
-			final double[] green = new double[ n ];
-			final double[] blue = new double[ n ];
-			final double[] alpha = new double[ n ];
-			for ( int i = 0; i < n; i++ )
-			{
-				final double[] row = rows.get( i );
-				positions[ i ] = row[ 0 ];
-				red[ i ] = row[ 1 ];
-				green[ i ] = row[ 2 ];
-				blue[ i ] = row[ 3 ];
-				alpha[ i ] = row[ 4 ];
-			}
-			return new LutPalette( positions, red, green, blue, alpha );
-		} catch ( final IOException | NumberFormatException e )
-		{
-			e.printStackTrace();
-			return null;
-		}
 	}
 
 	/**

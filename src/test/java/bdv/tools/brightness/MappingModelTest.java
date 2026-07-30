@@ -249,7 +249,7 @@ public class MappingModelTest
 	/**
 	 * ValueMatching must NOT affect mapToLutIndex: the curve is always
 	 * evaluated smoothly there. Quantizing at the curve stage (in addition to
-	 * the palette stage, see {@link LutPaletteTest}) was the root cause of a
+	 * the palette stage, see {@link ColorTableLutTest}) was the root cause of a
 	 * bug where some palette colors became unreachable in Round/Truncate mode
 	 * -- the curve's own control points are an unrelated resolution to the
 	 * palette's actual color count, so the two independent quantizations
@@ -295,7 +295,7 @@ public class MappingModelTest
 			blue[ i ] = 0;
 			alpha[ i ] = 1;
 		}
-		final LutPalette palette = new LutPalette( positions, red, green, blue, alpha );
+		final ColorTableLut palette = new ColorTableLut( positions, red, green, blue, alpha );
 
 		for ( final ValueMatching matching : ValueMatching.values() )
 		{
@@ -307,7 +307,7 @@ public class MappingModelTest
 			for ( int label = 0; label < n; label++ )
 			{
 				final int lutIndex = model.mapToLutIndex( label, 0, 1000, n );
-				final int argb = LutPalette.lookupARGB( palette, 0, 255, lutIndex, matching );
+				final int argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, matching );
 				seenReds.add( ( argb >> 16 ) & 0xFF );
 			}
 			Assert.assertEquals( "matching=" + matching, n, seenReds.size() );
@@ -359,7 +359,7 @@ public class MappingModelTest
 
 	/**
 	 * Regression test for the "missing colors" bug, this time with a
-	 * genuinely unevenly-spaced palette (see {@link LutPalette#colorPositions}):
+	 * genuinely unevenly-spaced palette (see {@link ColorTableLut#colorPositions}):
 	 * every color must still be reachable by cycling through raw label
 	 * values 0..n-1, no matter which ValueMatching mode is selected.
 	 */
@@ -379,8 +379,8 @@ public class MappingModelTest
 			blue[ i ] = 0;
 			alpha[ i ] = 1;
 		}
-		final LutPalette palette = new LutPalette( positions, red, green, blue, alpha );
-		final double[] colorPositions = LutPalette.colorPositions( palette );
+		final ColorTableLut palette = new ColorTableLut( positions, red, green, blue, alpha );
+		final double[] colorPositions = ColorTableLut.colorPositions( palette );
 
 		for ( final ValueMatching matching : ValueMatching.values() )
 		{
@@ -392,7 +392,7 @@ public class MappingModelTest
 			for ( int label = 0; label < n; label++ )
 			{
 				final int lutIndex = model.mapToLutIndex( label, 0, 1000, colorPositions );
-				final int argb = LutPalette.lookupARGB( palette, 0, 255, lutIndex, matching );
+				final int argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, matching );
 				seenReds.add( ( argb >> 16 ) & 0xFF );
 			}
 			Assert.assertEquals( "matching=" + matching, n, seenReds.size() );

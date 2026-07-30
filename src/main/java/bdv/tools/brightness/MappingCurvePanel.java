@@ -96,8 +96,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	private ColorTable palette = new ColorTable8();
 
-	/** {@link LutPalette#colorPositions(ColorTable)} of {@link #palette}, cached since painting reuses it per pixel column. */
-	private double[] paletteColorPositions = LutPalette.colorPositions( palette );
+	/** {@link ColorTableLut#colorPositions(ColorTable)} of {@link #palette}, cached since painting reuses it per pixel column. */
+	private double[] paletteColorPositions = ColorTableLut.colorPositions( palette );
 
 	private Integer draggedPoint = null;
 
@@ -225,7 +225,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	public void setPalette( final ColorTable palette )
 	{
 		this.palette = palette == null ? new ColorTable8() : palette;
-		this.paletteColorPositions = LutPalette.colorPositions( this.palette );
+		this.paletteColorPositions = ColorTableLut.colorPositions( this.palette );
 		repaint();
 	}
 
@@ -383,7 +383,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	 * its javadoc for why). For Round/Truncate, this draws the corresponding
 	 * step visualization instead, by snapping that smooth value to the
 	 * palette's own control-point resolution (not the curve's), via
-	 * {@link LutPalette#steppedPosition}, matching exactly what the color
+	 * {@link ColorTableLut#steppedPosition}, matching exactly what the color
 	 * bars below actually show.
 	 */
 	private void drawCurve( final Graphics2D g )
@@ -415,7 +415,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			}
 
 			final int smoothY = model.mapToLutIndex( value, rangeMin, rangeMax, paletteColorPositions );
-			final double steppedT = LutPalette.steppedPosition( palette, smoothY / 255.0, matching );
+			final double steppedT = ColorTableLut.steppedPosition( palette, smoothY / 255.0, matching );
 			final int py = pixelY( ( int ) Math.round( steppedT * 255.0 ) );
 
 			final boolean wrapped = cyclic && prevX != null && Math.floor( value / n ) != Math.floor( prevValue / n );
@@ -498,7 +498,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		{
 			final double t = ( bottom - py ) / ( double ) plotHeight();
 			final int lutIndex = ( int ) Math.round( t * 255.0 );
-			final int argb = LutPalette.lookupARGB( palette, 0, 255, lutIndex, model.getValueMatching() );
+			final int argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, model.getValueMatching() );
 			g.setColor( new Color( argb ) );
 			g.drawLine( barLeft, py, barLeft + COLORBAR_WIDTH, py );
 		}
@@ -540,7 +540,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			else
 			{
 				final int lutIndex = model.mapToLutIndex( value, rangeMin, rangeMax, paletteColorPositions );
-				argb = LutPalette.lookupARGB( palette, 0, 255, lutIndex, model.getValueMatching() );
+				argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, model.getValueMatching() );
 			}
 			g.setColor( new Color( argb ) );
 			g.drawLine( px, top, px, bottom );

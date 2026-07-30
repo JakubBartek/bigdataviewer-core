@@ -49,7 +49,7 @@ import java.util.List;
  * a LUT index in [0, 255]. The current {@link ValueMatching} strategy is
  * <em>not</em> applied here -- it instead governs how that LUT index selects
  * a final, discrete palette color (see
- * {@link LutPalette#lookupARGB(net.imglib2.display.ColorTable, double, double, double, ValueMatching)}).
+ * {@link ColorTableLut#lookupARGB(net.imglib2.display.ColorTable, double, double, double, ValueMatching)}).
  * Quantizing at the curve stage too (in addition to the palette stage) would
  * make some palette colors unreachable, since the curve's own control points
  * are an unrelated resolution to the palette's actual color count.
@@ -208,7 +208,7 @@ public class MappingModel
 	 * Real palettes are not always evenly spaced (e.g. a LUT resource file can
 	 * declare arbitrary control point positions); when the actual positions
 	 * are known, prefer {@link #mapToLutIndex(double, double, double, double[])}
-	 * (see {@link LutPalette#colorPositions(net.imglib2.display.ColorTable)}).
+	 * (see {@link ColorTableLut#colorPositions(net.imglib2.display.ColorTable)}).
 	 *
 	 * @param value
 	 * 		the raw source value.
@@ -243,7 +243,7 @@ public class MappingModel
 	 * 		{@link RangeMode#FIT}.
 	 * @param colorPositions
 	 * 		the target LUT's colors' normalized positions, in order (see
-	 * 		{@link LutPalette#colorPositions(net.imglib2.display.ColorTable)});
+	 * 		{@link ColorTableLut#colorPositions(net.imglib2.display.ColorTable)});
 	 * 		only used in {@link RangeMode#CYCLIC}, whose wrap period is the
 	 * 		array's length.
 	 */

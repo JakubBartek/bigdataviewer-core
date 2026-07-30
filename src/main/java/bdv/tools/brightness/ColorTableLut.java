@@ -40,7 +40,7 @@ import net.imglib2.display.ColorTable;
  * qualitative/categorical palette) as well as at arbitrarily high resolution,
  * while always producing a smooth lookup.
  */
-public class LutPalette implements ColorTable
+public class ColorTableLut implements ColorTable
 {
 	private final double[] positions;
 
@@ -59,7 +59,7 @@ public class LutPalette implements ColorTable
 	 * @param blue control point blue components in [0, 1], one per position
 	 * @param alpha control point alpha components in [0, 1], one per position
 	 */
-	public LutPalette( final double[] positions, final double[] red, final double[] green, final double[] blue, final double[] alpha )
+	public ColorTableLut( final double[] positions, final double[] red, final double[] green, final double[] blue, final double[] alpha )
 	{
 		if ( positions.length < 2 || red.length != positions.length || green.length != positions.length
 				|| blue.length != positions.length || alpha.length != positions.length )
@@ -89,15 +89,15 @@ public class LutPalette implements ColorTable
 	 * modes make the mapping curve itself step rather than interpolate.
 	 * <p>
 	 * Only has an effect for {@code lut} instances that are actually a
-	 * {@link LutPalette}; any other {@link ColorTable} (e.g. the default
+	 * {@link ColorTableLut}; any other {@link ColorTable} (e.g. the default
 	 * {@link net.imglib2.display.ColorTable8}) always behaves as if
 	 * {@link ValueMatching#INTERPOLATE} were selected.
 	 */
 	public static int lookupARGB( final ColorTable lut, final double min, final double max, final double value, final ValueMatching matching )
 	{
-		if ( matching == ValueMatching.INTERPOLATE || !( lut instanceof LutPalette ) )
+		if ( matching == ValueMatching.INTERPOLATE || !( lut instanceof ColorTableLut ) )
 			return lut.lookupARGB( min, max, value );
-		return ( ( LutPalette ) lut ).lookupARGBStepped( min, max, value, matching );
+		return ( ( ColorTableLut ) lut ).lookupARGBStepped( min, max, value, matching );
 	}
 
 	private int lookupARGBStepped( final double min, final double max, final double value, final ValueMatching matching )
@@ -110,7 +110,7 @@ public class LutPalette implements ColorTable
 
 	/**
 	 * The normalized positions (in [0, 1]) of {@code lut}'s colors, in order.
-	 * For a {@link LutPalette} these are its actual control point positions,
+	 * For a {@link ColorTableLut} these are its actual control point positions,
 	 * which are not necessarily evenly spaced (e.g. a categorical palette may
 	 * deliberately cluster some colors closer together than others); for any
 	 * other {@link ColorTable} (e.g. the fixed-256-entry
@@ -119,8 +119,8 @@ public class LutPalette implements ColorTable
 	 */
 	public static double[] colorPositions( final ColorTable lut )
 	{
-		if ( lut instanceof LutPalette )
-			return ( ( LutPalette ) lut ).positions.clone();
+		if ( lut instanceof ColorTableLut )
+			return ( ( ColorTableLut ) lut ).positions.clone();
 
 		final int n = Math.max( 1, lut.getLength() );
 		final double[] positions = new double[ n ];
@@ -138,13 +138,13 @@ public class LutPalette implements ColorTable
 	 * palette's own resolution rather than the curve's control points.
 	 * <p>
 	 * Returns {@code t} unchanged for {@link ValueMatching#INTERPOLATE}, or
-	 * when {@code lut} is not actually a {@link LutPalette}.
+	 * when {@code lut} is not actually a {@link ColorTableLut}.
 	 */
 	public static double steppedPosition( final ColorTable lut, final double t, final ValueMatching matching )
 	{
-		if ( matching == ValueMatching.INTERPOLATE || !( lut instanceof LutPalette ) )
+		if ( matching == ValueMatching.INTERPOLATE || !( lut instanceof ColorTableLut ) )
 			return t;
-		final LutPalette palette = ( LutPalette ) lut;
+		final ColorTableLut palette = ( ColorTableLut ) lut;
 		return palette.positions[ palette.stepIndex( t, matching ) ];
 	}
 
