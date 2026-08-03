@@ -478,6 +478,11 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	 * looks the same for a given palette. Tick labels show the actual
 	 * palette color index (0 to {@code palette.getLength() - 1}), the scale
 	 * that matters to the user, rather than the internal 0-255 LUT index.
+	 * <p>
+	 * Under {@link ValueMatching#TRUNCATE} each color is drawn as a band
+	 * sized by {@link ColorTableLut#lookupARGBQualitative}, so a qualitative
+	 * palette's last color gets a fair share of the bar instead of
+	 * collapsing to a sliver.
 	 */
 	private void drawOutputColorBar( final Graphics2D g )
 	{
@@ -485,11 +490,17 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		final int top = plotTop();
 		final int bottom = plotBottom();
 
+		final ValueMatching matching = model.getValueMatching();
+		final double lastIntervalSize = ColorTableLut.mirroredLastIntervalSize( paletteColorPositions );
+
 		for ( int py = top; py < bottom; py++ )
 		{
 			final double t = ( bottom - py ) / ( double ) plotHeight();
-			final int lutIndex = ( int ) Math.round( t * 255.0 );
-			final int argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, model.getValueMatching() );
+			final int argb;
+			if ( matching == ValueMatching.TRUNCATE )
+				argb = ColorTableLut.lookupARGBQualitative( palette, t, lastIntervalSize );
+			else
+				argb = ColorTableLut.lookupARGB( palette, 0, 255, ( int ) Math.round( t * 255.0 ), matching );
 			g.setColor( new Color( argb ) );
 			g.drawLine( barLeft, py, barLeft + COLORBAR_WIDTH, py );
 		}
@@ -511,7 +522,16 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	/**
 	 * Horizontal color bar along the x (input value) axis, showing the LUT
 	 * color actually produced after passing each input value through the
-	 * mapping curve ("after transform").
+	 * mapping curve ("after transform"). In {@link RangeMode#FIT}, uses
+	 * proportional qualitative bands under {@link ValueMatching#TRUNCATE}
+	 * like {@link #drawOutputColorBar}. Not in {@link RangeMode#CYCLIC}: there,
+	 * {@link MappingModel#cyclicPosition} already reserves the last color's
+	 * own full raw-value interval via its flat-hold branch, so the plain
+	 * lookup already shows it correctly -- applying the qualitative band
+	 * extension on top would double up on that (rescaling the whole [0, 1]
+	 * range pulls the last color's band earlier, bleeding into what should
+	 * still be the second-to-last color's interval, so the last color would
+	 * appear to repeat before the actual wrap to the first color).
 	 */
 	private void drawTransformColorBar( final Graphics2D g )
 	{
@@ -519,6 +539,10 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		final int right = plotRight();
 		final int top = transformBarTop();
 		final int bottom = transformBarBottom();
+
+		final ValueMatching matching = model.getValueMatching();
+		final boolean useQualitativeBands = matching == ValueMatching.TRUNCATE && model.getRangeMode() == RangeMode.FIT;
+		final double lastIntervalSize = useQualitativeBands ? ColorTableLut.mirroredLastIntervalSize( paletteColorPositions ) : 0;
 
 		for ( int px = left; px < right; px++ )
 		{
@@ -531,7 +555,10 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			else
 			{
 				final int lutIndex = model.mapToLutIndex( value, rangeMin, rangeMax, paletteColorPositions );
-				argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, model.getValueMatching() );
+				if ( useQualitativeBands )
+					argb = ColorTableLut.lookupARGBQualitative( palette, lutIndex / 255.0, lastIntervalSize );
+				else
+					argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, matching );
 			}
 			g.setColor( new Color( argb ) );
 			g.drawLine( px, top, px, bottom );

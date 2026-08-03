@@ -123,21 +123,6 @@ public class ColorTableLutTest
 	}
 
 	@Test
-	public void testStaticLookupRoundSnapsToNearestControlPointWithoutBlending()
-	{
-		final ColorTableLut lut = threeColorPalette();
-
-		// t=0.24 is nearest to the control point at t=0 (red).
-		Assert.assertEquals( 0xffff0000, ColorTableLut.lookupARGB( lut, 0, 1, 0.24, ValueMatching.ROUND ) );
-		// t=0.3 is nearest to the control point at t=0.5 (green).
-		Assert.assertEquals( 0xff00ff00, ColorTableLut.lookupARGB( lut, 0, 1, 0.3, ValueMatching.ROUND ) );
-		// Confirm this differs from the blended (interpolated) color at the same t.
-		Assert.assertNotEquals(
-				ColorTableLut.lookupARGB( lut, 0, 1, 0.3, ValueMatching.INTERPOLATE ),
-				ColorTableLut.lookupARGB( lut, 0, 1, 0.3, ValueMatching.ROUND ) );
-	}
-
-	@Test
 	public void testStaticLookupTruncateHoldsPreviousControlPointWithoutBlending()
 	{
 		final ColorTableLut lut = threeColorPalette();
@@ -157,13 +142,68 @@ public class ColorTableLutTest
 	{
 		final ColorTable8 ct = new ColorTable8();
 		// A plain ColorTable8 has no concept of stepped control points, so
-		// Round/Truncate must fall back to its normal (interpolated) lookup.
-		Assert.assertEquals(
-				ct.lookupARGB( 0, 255, 100 ),
-				ColorTableLut.lookupARGB( ct, 0, 255, 100, ValueMatching.ROUND ) );
+		// Truncate must fall back to its normal (interpolated) lookup.
 		Assert.assertEquals(
 				ct.lookupARGB( 0, 255, 100 ),
 				ColorTableLut.lookupARGB( ct, 0, 255, 100, ValueMatching.TRUNCATE ) );
 	}
 
+	private static final double[] UNEVEN_POSITIONS = { 0.0, 0.1, 0.3, 1.0 };
+
+	@Test
+	public void testAverageIntervalSize()
+	{
+		// Gaps: 0.1, 0.2, 0.7 -- average = 1.0 / 3.
+		Assert.assertEquals( 1.0 / 3, ColorTableLut.averageIntervalSize( UNEVEN_POSITIONS ), 1e-9 );
+	}
+
+	@Test
+	public void testMirroredLastIntervalSize()
+	{
+		// Last gap: 1.0 - 0.3.
+		Assert.assertEquals( 0.7, ColorTableLut.mirroredLastIntervalSize( UNEVEN_POSITIONS ), 1e-9 );
+	}
+
+	@Test
+	public void testFirstIntervalSize()
+	{
+		// First gap: 0.1 - 0.0.
+		Assert.assertEquals( 0.1, ColorTableLut.firstIntervalSize( UNEVEN_POSITIONS ), 1e-9 );
+	}
+
+	@Test
+	public void testIntervalSizeFunctionsHandleDegenerateInput()
+	{
+		Assert.assertEquals( 0.0, ColorTableLut.averageIntervalSize( new double[] { 0.5 } ), 1e-9 );
+		Assert.assertEquals( 0.0, ColorTableLut.mirroredLastIntervalSize( new double[] { 0.5 } ), 1e-9 );
+		Assert.assertEquals( 0.0, ColorTableLut.firstIntervalSize( new double[] { 0.5 } ), 1e-9 );
+		Assert.assertEquals( 0.0, ColorTableLut.averageIntervalSize( new double[ 0 ] ), 1e-9 );
+	}
+
+	/**
+	 * Regression test: without an estimated size for the last color's
+	 * interval, it would only ever be picked at the single point t == 1,
+	 * instead of a proper band matching the other colors' share of the bar.
+	 */
+	@Test
+	public void testLookupARGBQualitativeGivesLastColorAFairShareOfTheBar()
+	{
+		final ColorTableLut lut = threeColorPalette();
+		final double lastIntervalSize = ColorTableLut.mirroredLastIntervalSize( ColorTableLut.colorPositions( lut ) );
+
+		// The extended bar is split into three equal thirds -- red, green, blue.
+		Assert.assertEquals( 0xffff0000, ColorTableLut.lookupARGBQualitative( lut, 0.0, lastIntervalSize ) );
+		Assert.assertEquals( 0xffff0000, ColorTableLut.lookupARGBQualitative( lut, 0.3, lastIntervalSize ) );
+		Assert.assertEquals( 0xff00ff00, ColorTableLut.lookupARGBQualitative( lut, 0.5, lastIntervalSize ) );
+		// Crucially, the whole last third of the bar is blue, not just t == 1.
+		Assert.assertEquals( 0xff0000ff, ColorTableLut.lookupARGBQualitative( lut, 0.7, lastIntervalSize ) );
+		Assert.assertEquals( 0xff0000ff, ColorTableLut.lookupARGBQualitative( lut, 1.0, lastIntervalSize ) );
+	}
+
+	@Test
+	public void testLookupARGBQualitativeFallsBackForSingleEntryTable()
+	{
+		final ColorTable8 ct = new ColorTable8( new byte[] { 10 }, new byte[] { 20 }, new byte[] { 30 } );
+		Assert.assertEquals( ct.lookupARGB( 0, 1, 0.5 ), ColorTableLut.lookupARGBQualitative( ct, 0.5, 0.1 ) );
+	}
 }

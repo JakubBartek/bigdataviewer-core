@@ -246,16 +246,4 @@ public class CurveTest
 		Assert.assertEquals( 255, curve.evaluate( 1.0, ValueMatching.TRUNCATE ) );
 	}
 
-	@Test
-	public void testEvaluateRound()
-	{
-		final Curve curve = new Curve();
-		curve.setPoints( new double[] { 0.0, 0.5, 1.0 }, new int[] { 0, 100, 255 } );
-
-		// Round picks whichever control point is nearest on the input axis
-		Assert.assertEquals( 0, curve.evaluate( 0.2, ValueMatching.ROUND ) );
-		Assert.assertEquals( 100, curve.evaluate( 0.3, ValueMatching.ROUND ) );
-		Assert.assertEquals( 100, curve.evaluate( 0.7, ValueMatching.ROUND ) );
-		Assert.assertEquals( 255, curve.evaluate( 0.8, ValueMatching.ROUND ) );
-	}
 }

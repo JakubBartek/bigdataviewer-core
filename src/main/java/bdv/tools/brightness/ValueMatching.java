@@ -35,9 +35,6 @@ public enum ValueMatching
 	/** Linearly interpolate between the two neighbouring control points. */
 	INTERPOLATE( "Interpolate" ),
 
-	/** Use the value of whichever control point is nearest on the input axis. */
-	ROUND( "Round" ),
-
 	/** Hold the value of the last control point at or before the input position. */
 	TRUNCATE( "Truncate" );
 

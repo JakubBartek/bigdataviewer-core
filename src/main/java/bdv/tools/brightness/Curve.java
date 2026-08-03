@@ -241,39 +241,20 @@ public class Curve
 	{
 		if ( matching == ValueMatching.INTERPOLATE )
 			return evaluate( x );
-		return yValues.get( stepIndex( x, matching ) );
+		return yValues.get( truncateIndex( x ) );
 	}
 
 	/**
-	 * Find the control point used for step (non-interpolated) evaluation.
-	 * {@link ValueMatching#TRUNCATE} holds the value of the last control
-	 * point at or before {@code x}; {@link ValueMatching#ROUND} uses whichever
-	 * control point is nearest to {@code x} on the input axis.
+	 * Find the control point used for {@link ValueMatching#TRUNCATE}
+	 * evaluation: the last control point at or before {@code x}.
 	 */
-	private int stepIndex( final double x, final ValueMatching matching )
+	private int truncateIndex( final double x )
 	{
-		if ( matching == ValueMatching.TRUNCATE )
-		{
-			int idx = 0;
-			for ( int i = 0; i < xValues.size(); i++ )
-				if ( xValues.get( i ) <= x + 1e-9 )
-					idx = i;
-			return idx;
-		}
-
-		// ROUND: nearest control point
-		int bestIdx = 0;
-		double bestDist = Double.MAX_VALUE;
+		int idx = 0;
 		for ( int i = 0; i < xValues.size(); i++ )
-		{
-			final double dist = Math.abs( xValues.get( i ) - x );
-			if ( dist < bestDist )
-			{
-				bestDist = dist;
-				bestIdx = i;
-			}
-		}
-		return bestIdx;
+			if ( xValues.get( i ) <= x + 1e-9 )
+				idx = i;
+		return idx;
 	}
 
 	/**

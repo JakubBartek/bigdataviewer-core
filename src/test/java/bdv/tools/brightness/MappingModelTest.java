@@ -267,10 +267,6 @@ public class MappingModelTest
 		model.setValueMatching( ValueMatching.TRUNCATE );
 		Assert.assertEquals( smooth25, model.mapToLutIndex( 25, 0, 100, 256 ) );
 		Assert.assertEquals( smooth60, model.mapToLutIndex( 60, 0, 100, 256 ) );
-
-		model.setValueMatching( ValueMatching.ROUND );
-		Assert.assertEquals( smooth25, model.mapToLutIndex( 25, 0, 100, 256 ) );
-		Assert.assertEquals( smooth60, model.mapToLutIndex( 60, 0, 100, 256 ) );
 	}
 
 	/**
@@ -399,13 +395,69 @@ public class MappingModelTest
 		}
 	}
 
+	/**
+	 * Regression test: {@link ColorTableLut#lookupARGBQualitative}'s band
+	 * extension (meant for a static, non-cyclic bar, where the last color
+	 * would otherwise collapse to a single point) must not be applied on top
+	 * of Cyclic mode's own mapping -- {@link MappingModel#cyclicPosition}
+	 * already reserves the last color's own full raw-value interval via its
+	 * flat-hold branch, so the plain (non-qualitative) lookup already gives
+	 * every color, including the last, a correct, contiguous, non-bleeding
+	 * interval. Stacking the qualitative extension on top rescales the whole
+	 * [0, 1] range and pulls the last color's interval earlier, making it
+	 * bleed into the tail of the second-to-last color's interval -- i.e. the
+	 * last color appears to show up twice before the actual wrap.
+	 */
+	@Test
+	public void testCyclicTruncateGivesEachColorItsOwnContiguousIntervalWithoutBleeding()
+	{
+		final int n = 4;
+		final double[] positions = new double[ n ];
+		final double[] red = new double[ n ];
+		final double[] green = new double[ n ];
+		final double[] blue = new double[ n ];
+		final double[] alpha = new double[ n ];
+		for ( int i = 0; i < n; i++ )
+		{
+			positions[ i ] = i / ( double ) ( n - 1 );
+			red[ i ] = i / ( double ) ( n - 1 ); // a distinct red level per color
+			green[ i ] = 0;
+			blue[ i ] = 0;
+			alpha[ i ] = 1;
+		}
+		final ColorTableLut palette = new ColorTableLut( positions, red, green, blue, alpha );
+
+		final MappingModel model = new MappingModel();
+		model.setRangeMode( RangeMode.CYCLIC );
+		model.setValueMatching( ValueMatching.TRUNCATE );
+
+		for ( int label = 0; label < n; label++ )
+		{
+			final int expectedRed = ( int ) Math.round( 255 * red[ label ] );
+			// Densely sample most of the raw-value interval [label, label + 1)
+			// (up to label + 0.9, clear of the next interval's boundary
+			// tolerance zone -- see Curve's rounding-noise epsilon -- so this
+			// doesn't depend on exactly where that tolerance ends): it must
+			// consistently resolve to this color, with no bleed-through from
+			// the neighboring (in particular, the last) color.
+			for ( int step = 0; step < 19; step++ )
+			{
+				final double v = label + step * 0.05;
+				final int lutIndex = model.mapToLutIndex( v, 0, 1000, positions );
+				final int argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, ValueMatching.TRUNCATE );
+				final int redLevel = ( argb >> 16 ) & 0xFF;
+				Assert.assertEquals( "label=" + label + " v=" + v, expectedRed, redLevel );
+			}
+		}
+	}
+
 	@Test
 	public void testCopyFromDoesNotAlias()
 	{
 		final MappingModel source = new MappingModel();
 		source.applyPreset( MappingPreset.SIGMOID );
 		source.setRangeMode( RangeMode.CYCLIC );
-		source.setValueMatching( ValueMatching.ROUND );
+		source.setValueMatching( ValueMatching.TRUNCATE );
 		source.setTreatMinAsBackground( true );
 		source.setBackgroundColor( 0xffaabbcc );
 
