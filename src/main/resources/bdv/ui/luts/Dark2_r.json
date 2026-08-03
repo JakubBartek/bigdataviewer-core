@@ -1,6 +1,6 @@
 {
   "name": "Dark2_r",
-  "color_interpolation": true,
+  "color_interpolation": false,
   "fixes_RGBA": {
     "0": [
       0.4,

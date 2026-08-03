@@ -1,6 +1,6 @@
 {
   "name": "tab20b_r",
-  "color_interpolation": true,
+  "color_interpolation": false,
   "fixes_RGBA": {
     "0": [
       0.8705882352941177,

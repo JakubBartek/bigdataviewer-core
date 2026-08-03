@@ -1,6 +1,6 @@
 {
   "name": "Paired_r",
-  "color_interpolation": true,
+  "color_interpolation": false,
   "fixes_RGBA": {
     "0": [
       0.6941176470588235,
