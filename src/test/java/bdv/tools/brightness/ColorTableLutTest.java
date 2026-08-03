@@ -166,28 +166,4 @@ public class ColorTableLutTest
 				ColorTableLut.lookupARGB( ct, 0, 255, 100, ValueMatching.TRUNCATE ) );
 	}
 
-	@Test
-	public void testSteppedPositionMatchesWhicheverControlPointLookupWouldPick()
-	{
-		final ColorTableLut lut = threeColorPalette();
-
-		// INTERPOLATE: unchanged.
-		Assert.assertEquals( 0.3, ColorTableLut.steppedPosition( lut, 0.3, ValueMatching.INTERPOLATE ), 1e-9 );
-
-		// ROUND: snaps to the nearest control point's own position (0.5), not
-		// blended, and not the curve's own resolution.
-		Assert.assertEquals( 0.5, ColorTableLut.steppedPosition( lut, 0.3, ValueMatching.ROUND ), 1e-9 );
-
-		// TRUNCATE: holds the position of the last control point at or before t.
-		Assert.assertEquals( 0.0, ColorTableLut.steppedPosition( lut, 0.3, ValueMatching.TRUNCATE ), 1e-9 );
-		Assert.assertEquals( 0.5, ColorTableLut.steppedPosition( lut, 0.5, ValueMatching.TRUNCATE ), 1e-9 );
-	}
-
-	@Test
-	public void testSteppedPositionIgnoresMatchingForNonLutPaletteColorTables()
-	{
-		final ColorTable8 ct = new ColorTable8();
-		Assert.assertEquals( 0.3, ColorTableLut.steppedPosition( ct, 0.3, ValueMatching.ROUND ), 1e-9 );
-		Assert.assertEquals( 0.3, ColorTableLut.steppedPosition( ct, 0.3, ValueMatching.TRUNCATE ), 1e-9 );
-	}
 }

@@ -130,25 +130,6 @@ public class ColorTableLut implements ColorTable
 	}
 
 	/**
-	 * The normalized position (in [0, 1]) that {@code t} snaps to under
-	 * {@code matching} -- i.e. the position of whichever control point
-	 * {@link #lookupARGB(ColorTable, double, double, double, ValueMatching)}
-	 * would pick, without needing to actually resolve a color. Useful to
-	 * visualize where the mapping curve "steps" for Round/Truncate, at the
-	 * palette's own resolution rather than the curve's control points.
-	 * <p>
-	 * Returns {@code t} unchanged for {@link ValueMatching#INTERPOLATE}, or
-	 * when {@code lut} is not actually a {@link ColorTableLut}.
-	 */
-	public static double steppedPosition( final ColorTable lut, final double t, final ValueMatching matching )
-	{
-		if ( matching == ValueMatching.INTERPOLATE || !( lut instanceof ColorTableLut ) )
-			return t;
-		final ColorTableLut palette = ( ColorTableLut ) lut;
-		return palette.positions[ palette.stepIndex( t, matching ) ];
-	}
-
-	/**
 	 * The control point used for step (non-interpolated) lookup.
 	 * {@link ValueMatching#TRUNCATE} holds the color of the last control
 	 * point at or before {@code t}; {@link ValueMatching#ROUND} uses

@@ -378,13 +378,6 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	 * units; the line is not drawn across a wrap boundary, so each repetition
 	 * appears as a separate segment (like a sawtooth), matching the actual
 	 * discontinuity in the mapping.
-	 * <p>
-	 * {@code mapToLutIndex} itself always evaluates the curve smoothly (see
-	 * its javadoc for why). For Round/Truncate, this draws the corresponding
-	 * step visualization instead, by snapping that smooth value to the
-	 * palette's own control-point resolution (not the curve's), via
-	 * {@link ColorTableLut#steppedPosition}, matching exactly what the color
-	 * bars below actually show.
 	 */
 	private void drawCurve( final Graphics2D g )
 	{
@@ -393,7 +386,6 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 		final int n = palette.getLength();
 		final boolean cyclic = model.getRangeMode() == RangeMode.CYCLIC && n > 1;
-		final ValueMatching matching = model.getValueMatching();
 		final int left = plotLeft();
 		final int right = plotRight();
 
@@ -415,8 +407,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			}
 
 			final int smoothY = model.mapToLutIndex( value, rangeMin, rangeMax, paletteColorPositions );
-			final double steppedT = ColorTableLut.steppedPosition( palette, smoothY / 255.0, matching );
-			final int py = pixelY( ( int ) Math.round( steppedT * 255.0 ) );
+			final int py = pixelY( smoothY );
 
 			final boolean wrapped = cyclic && prevX != null && Math.floor( value / n ) != Math.floor( prevValue / n );
 			if ( prevX != null && !wrapped )
