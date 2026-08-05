@@ -32,6 +32,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Font;
 import java.awt.Frame;
 import java.awt.Graphics;
 import java.awt.GridLayout;
@@ -40,11 +41,13 @@ import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -86,8 +89,7 @@ public class LutEditorDialog extends JDialog
 	private final List< SourceAndConverter< ? > > sources = new ArrayList<>();
 
 	private final JComboBox< String > comboSource;
-	private final JComboBox< String > comboPalette;
-	private final List< String > lutNames = new ArrayList<>();
+	private final JComboBox< Object > comboPalette;
 	private final JLabel labelStatus;
 
 	private final GradientPreviewPanel panelPaletteSwatch;
@@ -138,19 +140,36 @@ public class LutEditorDialog extends JDialog
 		// -- Data panel: source + color palette -----------------------------
 		comboSource = new JComboBox<>();
 
-		comboPalette = new JComboBox<>();
-		lutNames.addAll( LutPalettes.discoverNames() );
-		for ( final String name : lutNames )
-			comboPalette.addItem( name );
+		final PaletteComboModel paletteModel = new PaletteComboModel();
+		for ( final Map.Entry< String, List< String > > category : LutCategories.groupByCategory( LutPalettes.discoverNames() ).entrySet() )
+		{
+			paletteModel.addElement( new CategoryHeader( category.getKey() ) );
+			for ( final String name : category.getValue() )
+				paletteModel.addElement( name );
+		}
+		comboPalette = new JComboBox<>( paletteModel );
 		comboPalette.setRenderer( new DefaultListCellRenderer()
 		{
 			@Override
 			public Component getListCellRendererComponent( final JList< ? > list, final Object value,
 					final int index, final boolean isSelected, final boolean cellHasFocus )
 			{
-				super.getListCellRendererComponent( list, value, index, isSelected, cellHasFocus );
-				if ( index == -1 && value == null )
-					setText( "Select Preset" );
+				final boolean header = value instanceof CategoryHeader;
+				super.getListCellRendererComponent( list, value, index, isSelected && !header, cellHasFocus && !header );
+				if ( header )
+				{
+					setFont( getFont().deriveFont( Font.BOLD ) );
+					setEnabled( false );
+					setBorder( BorderFactory.createEmptyBorder( 4, 4, 2, 4 ) );
+				}
+				else
+				{
+					setFont( getFont().deriveFont( Font.PLAIN ) );
+					setEnabled( true );
+					setBorder( BorderFactory.createEmptyBorder( 0, 16, 0, 4 ) );
+					if ( index == -1 && value == null )
+						setText( "Select Preset" );
+				}
 				return this;
 			}
 		} );
@@ -274,10 +293,10 @@ public class LutEditorDialog extends JDialog
 		{
 			if ( loadingControls )
 				return;
-			final int pi = comboPalette.getSelectedIndex();
-			if ( pi < 0 || pi >= lutNames.size() )
+			final Object selected = comboPalette.getSelectedItem();
+			if ( !( selected instanceof String ) )
 				return;
-			final String name = lutNames.get( pi );
+			final String name = ( String ) selected;
 			final ColorTable ct = LutPalettes.load( name );
 			if ( ct == null )
 			{
@@ -569,6 +588,46 @@ public class LutEditorDialog extends JDialog
 				"- Press F1 anywhere in this dialog to open this help." );
 
 		JOptionPane.showMessageDialog( this, message, "LUT Editor Help", JOptionPane.INFORMATION_MESSAGE );
+	}
+
+	/**
+	 * A non-selectable row in {@link #comboPalette}, labeling the group of
+	 * palette names that follow it (see {@link LutCategories}).
+	 */
+	private static final class CategoryHeader
+	{
+		private final String label;
+
+		CategoryHeader( final String label )
+		{
+			this.label = label;
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
+	/**
+	 * A combo box model that refuses to ever make a {@link CategoryHeader}
+	 * the actual selected item -- clicking one, or landing on one via the
+	 * keyboard and pressing enter, leaves the previous selection in place.
+	 * The header rows still show up in the dropdown list itself, just not
+	 * as something that can be "chosen".
+	 */
+	private static final class PaletteComboModel extends DefaultComboBoxModel< Object >
+	{
+		@Override
+		public void setSelectedItem( final Object item )
+		{
+			if ( item instanceof CategoryHeader )
+				return;
+			super.setSelectedItem( item );
+		}
+
+		private static final long serialVersionUID = 1L;
 	}
 
 	/**
