@@ -93,7 +93,6 @@ public class LutEditorDialog extends JDialog
 	private final GradientPreviewPanel panelPaletteSwatch;
 	private final MappingCurvePanel panelMappingCurve;
 
-	private final JCheckBox checkInterpolateColors;
 	private final JRadioButton radioFit;
 	private final JRadioButton radioCyclic;
 	private final JCheckBox checkTreatMinAsBackground;
@@ -173,9 +172,7 @@ public class LutEditorDialog extends JDialog
 		panelData.setAlignmentX( Component.LEFT_ALIGNMENT );
 		panelData.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelData.getPreferredSize().height ) );
 
-		// -- Mapping panel: value matching, range mode, preset --------------
-		checkInterpolateColors = new JCheckBox( "Interpolate colors" );
-		checkInterpolateColors.setSelected( true );
+		// -- Mapping panel: range mode, preset -------------------------------
 		radioFit = new JRadioButton( "Fit" );
 		radioCyclic = new JRadioButton( "Cyclic" );
 		final ButtonGroup groupRangeMode = new ButtonGroup();
@@ -197,8 +194,6 @@ public class LutEditorDialog extends JDialog
 		final JPanel panelMapping = new JPanel();
 		panelMapping.setLayout( new BoxLayout( panelMapping, BoxLayout.PAGE_AXIS ) );
 		panelMapping.setBorder( BorderFactory.createTitledBorder( "Mapping" ) );
-		checkInterpolateColors.setAlignmentX( Component.LEFT_ALIGNMENT );
-		panelMapping.add( checkInterpolateColors );
 		final JPanel panelRangeMode = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
 		panelRangeMode.add( new JLabel( "Range mode:" ) );
 		panelRangeMode.add( Box.createHorizontalStrut( 8 ) );
@@ -294,29 +289,14 @@ public class LutEditorDialog extends JDialog
 			panelMappingCurve.setPalette( ct );
 			labelStatus.setText( "" );
 
-			// A palette that declares itself non-interpolated (e.g. a
-			// qualitative/categorical palette like tab10) is meant to be used
-			// as discrete colors, not blended -- Truncate is the closest
-			// match to how such palettes are typically read (each raw value
-			// holds the color of the control point at or before it).
-			final boolean interpolated = LutPalettes.isColorInterpolated( name );
-			mappingModel.setValueMatching( interpolated ? ValueMatching.INTERPOLATE : ValueMatching.TRUNCATE );
-			loadingControls = true;
-			try
-			{
-				checkInterpolateColors.setSelected( interpolated );
-			}
-			finally
-			{
-				loadingControls = false;
-			}
-		} );
-
-		checkInterpolateColors.addActionListener( e ->
-		{
-			if ( loadingControls )
-				return;
-			mappingModel.setValueMatching( checkInterpolateColors.isSelected() ? ValueMatching.INTERPOLATE : ValueMatching.TRUNCATE );
+			// Value matching always follows the palette file's own declared
+			// mode, not a user choice: a palette that declares itself
+			// non-interpolated (e.g. a qualitative/categorical palette like
+			// tab10) is meant to be used as discrete colors, not blended --
+			// Truncate is the closest match to how such palettes are
+			// typically read (each raw value holds the color of the control
+			// point at or before it).
+			mappingModel.setValueMatching( LutPalettes.isColorInterpolated( name ) ? ValueMatching.INTERPOLATE : ValueMatching.TRUNCATE );
 		} );
 
 		final ActionListener listenerRangeMode = e ->
@@ -442,7 +422,6 @@ public class LutEditorDialog extends JDialog
 		loadingControls = true;
 		try
 		{
-			checkInterpolateColors.setSelected( mappingModel.getValueMatching() == ValueMatching.INTERPOLATE );
 			radioFit.setSelected( mappingModel.getRangeMode() == RangeMode.FIT );
 			radioCyclic.setSelected( mappingModel.getRangeMode() == RangeMode.CYCLIC );
 			checkTreatMinAsBackground.setSelected( mappingModel.isTreatMinAsBackground() );
@@ -556,9 +535,9 @@ public class LutEditorDialog extends JDialog
 				"- Color palette selects the LUT colors the mapped value is looked up in.",
 				"",
 				"Mapping:",
-				"- \"Interpolate colors\" controls how a mapped value selects a palette",
-				"  color: checked blends smoothly between colors, unchecked (Truncate)",
-				"  holds the previous palette color.",
+				"- How a mapped value selects a palette color (blended smoothly, or",
+				"  held to the previous palette color) follows the chosen palette's own",
+				"  file: it is not a separate setting here.",
 				"- Range mode controls how input values are handled:",
 				"  Fit clamps values to [min, max]. Cyclic ignores max and instead cycles",
 				"  values through the palette's actual number of colors (shown on the",
@@ -594,9 +573,8 @@ public class LutEditorDialog extends JDialog
 
 	/**
 	 * A preview panel showing a color table as a horizontal gradient bar,
-	 * honoring the current {@link ValueMatching} (e.g. with "Interpolate
-	 * colors" unchecked, shows discrete color bands instead of a smooth
-	 * blend).
+	 * honoring the current {@link ValueMatching} (e.g. a Truncate palette
+	 * shows discrete color bands instead of a smooth blend).
 	 */
 	private static class GradientPreviewPanel extends JPanel
 	{
