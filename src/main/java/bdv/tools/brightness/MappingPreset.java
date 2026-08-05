@@ -65,9 +65,22 @@ public enum MappingPreset
 
 	/**
 	 * Normalized x positions (in [0, 1]) of the sampled control points.
+	 * <p>
+	 * {@link #LINEAR} is the exception: a straight line is fully determined
+	 * by its two endpoints, so it is represented with just those two,
+	 * instead of {@link #NUM_POINTS} redundant ones. Sampling it at more
+	 * points like the other (non-linear) presets would round each
+	 * intermediate point to the nearest integer independently, and
+	 * interpolating between two such rounded points can deviate from the
+	 * true straight line by up to about a full LUT index -- enough to shift
+	 * a raw value across a palette color's boundary under
+	 * {@link ValueMatching#TRUNCATE}, e.g. skipping one categorical palette
+	 * color while repeating its neighbor in {@link RangeMode#CYCLIC}.
 	 */
 	public double[] xs()
 	{
+		if ( this == LINEAR )
+			return new double[] { 0.0, 1.0 };
 		final double[] xs = new double[ NUM_POINTS ];
 		for ( int i = 0; i < NUM_POINTS; i++ )
 			xs[ i ] = i / ( double ) ( NUM_POINTS - 1 );
@@ -80,6 +93,8 @@ public enum MappingPreset
 	 */
 	public int[] ys()
 	{
+		if ( this == LINEAR )
+			return new int[] { 0, 255 };
 		final int[] ys = new int[ NUM_POINTS ];
 		for ( int i = 0; i < NUM_POINTS; i++ )
 		{

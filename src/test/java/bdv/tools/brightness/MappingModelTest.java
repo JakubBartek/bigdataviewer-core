@@ -247,6 +247,22 @@ public class MappingModelTest
 	}
 
 	/**
+	 * {@link MappingPreset#LINEAR} must be represented by exactly its two
+	 * endpoints, not extra intermediate points: a straight line needs no
+	 * more than that, and sampling additional points would each get
+	 * independently rounded to the nearest integer, introducing rounding
+	 * noise a true identity line shouldn't have (see
+	 * {@link #testAllPaletteColorsReachableInCyclicModeForVariousPaletteSizes}
+	 * for the bug this caused).
+	 */
+	@Test
+	public void testLinearPresetIsExactlyTwoPoints()
+	{
+		Assert.assertArrayEquals( new double[] { 0.0, 1.0 }, MappingPreset.LINEAR.xs(), 1e-9 );
+		Assert.assertArrayEquals( new int[] { 0, 255 }, MappingPreset.LINEAR.ys() );
+	}
+
+	/**
 	 * ValueMatching must NOT affect mapToLutIndex: the curve is always
 	 * evaluated smoothly there. Quantizing at the curve stage (in addition to
 	 * the palette stage, see {@link ColorTableLutTest}) was the root cause of a
@@ -392,6 +408,59 @@ public class MappingModelTest
 				seenReds.add( ( argb >> 16 ) & 0xFF );
 			}
 			Assert.assertEquals( "matching=" + matching, n, seenReds.size() );
+		}
+	}
+
+	/**
+	 * Regression test: with the default (Linear) curve preset, cycling
+	 * through every raw label value must reach every one of the palette's
+	 * colors exactly once per cycle, for every palette size -- not just
+	 * ones that happen not to collide with the curve's own internal
+	 * control-point grid. This previously failed for a 12-color palette
+	 * (e.g. the "Set3" qualitative colormap) under Cyclic + Truncate: before
+	 * {@link MappingPreset#LINEAR} was special-cased to exactly 2 control
+	 * points, it sampled 9 independently-rounded ones, and interpolating
+	 * between two of those could deviate from the true identity line by up
+	 * to about 1 LUT index -- enough to push one label's lutIndex across a
+	 * palette color's Truncate boundary, making that color repeat while its
+	 * neighbor never appeared. Sweeping many sizes here (rather than just
+	 * n=12) guards against the same class of bug at whichever size it next
+	 * happens to line up badly with the curve's grid.
+	 */
+	@Test
+	public void testAllPaletteColorsReachableInCyclicModeForVariousPaletteSizes()
+	{
+		for ( int n = 2; n <= 20; n++ )
+		{
+			final double[] positions = new double[ n ];
+			final double[] red = new double[ n ];
+			final double[] green = new double[ n ];
+			final double[] blue = new double[ n ];
+			final double[] alpha = new double[ n ];
+			for ( int i = 0; i < n; i++ )
+			{
+				positions[ i ] = i / ( double ) ( n - 1 );
+				red[ i ] = i / ( double ) ( n - 1 ); // a distinct red level per color
+				green[ i ] = 0;
+				blue[ i ] = 0;
+				alpha[ i ] = 1;
+			}
+			final ColorTableLut palette = new ColorTableLut( positions, red, green, blue, alpha );
+
+			// Default (Linear) preset -- exercises MappingPreset.LINEAR
+			// directly, not a hand-crafted curve.
+			final MappingModel model = new MappingModel();
+			model.setRangeMode( RangeMode.CYCLIC );
+			model.setValueMatching( ValueMatching.TRUNCATE );
+
+			final Set< Integer > seenReds = new HashSet<>();
+			for ( int label = 0; label < n; label++ )
+			{
+				final int lutIndex = model.mapToLutIndex( label, 0, 1000, positions );
+				final int argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, ValueMatching.TRUNCATE );
+				seenReds.add( ( argb >> 16 ) & 0xFF );
+			}
+			Assert.assertEquals( "n=" + n, n, seenReds.size() );
 		}
 	}
 
