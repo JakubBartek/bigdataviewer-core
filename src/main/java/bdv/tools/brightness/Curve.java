@@ -258,6 +258,18 @@ public class Curve
 	}
 
 	/**
+	 * Flip the curve vertically: each control point's y becomes
+	 * {@code 255 - y}, keeping its x unchanged. An increasing curve becomes
+	 * decreasing and vice versa (e.g. the default linear ramp 0-&gt;255
+	 * becomes 255-&gt;0).
+	 */
+	public void invert()
+	{
+		for ( int i = 0; i < yValues.size(); i++ )
+			yValues.set( i, clamp( 255 - yValues.get( i ) ) );
+	}
+
+	/**
 	 * Reset the curve to a linear gradient (identity mapping).
 	 */
 	public void reset()

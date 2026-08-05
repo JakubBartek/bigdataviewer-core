@@ -262,6 +262,34 @@ public class MappingModelTest
 		Assert.assertArrayEquals( new int[] { 0, 255 }, MappingPreset.LINEAR.ys() );
 	}
 
+	@Test
+	public void testInvertCurveFlipsMapping()
+	{
+		final MappingModel model = new MappingModel();
+
+		// Default Linear preset increases; after inverting it must decrease.
+		Assert.assertEquals( 0, model.mapToLutIndex( 0, 0, 100, 256 ) );
+		Assert.assertEquals( 255, model.mapToLutIndex( 100, 0, 100, 256 ) );
+
+		model.invertCurve();
+
+		Assert.assertEquals( 255, model.mapToLutIndex( 0, 0, 100, 256 ) );
+		Assert.assertEquals( 0, model.mapToLutIndex( 100, 0, 100, 256 ) );
+	}
+
+	@Test
+	public void testInvertCurveAppliesOnTopOfHandDraggedEdits()
+	{
+		final MappingModel model = new MappingModel();
+		model.getCurve().setPoints( new double[] { 0.0, 0.5, 1.0 }, new int[] { 0, 100, 255 } );
+
+		model.invertCurve();
+
+		Assert.assertEquals( 255, model.getCurve().getY( 0 ) );
+		Assert.assertEquals( 155, model.getCurve().getY( 1 ) );
+		Assert.assertEquals( 0, model.getCurve().getY( 2 ) );
+	}
+
 	/**
 	 * ValueMatching must NOT affect mapToLutIndex: the curve is always
 	 * evaluated smoothly there. Quantizing at the curve stage (in addition to

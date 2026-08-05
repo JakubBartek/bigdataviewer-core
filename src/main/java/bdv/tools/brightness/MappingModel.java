@@ -185,6 +185,18 @@ public class MappingModel
 	}
 
 	/**
+	 * Flip the current curve vertically (see {@link Curve#invert()}), e.g.
+	 * turning the default increasing linear ramp into a decreasing one.
+	 * Applies on top of whatever shape the curve currently has -- including
+	 * further hand-dragged edits -- not just a freshly applied preset.
+	 */
+	public void invertCurve()
+	{
+		curve.invert();
+		fireChangeListeners();
+	}
+
+	/**
 	 * Copy the range mode, value matching, preset and curve control points
 	 * from another model into this one.
 	 */

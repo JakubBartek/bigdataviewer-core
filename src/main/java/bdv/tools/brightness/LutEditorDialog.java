@@ -100,6 +100,7 @@ public class LutEditorDialog extends JDialog
 	private final JCheckBox checkTreatMinAsBackground;
 	private final JButton buttonBackgroundColor;
 	private final JComboBox< MappingPreset > comboMappingPreset;
+	private final JButton buttonInvertCurve;
 
 	/**
 	 * A black-to-white gradient used as a placeholder before any real palette
@@ -209,6 +210,8 @@ public class LutEditorDialog extends JDialog
 		buttonBackgroundColor.setVisible( false );
 		buttonBackgroundColor.setEnabled( false );
 		comboMappingPreset = new JComboBox<>( MappingPreset.values() );
+		buttonInvertCurve = new JButton( "Invert" );
+		buttonInvertCurve.setFocusable( false );
 
 		final JPanel panelMapping = new JPanel();
 		panelMapping.setLayout( new BoxLayout( panelMapping, BoxLayout.PAGE_AXIS ) );
@@ -227,7 +230,7 @@ public class LutEditorDialog extends JDialog
 		panelMapping.add( Box.createVerticalStrut( 4 ) );
 		panelMapping.add( panelRangeMode );
 		panelMapping.add( Box.createVerticalStrut( 4 ) );
-		panelMapping.add( labeledRow( "Mapping preset:", comboMappingPreset ) );
+		panelMapping.add( labeledRow( "Mapping preset:", comboMappingPreset, buttonInvertCurve ) );
 		panelMapping.setAlignmentX( Component.LEFT_ALIGNMENT );
 		panelMapping.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelMapping.getPreferredSize().height ) );
 
@@ -352,6 +355,8 @@ public class LutEditorDialog extends JDialog
 				return;
 			mappingModel.applyPreset( ( MappingPreset ) comboMappingPreset.getSelectedItem() );
 		} );
+
+		buttonInvertCurve.addActionListener( e -> mappingModel.invertCurve() );
 
 		buttonApply.addActionListener( e -> applyCurrent() );
 		buttonCancel.addActionListener( e ->
@@ -516,9 +521,16 @@ public class LutEditorDialog extends JDialog
 
 	private static JPanel labeledRow( final String label, final JComponent component )
 	{
+		return labeledRow( label, component, null );
+	}
+
+	private static JPanel labeledRow( final String label, final JComponent component, final JComponent trailing )
+	{
 		final JPanel row = new JPanel( new BorderLayout( 8, 0 ) );
 		row.add( new JLabel( label ), BorderLayout.WEST );
 		row.add( component, BorderLayout.CENTER );
+		if ( trailing != null )
+			row.add( trailing, BorderLayout.EAST );
 
 		row.setMaximumSize( new Dimension( Integer.MAX_VALUE, row.getPreferredSize().height ) );
 		row.setAlignmentX( Component.LEFT_ALIGNMENT );
@@ -572,6 +584,8 @@ public class LutEditorDialog extends JDialog
 				"- Mapping preset replaces the curve with a predefined shape (Linear, Percentile",
 				"  Stretch, Log, Exp, Sigmoid, α-Sigmoid, Tan, Atan). The curve can still be",
 				"  adjusted afterwards.",
+				"- Invert flips the current curve vertically (e.g. increasing becomes",
+				"  decreasing), on top of whatever shape/edits it already has.",
 				"",
 				"Mapping curve:",
 				"- The color bar to the left previews the palette itself; the one below the",

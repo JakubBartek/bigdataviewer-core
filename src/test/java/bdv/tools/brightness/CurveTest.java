@@ -162,6 +162,40 @@ public class CurveTest
 	}
 
 	@Test
+	public void testInvert()
+	{
+		final Curve curve = new Curve();
+		curve.addPoint( 0.3, 100 );
+		curve.addPoint( 0.7, 200 );
+
+		curve.invert();
+
+		// x positions are unchanged; each y becomes 255 - y.
+		Assert.assertEquals( 4, curve.getPointCount() );
+		Assert.assertEquals( 0.0, curve.getX( 0 ), 1e-6 );
+		Assert.assertEquals( 255, curve.getY( 0 ) );
+		Assert.assertEquals( 0.3, curve.getX( 1 ), 1e-6 );
+		Assert.assertEquals( 155, curve.getY( 1 ) );
+		Assert.assertEquals( 0.7, curve.getX( 2 ), 1e-6 );
+		Assert.assertEquals( 55, curve.getY( 2 ) );
+		Assert.assertEquals( 1.0, curve.getX( 3 ), 1e-6 );
+		Assert.assertEquals( 0, curve.getY( 3 ) );
+	}
+
+	@Test
+	public void testInvertTwiceRestoresOriginalShape()
+	{
+		final Curve curve = new Curve();
+		curve.addPoint( 0.3, 100 );
+		final int[] before = curve.ysArray();
+
+		curve.invert();
+		curve.invert();
+
+		Assert.assertArrayEquals( before, curve.ysArray() );
+	}
+
+	@Test
 	public void testSetPoint()
 	{
 		final Curve curve = new Curve();
