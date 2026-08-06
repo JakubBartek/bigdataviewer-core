@@ -237,6 +237,7 @@ public class LutEditorDialog extends JDialog
 		final JPanel panelLeftColumn = new JPanel();
 		panelLeftColumn.setLayout( new BoxLayout( panelLeftColumn, BoxLayout.PAGE_AXIS ) );
 		panelLeftColumn.add( panelData );
+		panelLeftColumn.add( Box.createVerticalStrut( 20 ) );
 		panelLeftColumn.add( panelMapping );
 
 		// -- Mapping curve panel ---------------------------------------------
