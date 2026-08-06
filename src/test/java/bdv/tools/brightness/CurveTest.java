@@ -144,24 +144,6 @@ public class CurveTest
 	}
 
 	@Test
-	public void testReset()
-	{
-		final Curve curve = new Curve();
-		curve.addPoint( 0.3, 100 );
-		curve.addPoint( 0.7, 200 );
-		Assert.assertEquals( 4, curve.getPointCount() );
-
-		curve.reset();
-
-		// Back to initial state
-		Assert.assertEquals( 2, curve.getPointCount() );
-		Assert.assertEquals( 0.0, curve.getX( 0 ), 1e-6 );
-		Assert.assertEquals( 0, curve.getY( 0 ) );
-		Assert.assertEquals( 1.0, curve.getX( 1 ), 1e-6 );
-		Assert.assertEquals( 255, curve.getY( 1 ) );
-	}
-
-	@Test
 	public void testInvert()
 	{
 		final Curve curve = new Curve();
@@ -255,29 +237,6 @@ public class CurveTest
 			Assert.assertEquals( curve.getX( i ), copy.getX( i ), 1e-9 );
 			Assert.assertEquals( curve.getY( i ), copy.getY( i ) );
 		}
-	}
-
-	@Test
-	public void testEvaluateInterpolate()
-	{
-		final Curve curve = new Curve();
-		curve.addPoint( 0.5, 200 );
-
-		Assert.assertEquals( curve.evaluate( 0.25 ), curve.evaluate( 0.25, ValueMatching.INTERPOLATE ) );
-	}
-
-	@Test
-	public void testEvaluateTruncate()
-	{
-		final Curve curve = new Curve();
-		curve.setPoints( new double[] { 0.0, 0.5, 1.0 }, new int[] { 0, 100, 255 } );
-
-		// Truncate holds the value of the last control point at or before x
-		Assert.assertEquals( 0, curve.evaluate( 0.0, ValueMatching.TRUNCATE ) );
-		Assert.assertEquals( 0, curve.evaluate( 0.49, ValueMatching.TRUNCATE ) );
-		Assert.assertEquals( 100, curve.evaluate( 0.5, ValueMatching.TRUNCATE ) );
-		Assert.assertEquals( 100, curve.evaluate( 0.99, ValueMatching.TRUNCATE ) );
-		Assert.assertEquals( 255, curve.evaluate( 1.0, ValueMatching.TRUNCATE ) );
 	}
 
 }

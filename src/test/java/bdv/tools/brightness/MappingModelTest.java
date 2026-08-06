@@ -38,6 +38,23 @@ import org.junit.Test;
  */
 public class MappingModelTest
 {
+	/**
+	 * Positions {@code 0, 1/(n-1), ..., 1} for {@code n} evenly spaced
+	 * colors -- the layout of a fixed-resolution table like
+	 * {@link net.imglib2.display.ColorTable8}. Most cases here only care
+	 * about the color <em>count</em>, not uneven spacing (which
+	 * {@link #testCyclicPositionRespectsUnevenColorSpacing} covers
+	 * separately), so this keeps them readable.
+	 */
+	private static double[] uniform( final int colorCount )
+	{
+		final int n = Math.max( 1, colorCount );
+		final double[] positions = new double[ n ];
+		for ( int i = 0; i < n; i++ )
+			positions[ i ] = n > 1 ? i / ( double ) ( n - 1 ) : 0.0;
+		return positions;
+	}
+
 	@Test
 	public void testDefaultIsLinear()
 	{
@@ -46,9 +63,9 @@ public class MappingModelTest
 		Assert.assertEquals( RangeMode.FIT, model.getRangeMode() );
 		Assert.assertEquals( ValueMatching.INTERPOLATE, model.getValueMatching() );
 
-		Assert.assertEquals( 0, model.mapToLutIndex( 0, 0, 100, 256 ) );
-		Assert.assertEquals( 255, model.mapToLutIndex( 100, 0, 100, 256 ) );
-		Assert.assertEquals( 128, model.mapToLutIndex( 50, 0, 100, 256 ), 1 );
+		Assert.assertEquals( 0, model.mapToLutIndex( 0, 0, 100, uniform( 256 ) ) );
+		Assert.assertEquals( 255, model.mapToLutIndex( 100, 0, 100, uniform( 256 ) ) );
+		Assert.assertEquals( 128, model.mapToLutIndex( 50, 0, 100, uniform( 256 ) ), 1 );
 	}
 
 	@Test
@@ -57,8 +74,8 @@ public class MappingModelTest
 		final MappingModel model = new MappingModel();
 		model.setRangeMode( RangeMode.FIT );
 
-		Assert.assertEquals( 0, model.mapToLutIndex( -50, 0, 100, 256 ) );
-		Assert.assertEquals( 255, model.mapToLutIndex( 150, 0, 100, 256 ) );
+		Assert.assertEquals( 0, model.mapToLutIndex( -50, 0, 100, uniform( 256 ) ) );
+		Assert.assertEquals( 255, model.mapToLutIndex( 150, 0, 100, uniform( 256 ) ) );
 	}
 
 	@Test
@@ -69,21 +86,21 @@ public class MappingModelTest
 
 		final int n = 10;
 		// A value of exactly min lands on the first color; min+n-1 on the last.
-		Assert.assertEquals( 0, model.mapToLutIndex( 0, 0, 1000, n ) );
-		Assert.assertEquals( 255, model.mapToLutIndex( 9, 0, 1000, n ) );
+		Assert.assertEquals( 0, model.mapToLutIndex( 0, 0, 1000, uniform( n ) ) );
+		Assert.assertEquals( 255, model.mapToLutIndex( 9, 0, 1000, uniform( n ) ) );
 
 		// Wraps every n values (e.g. label ids cycling through the palette).
-		Assert.assertEquals( model.mapToLutIndex( 0, 0, 1000, n ), model.mapToLutIndex( 10, 0, 1000, n ) );
-		Assert.assertEquals( model.mapToLutIndex( 3, 0, 1000, n ), model.mapToLutIndex( 23, 0, 1000, n ) );
+		Assert.assertEquals( model.mapToLutIndex( 0, 0, 1000, uniform( n ) ), model.mapToLutIndex( 10, 0, 1000, uniform( n ) ) );
+		Assert.assertEquals( model.mapToLutIndex( 3, 0, 1000, uniform( n ) ), model.mapToLutIndex( 23, 0, 1000, uniform( n ) ) );
 
 		// max is ignored entirely in Cyclic mode.
-		Assert.assertEquals( model.mapToLutIndex( 5, 0, 1000, n ), model.mapToLutIndex( 5, 0, 1, n ) );
+		Assert.assertEquals( model.mapToLutIndex( 5, 0, 1000, uniform( n ) ), model.mapToLutIndex( 5, 0, 1, uniform( n ) ) );
 
 		// min anchors the cycle: a value of exactly min always gets the first
 		// color, no matter what min itself is (e.g. setting min to 5 means
 		// value 5 gets whatever color is first in the palette).
-		Assert.assertEquals( 0, model.mapToLutIndex( 5, 5, 1000, n ) );
-		Assert.assertNotEquals( model.mapToLutIndex( 5, 0, 1000, n ), model.mapToLutIndex( 5, 5, 1000, n ) );
+		Assert.assertEquals( 0, model.mapToLutIndex( 5, 5, 1000, uniform( n ) ) );
+		Assert.assertNotEquals( model.mapToLutIndex( 5, 0, 1000, uniform( n ) ), model.mapToLutIndex( 5, 5, 1000, uniform( n ) ) );
 	}
 
 	/**
@@ -96,20 +113,20 @@ public class MappingModelTest
 	{
 		final int n = 10;
 		// A value of k*n + x*(n-1) should land at normalized curve position x.
-		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 0, 0, n, false ), 1e-9 );
-		Assert.assertEquals( 1.0, MappingModel.cyclicPosition( n - 1, 0, n, false ), 1e-9 );
-		Assert.assertEquals( 0.5, MappingModel.cyclicPosition( 4.5, 0, n, false ), 1e-9 );
+		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 0, 0, uniform( n ), false ), 1e-9 );
+		Assert.assertEquals( 1.0, MappingModel.cyclicPosition( n - 1, 0, uniform( n ), false ), 1e-9 );
+		Assert.assertEquals( 0.5, MappingModel.cyclicPosition( 4.5, 0, uniform( n ), false ), 1e-9 );
 		// Wraps every n, independent of how many periods away.
-		Assert.assertEquals( MappingModel.cyclicPosition( 3, 0, n, false ), MappingModel.cyclicPosition( 3 + 5 * n, 0, n, false ), 1e-9 );
+		Assert.assertEquals( MappingModel.cyclicPosition( 3, 0, uniform( n ), false ), MappingModel.cyclicPosition( 3 + 5 * n, 0, uniform( n ), false ), 1e-9 );
 		// Degenerate color count never divides by zero.
-		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 7, 0, 1, false ), 1e-9 );
-		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 7, 0, 0, false ), 1e-9 );
+		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 7, 0, uniform( 1 ), false ), 1e-9 );
+		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 7, 0, uniform( 0 ), false ), 1e-9 );
 
 		// Anchored at min: a value of exactly min always lands on position 0
 		// (the palette's first color), regardless of what min is.
-		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 5, 5, n, false ), 1e-9 );
-		Assert.assertEquals( 1.0, MappingModel.cyclicPosition( 5 + n - 1, 5, n, false ), 1e-9 );
-		Assert.assertEquals( MappingModel.cyclicPosition( 5, 5, n, false ), MappingModel.cyclicPosition( 5 + n, 5, n, false ), 1e-9 );
+		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 5, 5, uniform( n ), false ), 1e-9 );
+		Assert.assertEquals( 1.0, MappingModel.cyclicPosition( 5 + n - 1, 5, uniform( n ), false ), 1e-9 );
+		Assert.assertEquals( MappingModel.cyclicPosition( 5, 5, uniform( n ), false ), MappingModel.cyclicPosition( 5 + n, 5, uniform( n ), false ), 1e-9 );
 
 		Assert.assertEquals( 0.0, MappingModel.fitPosition( 0, 0, 100 ), 1e-9 );
 		Assert.assertEquals( 1.0, MappingModel.fitPosition( 100, 0, 100 ), 1e-9 );
@@ -125,8 +142,8 @@ public class MappingModelTest
 		final MappingModel model = new MappingModel();
 		model.setRangeMode( RangeMode.CYCLIC );
 
-		Assert.assertEquals( 0, model.mapToLutIndex( 5, 0, 100, 1 ) );
-		Assert.assertEquals( 0, model.mapToLutIndex( 500, 0, 100, 0 ) );
+		Assert.assertEquals( 0, model.mapToLutIndex( 5, 0, 100, uniform( 1 ) ) );
+		Assert.assertEquals( 0, model.mapToLutIndex( 500, 0, 100, uniform( 0 ) ) );
 	}
 
 	@Test
@@ -229,8 +246,8 @@ public class MappingModelTest
 		// to the end of the cycle, mathematically) -- this specific value is
 		// never reached in practice, since real callers check
 		// isBackgroundValue() first and never call mapToLutIndex for it.
-		Assert.assertEquals( 200, model.mapToLutIndex( 0, 0, 100, 51 ) );
-		Assert.assertEquals( 148, model.mapToLutIndex( 25, 0, 100, 51 ) );
+		Assert.assertEquals( 200, model.mapToLutIndex( 0, 0, 100, uniform( 51 ) ) );
+		Assert.assertEquals( 148, model.mapToLutIndex( 25, 0, 100, uniform( 51 ) ) );
 	}
 
 	@Test
@@ -240,10 +257,10 @@ public class MappingModelTest
 		model.applyPreset( MappingPreset.LOG );
 
 		Assert.assertEquals( MappingPreset.LOG, model.getPreset() );
-		Assert.assertEquals( 0, model.mapToLutIndex( 0, 0, 100, 256 ) );
-		Assert.assertEquals( 255, model.mapToLutIndex( 100, 0, 100, 256 ) );
+		Assert.assertEquals( 0, model.mapToLutIndex( 0, 0, 100, uniform( 256 ) ) );
+		Assert.assertEquals( 255, model.mapToLutIndex( 100, 0, 100, uniform( 256 ) ) );
 		// Log curve rises faster than linear near the low end.
-		Assert.assertTrue( model.mapToLutIndex( 10, 0, 100, 256 ) > 26 );
+		Assert.assertTrue( model.mapToLutIndex( 10, 0, 100, uniform( 256 ) ) > 26 );
 	}
 
 	/**
@@ -268,13 +285,13 @@ public class MappingModelTest
 		final MappingModel model = new MappingModel();
 
 		// Default Linear preset increases; after inverting it must decrease.
-		Assert.assertEquals( 0, model.mapToLutIndex( 0, 0, 100, 256 ) );
-		Assert.assertEquals( 255, model.mapToLutIndex( 100, 0, 100, 256 ) );
+		Assert.assertEquals( 0, model.mapToLutIndex( 0, 0, 100, uniform( 256 ) ) );
+		Assert.assertEquals( 255, model.mapToLutIndex( 100, 0, 100, uniform( 256 ) ) );
 
 		model.invertCurve();
 
-		Assert.assertEquals( 255, model.mapToLutIndex( 0, 0, 100, 256 ) );
-		Assert.assertEquals( 0, model.mapToLutIndex( 100, 0, 100, 256 ) );
+		Assert.assertEquals( 255, model.mapToLutIndex( 0, 0, 100, uniform( 256 ) ) );
+		Assert.assertEquals( 0, model.mapToLutIndex( 100, 0, 100, uniform( 256 ) ) );
 	}
 
 	@Test
@@ -305,12 +322,12 @@ public class MappingModelTest
 		final MappingModel model = new MappingModel();
 		model.getCurve().setPoints( new double[] { 0.0, 0.5, 1.0 }, new int[] { 0, 100, 255 } );
 
-		final int smooth25 = model.mapToLutIndex( 25, 0, 100, 256 );
-		final int smooth60 = model.mapToLutIndex( 60, 0, 100, 256 );
+		final int smooth25 = model.mapToLutIndex( 25, 0, 100, uniform( 256 ) );
+		final int smooth60 = model.mapToLutIndex( 60, 0, 100, uniform( 256 ) );
 
 		model.setValueMatching( ValueMatching.TRUNCATE );
-		Assert.assertEquals( smooth25, model.mapToLutIndex( 25, 0, 100, 256 ) );
-		Assert.assertEquals( smooth60, model.mapToLutIndex( 60, 0, 100, 256 ) );
+		Assert.assertEquals( smooth25, model.mapToLutIndex( 25, 0, 100, uniform( 256 ) ) );
+		Assert.assertEquals( smooth60, model.mapToLutIndex( 60, 0, 100, uniform( 256 ) ) );
 	}
 
 	/**
@@ -346,7 +363,7 @@ public class MappingModelTest
 			final Set< Integer > seenReds = new HashSet<>();
 			for ( int label = 0; label < n; label++ )
 			{
-				final int lutIndex = model.mapToLutIndex( label, 0, 1000, n );
+				final int lutIndex = model.mapToLutIndex( label, 0, 1000, uniform( n ) );
 				final int argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, matching );
 				seenReds.add( ( argb >> 16 ) & 0xFF );
 			}
@@ -566,7 +583,7 @@ public class MappingModelTest
 		Assert.assertEquals( source.getValueMatching(), copy.getValueMatching() );
 		Assert.assertEquals( source.isTreatMinAsBackground(), copy.isTreatMinAsBackground() );
 		Assert.assertEquals( source.getBackgroundColor(), copy.getBackgroundColor() );
-		Assert.assertEquals( source.mapToLutIndex( 42, 0, 100, 256 ), copy.mapToLutIndex( 42, 0, 100, 256 ) );
+		Assert.assertEquals( source.mapToLutIndex( 42, 0, 100, uniform( 256 ) ), copy.mapToLutIndex( 42, 0, 100, uniform( 256 ) ) );
 
 		// Mutating the source afterwards must not affect the copy.
 		source.applyPreset( MappingPreset.LINEAR );

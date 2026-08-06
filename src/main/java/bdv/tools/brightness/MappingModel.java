@@ -212,35 +212,6 @@ public class MappingModel
 	}
 
 	/**
-	 * Map a raw source value to a LUT index in [0, 255], assuming the target
-	 * LUT's {@code lutColorCount} colors are evenly spaced. Does not account
-	 * for {@link #isBackgroundValue}; callers should check that first and use
-	 * {@link #getBackgroundColor()} directly instead of calling this method.
-	 * <p>
-	 * Real palettes are not always evenly spaced (e.g. a LUT resource file can
-	 * declare arbitrary control point positions); when the actual positions
-	 * are known, prefer {@link #mapToLutIndex(double, double, double, double[])}
-	 * (see {@link ColorTableLut#colorPositions(net.imglib2.display.ColorTable)}).
-	 *
-	 * @param value
-	 * 		the raw source value.
-	 * @param min
-	 * 		source value mapped to the start of the range; only used in
-	 * 		{@link RangeMode#FIT}.
-	 * @param max
-	 * 		source value mapped to the end of the range; only used in
-	 * 		{@link RangeMode#FIT}.
-	 * @param lutColorCount
-	 * 		the number of distinct colors in the target LUT (see
-	 * 		{@link net.imglib2.display.ColorTable#getLength()}); only used in
-	 * 		{@link RangeMode#CYCLIC}, as the wrap period.
-	 */
-	public int mapToLutIndex( final double value, final double min, final double max, final int lutColorCount )
-	{
-		return mapToLutIndex( value, min, max, uniformColorPositions( lutColorCount ) );
-	}
-
-	/**
 	 * Map a raw source value to a LUT index in [0, 255]. Does not account for
 	 * {@link #isBackgroundValue}; callers should check that first and use
 	 * {@link #getBackgroundColor()} directly instead of calling this method.
@@ -280,15 +251,6 @@ public class MappingModel
 	{
 		final double span = max - min;
 		return span > 0 ? Math.max( 0.0, Math.min( 1.0, ( value - min ) / span ) ) : 0.0;
-	}
-
-	/**
-	 * Same as {@link #cyclicPosition(double, double, double[], boolean)},
-	 * assuming the palette's {@code lutColorCount} colors are evenly spaced.
-	 */
-	static double cyclicPosition( final double value, final double min, final int lutColorCount, final boolean treatMinAsBackground )
-	{
-		return cyclicPosition( value, min, uniformColorPositions( lutColorCount ), treatMinAsBackground );
 	}
 
 	/**
@@ -357,21 +319,6 @@ public class MappingModel
 			raw = k + frac;
 		}
 		return treatMinAsBackground ? raw + 1 : raw;
-	}
-
-	/**
-	 * Positions {@code 0, 1/(n-1), 2/(n-1), ..., 1} for {@code n} evenly
-	 * spaced colors ({@code n = max(1, lutColorCount)}), matching how
-	 * {@link net.imglib2.display.ColorTable8} and similar fixed-resolution
-	 * color tables are laid out.
-	 */
-	private static double[] uniformColorPositions( final int lutColorCount )
-	{
-		final int n = Math.max( 1, lutColorCount );
-		final double[] positions = new double[ n ];
-		for ( int i = 0; i < n; i++ )
-			positions[ i ] = n > 1 ? i / ( double ) ( n - 1 ) : 0.0;
-		return positions;
 	}
 
 	/**

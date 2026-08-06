@@ -234,30 +234,6 @@ public class Curve
 	}
 
 	/**
-	 * Evaluate the curve at a normalized input position [0, 1] using the
-	 * given {@link ValueMatching} strategy. Returns a value in [0, 255].
-	 */
-	public int evaluate( final double x, final ValueMatching matching )
-	{
-		if ( matching == ValueMatching.INTERPOLATE )
-			return evaluate( x );
-		return yValues.get( truncateIndex( x ) );
-	}
-
-	/**
-	 * Find the control point used for {@link ValueMatching#TRUNCATE}
-	 * evaluation: the last control point at or before {@code x}.
-	 */
-	private int truncateIndex( final double x )
-	{
-		int idx = 0;
-		for ( int i = 0; i < xValues.size(); i++ )
-			if ( xValues.get( i ) <= x + 1e-9 )
-				idx = i;
-		return idx;
-	}
-
-	/**
 	 * Flip the curve vertically: each control point's y becomes
 	 * {@code 255 - y}, keeping its x unchanged. An increasing curve becomes
 	 * decreasing and vice versa (e.g. the default linear ramp 0-&gt;255
@@ -267,19 +243,6 @@ public class Curve
 	{
 		for ( int i = 0; i < yValues.size(); i++ )
 			yValues.set( i, clamp( 255 - yValues.get( i ) ) );
-	}
-
-	/**
-	 * Reset the curve to a linear gradient (identity mapping).
-	 */
-	public void reset()
-	{
-		xValues.clear();
-		yValues.clear();
-		xValues.add( 0.0 );
-		yValues.add( 0 );
-		xValues.add( 1.0 );
-		yValues.add( 255 );
 	}
 
 	private int clamp( final int v )
