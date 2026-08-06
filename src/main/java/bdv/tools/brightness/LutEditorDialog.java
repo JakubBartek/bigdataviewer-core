@@ -161,13 +161,13 @@ public class LutEditorDialog extends JDialog
 				{
 					setFont( getFont().deriveFont( Font.BOLD ) );
 					setEnabled( false );
-					setBorder( BorderFactory.createEmptyBorder( 4, 4, 2, 4 ) );
+					setBorder( BorderFactory.createEmptyBorder( 4, 0, 2, 4 ) );
 				}
 				else
 				{
 					setFont( getFont().deriveFont( Font.PLAIN ) );
 					setEnabled( true );
-					setBorder( BorderFactory.createEmptyBorder( 0, 16, 0, 4 ) );
+					setBorder( BorderFactory.createEmptyBorder( 0, 4, 0, 4 ) );
 					if ( index == -1 && value == null )
 						setText( "Select Preset" );
 				}
