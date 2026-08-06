@@ -52,6 +52,41 @@ public class ColorTableLutTest
 	}
 
 	@Test
+	public void testIsInterpolatedDefaultsToTrue()
+	{
+		final ColorTableLut lut = new ColorTableLut(
+				new double[] { 0.0, 1.0 },
+				new double[] { 0.0, 1.0 },
+				new double[] { 0.0, 0.0 },
+				new double[] { 0.0, 0.0 },
+				new double[] { 1.0, 1.0 } );
+
+		Assert.assertTrue( lut.isInterpolated() );
+		Assert.assertTrue( ColorTableLut.isInterpolated( lut ) );
+	}
+
+	@Test
+	public void testIsInterpolatedHonorsExplicitConstructorArgument()
+	{
+		final ColorTableLut qualitative = new ColorTableLut(
+				new double[] { 0.0, 1.0 },
+				new double[] { 0.0, 1.0 },
+				new double[] { 0.0, 0.0 },
+				new double[] { 0.0, 0.0 },
+				new double[] { 1.0, 1.0 },
+				false );
+
+		Assert.assertFalse( qualitative.isInterpolated() );
+		Assert.assertFalse( ColorTableLut.isInterpolated( qualitative ) );
+	}
+
+	@Test
+	public void testIsInterpolatedDefaultsToTrueForNonLutPaletteColorTables()
+	{
+		Assert.assertTrue( ColorTableLut.isInterpolated( new ColorTable8() ) );
+	}
+
+	@Test
 	public void testInterpolatesBetweenControlPoints()
 	{
 		final ColorTableLut lut = new ColorTableLut(

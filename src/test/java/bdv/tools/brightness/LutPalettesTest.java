@@ -116,18 +116,15 @@ public class LutPalettesTest
 	/**
 	 * Accent.json declares {@code "color_interpolation": false} (it is a
 	 * qualitative/categorical palette); viridis.json declares {@code true}
-	 * (a continuous palette).
+	 * (a continuous palette). {@link #load(String)} parses the file once and
+	 * carries the flag on the returned table itself (see
+	 * {@link ColorTableLut#isInterpolated()}), rather than requiring a
+	 * second, separate parse to find it out.
 	 */
 	@Test
-	public void testIsColorInterpolatedReflectsResourceDeclaration()
+	public void testLoadReflectsColorInterpolationDeclaration()
 	{
-		Assert.assertFalse( LutPalettes.isColorInterpolated( "Accent" ) );
-		Assert.assertTrue( LutPalettes.isColorInterpolated( "viridis" ) );
-	}
-
-	@Test
-	public void testIsColorInterpolatedDefaultsToTrueForUnknownName()
-	{
-		Assert.assertTrue( LutPalettes.isColorInterpolated( "this-palette-does-not-exist" ) );
+		Assert.assertFalse( ColorTableLut.isInterpolated( LutPalettes.load( "Accent" ) ) );
+		Assert.assertTrue( ColorTableLut.isInterpolated( LutPalettes.load( "viridis" ) ) );
 	}
 }

@@ -318,7 +318,7 @@ public class LutEditorDialog extends JDialog
 			// Truncate is the closest match to how such palettes are
 			// typically read (each raw value holds the color of the control
 			// point at or before it).
-			mappingModel.setValueMatching( LutPalettes.isColorInterpolated( name ) ? ValueMatching.INTERPOLATE : ValueMatching.TRUNCATE );
+			mappingModel.setValueMatching( ColorTableLut.isInterpolated( ct ) ? ValueMatching.INTERPOLATE : ValueMatching.TRUNCATE );
 		} );
 
 		final ActionListener listenerRangeMode = e ->

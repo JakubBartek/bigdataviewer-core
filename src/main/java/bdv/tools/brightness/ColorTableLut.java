@@ -52,7 +52,12 @@ public class ColorTableLut implements ColorTable
 
 	private final double[] alpha;
 
+	private final boolean interpolated;
+
 	/**
+	 * Same as {@link #ColorTableLut(double[], double[], double[], double[],
+	 * double[], boolean)}, defaulting {@code interpolated} to {@code true}.
+	 *
 	 * @param positions control point positions in [0, 1], sorted ascending
 	 * @param red control point red components in [0, 1], one per position
 	 * @param green control point green components in [0, 1], one per position
@@ -60,6 +65,26 @@ public class ColorTableLut implements ColorTable
 	 * @param alpha control point alpha components in [0, 1], one per position
 	 */
 	public ColorTableLut( final double[] positions, final double[] red, final double[] green, final double[] blue, final double[] alpha )
+	{
+		this( positions, red, green, blue, alpha, true );
+	}
+
+	/**
+	 * @param positions control point positions in [0, 1], sorted ascending
+	 * @param red control point red components in [0, 1], one per position
+	 * @param green control point green components in [0, 1], one per position
+	 * @param blue control point blue components in [0, 1], one per position
+	 * @param alpha control point alpha components in [0, 1], one per position
+	 * @param interpolated
+	 * 		whether this palette is meant to be smoothly interpolated (e.g. a
+	 * 		continuous palette like viridis) rather than used as discrete,
+	 * 		individually chosen colors (e.g. a qualitative/categorical palette
+	 * 		like tab10); see {@link #isInterpolated(ColorTable)}. Purely
+	 * 		advisory -- does not affect {@link #lookupARGB(double, double,
+	 * 		double)} or any other lookup here, which always honor whatever
+	 * 		{@link ValueMatching} they are explicitly given.
+	 */
+	public ColorTableLut( final double[] positions, final double[] red, final double[] green, final double[] blue, final double[] alpha, final boolean interpolated )
 	{
 		if ( positions.length < 2 || red.length != positions.length || green.length != positions.length
 				|| blue.length != positions.length || alpha.length != positions.length )
@@ -69,6 +94,7 @@ public class ColorTableLut implements ColorTable
 		this.green = green;
 		this.blue = blue;
 		this.alpha = alpha;
+		this.interpolated = interpolated;
 	}
 
 	@Override
@@ -127,6 +153,27 @@ public class ColorTableLut implements ColorTable
 		for ( int i = 0; i < n; i++ )
 			positions[ i ] = n > 1 ? i / ( double ) ( n - 1 ) : 0.0;
 		return positions;
+	}
+
+	/**
+	 * Whether this palette is meant to be smoothly interpolated, as declared
+	 * at construction time (see {@link #ColorTableLut(double[], double[],
+	 * double[], double[], double[], boolean)}).
+	 */
+	public boolean isInterpolated()
+	{
+		return interpolated;
+	}
+
+	/**
+	 * Whether {@code lut} is meant to be smoothly interpolated. For a
+	 * {@link ColorTableLut} this is {@link #isInterpolated()}; any other
+	 * {@link ColorTable} (e.g. the default {@link net.imglib2.display.ColorTable8})
+	 * has no such concept and is always treated as {@code true}.
+	 */
+	public static boolean isInterpolated( final ColorTable lut )
+	{
+		return !( lut instanceof ColorTableLut ) || ( ( ColorTableLut ) lut ).interpolated;
 	}
 
 	/**

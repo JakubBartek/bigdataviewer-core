@@ -62,7 +62,8 @@ import net.imglib2.display.ColorTable;
  * linear interpolation, evenly spaced in index order (see {@link ColorTableLut}).
  * A top-level {@code color_interpolation} boolean declares whether the
  * palette is meant to be smoothly interpolated or used as discrete colors
- * (see {@link #isColorInterpolated(String)}).
+ * (see {@link ColorTableLut#isInterpolated()}, set on the {@link ColorTable}
+ * returned by {@link #load(String)}).
  */
 public final class LutPalettes
 {
@@ -123,7 +124,10 @@ public final class LutPalettes
 
 	/**
 	 * Load the named LUT resource as a {@link ColorTable}, or {@code null} if
-	 * it cannot be found or parsed.
+	 * it cannot be found or parsed. The returned table's
+	 * {@link ColorTableLut#isInterpolated()} reflects the resource's
+	 * {@code color_interpolation} field (defaulting to {@code true} if the
+	 * resource does not declare it).
 	 *
 	 * @param name
 	 * 		a name as returned by {@link #discoverNames()}.
@@ -160,26 +164,8 @@ public final class LutPalettes
 			blue[ i ] = rgba.get( 2 ).getAsDouble();
 			alpha[ i ] = rgba.get( 3 ).getAsDouble();
 		}
-		return new ColorTableLut( positions, red, green, blue, alpha );
-	}
-
-	/**
-	 * Whether the named LUT resource declares itself as meant to be smoothly
-	 * interpolated ({@code color_interpolation: true}, e.g. a continuous
-	 * palette like viridis) rather than used as discrete, individually
-	 * chosen colors ({@code false}, e.g. a qualitative/categorical palette
-	 * like tab10). Defaults to {@code true} if the resource is missing,
-	 * unparsable, or does not declare the field.
-	 *
-	 * @param name
-	 * 		a name as returned by {@link #discoverNames()}.
-	 */
-	public static boolean isColorInterpolated( final String name )
-	{
-		final JsonObject root = readRoot( name );
-		if ( root == null || !root.has( "color_interpolation" ) )
-			return true;
-		return root.get( "color_interpolation" ).getAsBoolean();
+		final boolean interpolated = !root.has( "color_interpolation" ) || root.get( "color_interpolation" ).getAsBoolean();
+		return new ColorTableLut( positions, red, green, blue, alpha, interpolated );
 	}
 
 	/**
