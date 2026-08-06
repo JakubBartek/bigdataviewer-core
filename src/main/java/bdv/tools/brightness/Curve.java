@@ -27,25 +27,20 @@
  */
 package bdv.tools.brightness;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * Represents a piecewise-linear curve with control points.
  * Maps input values [0, 1] to output values [0, 255] via linear interpolation.
+ * <p>
+ * Control points are kept sorted by ascending x. Their number is small (a
+ * preset's handful of points, plus whatever the user adds), so insert/remove
+ * simply reallocate rather than maintaining spare capacity; the arrays are
+ * primitive because {@link #evaluate} runs per rendered pixel.
  */
 public class Curve
 {
-	private final List< Double > xValues = new ArrayList<>();
-	private final List< Integer > yValues = new ArrayList<>();
+	private double[] xs = { 0.0, 1.0 };
 
-	public Curve()
-	{
-		xValues.add( 0.0 );
-		yValues.add( 0 );
-		xValues.add( 1.0 );
-		yValues.add( 255 );
-	}
+	private int[] ys = { 0, 255 };
 
 	/**
 	 * Add a control point at the given x position.
@@ -53,28 +48,31 @@ public class Curve
 	 */
 	public void addPoint( final double x, final int y )
 	{
-		// Find insertion position
-		int insertIdx = -1;
-		for ( int i = 0; i < xValues.size(); i++ )
+		int insertIdx = xs.length;
+		for ( int i = 0; i < xs.length; i++ )
 		{
-			final double xi = xValues.get( i );
-			if ( Math.abs( xi - x ) < 1e-6 )
+			if ( Math.abs( xs[ i ] - x ) < 1e-6 )
 			{
-				// Update existing point
-				yValues.set( i, clamp( y ) );
+				ys[ i ] = clamp( y );
 				return;
 			}
-			if ( xi > x )
+			if ( xs[ i ] > x )
 			{
 				insertIdx = i;
 				break;
 			}
 		}
-		if ( insertIdx < 0 )
-			insertIdx = xValues.size();
 
-		xValues.add( insertIdx, x );
-		yValues.add( insertIdx, clamp( y ) );
+		final double[] newXs = new double[ xs.length + 1 ];
+		final int[] newYs = new int[ ys.length + 1 ];
+		System.arraycopy( xs, 0, newXs, 0, insertIdx );
+		System.arraycopy( ys, 0, newYs, 0, insertIdx );
+		newXs[ insertIdx ] = x;
+		newYs[ insertIdx ] = clamp( y );
+		System.arraycopy( xs, insertIdx, newXs, insertIdx + 1, xs.length - insertIdx );
+		System.arraycopy( ys, insertIdx, newYs, insertIdx + 1, ys.length - insertIdx );
+		xs = newXs;
+		ys = newYs;
 	}
 
 	/**
@@ -83,10 +81,17 @@ public class Curve
 	 */
 	public void removePoint( final int index )
 	{
-		if ( index <= 0 || index >= xValues.size() - 1 )
-			return; // Cannot remove endpoints
-		xValues.remove( index );
-		yValues.remove( index );
+		if ( index <= 0 || index >= xs.length - 1 )
+			return;
+
+		final double[] newXs = new double[ xs.length - 1 ];
+		final int[] newYs = new int[ ys.length - 1 ];
+		System.arraycopy( xs, 0, newXs, 0, index );
+		System.arraycopy( ys, 0, newYs, 0, index );
+		System.arraycopy( xs, index + 1, newXs, index, xs.length - index - 1 );
+		System.arraycopy( ys, index + 1, newYs, index, ys.length - index - 1 );
+		xs = newXs;
+		ys = newYs;
 	}
 
 	/**
@@ -99,12 +104,10 @@ public class Curve
 		int bestIdx = -1;
 		double bestDist = tolerance;
 
-		for ( int i = 0; i < xValues.size(); i++ )
+		for ( int i = 0; i < xs.length; i++ )
 		{
-			final double xi = xValues.get( i );
-			final double yi = yValues.get( i ) / 255.0; // Normalize y to [0, 1]
-			final double dx = x - xi;
-			final double dy = y - yi;
+			final double dx = x - xs[ i ];
+			final double dy = y - ys[ i ] / 255.0; // ys are [0, 255], y is [0, 1]
 			final double dist = Math.sqrt( dx * dx + dy * dy );
 			if ( dist < bestDist )
 			{
@@ -121,7 +124,7 @@ public class Curve
 	 */
 	public double getX( final int index )
 	{
-		return xValues.get( index );
+		return xs[ index ];
 	}
 
 	/**
@@ -129,7 +132,7 @@ public class Curve
 	 */
 	public int getY( final int index )
 	{
-		return yValues.get( index );
+		return ys[ index ];
 	}
 
 	/**
@@ -137,20 +140,17 @@ public class Curve
 	 */
 	public int getPointCount()
 	{
-		return xValues.size();
+		return xs.length;
 	}
 
 	/**
-	 * Update the control point at the given index.
+	 * Set the output value of the control point at the given index. Its x
+	 * position is left alone, so the points stay sorted.
 	 */
 	public void setPoint( final int index, final int y )
 	{
-		// For internal points, we can update x (but keep sorted)
-		// For simplicity, just update y for existing points
-		if ( index >= 0 && index < yValues.size() )
-		{
-			yValues.set( index, clamp( y ) );
-		}
+		if ( index >= 0 && index < ys.length )
+			ys[ index ] = clamp( y );
 	}
 
 	/**
@@ -159,54 +159,34 @@ public class Curve
 	 */
 	public int evaluate( final double x )
 	{
-		if ( xValues.size() < 2 )
+		if ( xs.length < 2 )
 			return 0;
 
-		// Find the two control points surrounding x
-		int idx1 = 0;
-		int idx2 = 1;
-		for ( int i = 1; i < xValues.size(); i++ )
-		{
-			if ( xValues.get( i ) <= x )
-			{
-				idx1 = i;
-				idx2 = i + 1;
-				// Clamp idx2 to valid range
-				if ( idx2 >= xValues.size() )
-					idx2 = xValues.size() - 1;
-			}
-		}
+		// Points are sorted, so the last one at or before x is the start of
+		// the segment containing x; past the final point, both ends collapse
+		// onto it and the flat branch below returns its value.
+		int lo = 0;
+		while ( lo + 1 < xs.length && xs[ lo + 1 ] <= x )
+			lo++;
+		final int hi = Math.min( lo + 1, xs.length - 1 );
 
-		// Ensure valid indices
-		if ( idx2 >= xValues.size() )
-			idx2 = xValues.size() - 1;
+		if ( xs[ hi ] <= xs[ lo ] )
+			return ys[ lo ];
 
-		final double x1 = xValues.get( idx1 );
-		final double x2 = xValues.get( idx2 );
-		final int y1 = yValues.get( idx1 );
-		final int y2 = yValues.get( idx2 );
-
-		if ( x2 <= x1 )
-			return y1;
-
-		// Linear interpolation
-		final double t = ( x - x1 ) / ( x2 - x1 );
-		return ( int ) Math.round( y1 + t * ( y2 - y1 ) );
+		final double t = ( x - xs[ lo ] ) / ( xs[ hi ] - xs[ lo ] );
+		return ( int ) Math.round( ys[ lo ] + t * ( ys[ hi ] - ys[ lo ] ) );
 	}
 
 	/**
-	 * Replace all control points with the given x/y arrays. The arrays must
-	 * be sorted by ascending x and are not copied defensively.
+	 * Replace all control points with copies of the given x/y arrays, which
+	 * must be sorted by ascending x.
 	 */
 	public void setPoints( final double[] xs, final int[] ys )
 	{
-		xValues.clear();
-		yValues.clear();
-		for ( int i = 0; i < xs.length; i++ )
-		{
-			xValues.add( xs[ i ] );
-			yValues.add( clamp( ys[ i ] ) );
-		}
+		this.xs = xs.clone();
+		this.ys = new int[ ys.length ];
+		for ( int i = 0; i < ys.length; i++ )
+			this.ys[ i ] = clamp( ys[ i ] );
 	}
 
 	/**
@@ -215,10 +195,7 @@ public class Curve
 	 */
 	public double[] xsArray()
 	{
-		final double[] xs = new double[ xValues.size() ];
-		for ( int i = 0; i < xs.length; i++ )
-			xs[ i ] = xValues.get( i );
-		return xs;
+		return xs.clone();
 	}
 
 	/**
@@ -227,10 +204,7 @@ public class Curve
 	 */
 	public int[] ysArray()
 	{
-		final int[] ys = new int[ yValues.size() ];
-		for ( int i = 0; i < ys.length; i++ )
-			ys[ i ] = yValues.get( i );
-		return ys;
+		return ys.clone();
 	}
 
 	/**
@@ -241,8 +215,8 @@ public class Curve
 	 */
 	public void invert()
 	{
-		for ( int i = 0; i < yValues.size(); i++ )
-			yValues.set( i, clamp( 255 - yValues.get( i ) ) );
+		for ( int i = 0; i < ys.length; i++ )
+			ys[ i ] = clamp( 255 - ys[ i ] );
 	}
 
 	private int clamp( final int v )

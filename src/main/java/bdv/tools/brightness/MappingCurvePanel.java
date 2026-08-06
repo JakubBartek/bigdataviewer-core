@@ -46,7 +46,6 @@ import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 
 import net.imglib2.display.ColorTable;
-import net.imglib2.display.ColorTable8;
 
 /**
  * Displays the mapping curve (input value -&gt; output value) as an
@@ -94,7 +93,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	private double rangeMax = 255;
 
-	private ColorTable palette = new ColorTable8();
+	private ColorTable palette = ColorTableLut.DEFAULT;
 
 	/** {@link ColorTableLut#colorPositions(ColorTable)} of {@link #palette}, cached since painting reuses it per pixel column. */
 	private double[] paletteColorPositions = ColorTableLut.colorPositions( palette );
@@ -156,8 +155,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		if ( getWidth() <= 0 || getHeight() <= 0 )
 			return;
 		final int y = transformBarBottom() + 2;
-		minField.setBounds( pixelX( 0 ) - RANGE_FIELD_WIDTH / 2, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT );
-		maxField.setBounds( pixelX( 1 ) - RANGE_FIELD_WIDTH / 2, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT );
+		minField.setBounds( curveXToPixelX( 0 ) - RANGE_FIELD_WIDTH / 2, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT );
+		maxField.setBounds( curveXToPixelX( 1 ) - RANGE_FIELD_WIDTH / 2, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT );
 	}
 
 	/**
@@ -224,7 +223,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	 */
 	public void setPalette( final ColorTable palette )
 	{
-		this.palette = palette == null ? new ColorTable8() : palette;
+		this.palette = palette == null ? ColorTableLut.DEFAULT : palette;
 		this.paletteColorPositions = ColorTableLut.colorPositions( this.palette );
 		repaint();
 	}
@@ -281,25 +280,27 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		return Math.max( 1, plotBottom() - plotTop() );
 	}
 
-	private double toNormX( final int pixelX )
-	{
-		return Math.max( 0.0, Math.min( 1.0, ( pixelX - plotLeft() ) / ( double ) plotWidth() ) );
-	}
+	// -- Coordinate conversions, named <from>To<to> --------------------------
+	// Three domains meet in this panel: pixels, raw input values (the x axis,
+	// spanning [rangeMin, rangeMax]), and the curve's own normalized [0, 1] x
+	// / [0, 255] output. Every conversion below names both ends explicitly so
+	// which one is in play is never in doubt at the call site.
 
 	/**
-	 * Raw input value represented by a pixel x-coordinate, i.e. the inverse of
-	 * mapping [plotLeft, plotRight] onto [rangeMin, rangeMax].
+	 * Raw input value at a pixel x-coordinate, i.e. [plotLeft, plotRight]
+	 * mapped onto [rangeMin, rangeMax].
 	 */
 	private double pixelXToValue( final int pixelX )
 	{
-		return rangeMin + toNormX( pixelX ) * ( rangeMax - rangeMin );
+		final double normX = Math.max( 0.0, Math.min( 1.0, ( pixelX - plotLeft() ) / ( double ) plotWidth() ) );
+		return rangeMin + normX * ( rangeMax - rangeMin );
 	}
 
 	/**
 	 * Pixel x-coordinate for a raw input value, i.e. the inverse of
 	 * {@link #pixelXToValue}.
 	 */
-	private int pixelXFromValue( final double value )
+	private int valueToPixelX( final double value )
 	{
 		final double span = rangeMax - rangeMin;
 		final double frac = span > 0 ? ( value - rangeMin ) / span : 0.0;
@@ -318,18 +319,21 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 				: MappingModel.fitPosition( value, rangeMin, rangeMax );
 	}
 
-	private int toValueY( final int pixelY )
+	/** Pixel x-coordinate for a normalized curve position in [0, 1]. */
+	private int curveXToPixelX( final double normX )
+	{
+		return plotLeft() + ( int ) Math.round( normX * plotWidth() );
+	}
+
+	/** Curve output value in [0, 255] at a pixel y-coordinate. */
+	private int pixelYToOutput( final int pixelY )
 	{
 		final double v = ( plotBottom() - pixelY ) / ( double ) plotHeight() * 255.0;
 		return Math.max( 0, Math.min( 255, ( int ) Math.round( v ) ) );
 	}
 
-	private int pixelX( final double normX )
-	{
-		return plotLeft() + ( int ) Math.round( normX * plotWidth() );
-	}
-
-	private int pixelY( final int outputValue )
+	/** Pixel y-coordinate for a curve output value in [0, 255]. */
+	private int outputToPixelY( final int outputValue )
 	{
 		return plotBottom() - ( int ) Math.round( outputValue / 255.0 * plotHeight() );
 	}
@@ -407,7 +411,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			}
 
 			final int smoothY = model.mapToLutIndex( value, rangeMin, rangeMax, paletteColorPositions );
-			final int py = pixelY( smoothY );
+			final int py = outputToPixelY( smoothY );
 
 			final boolean wrapped = cyclic && prevX != null && Math.floor( value / n ) != Math.floor( prevValue / n );
 			if ( prevX != null && !wrapped )
@@ -440,7 +444,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 		for ( int i = 0; i < curve.getPointCount(); i++ )
 		{
-			final int py = pixelY( curve.getY( i ) );
+			final int py = outputToPixelY( curve.getY( i ) );
 
 			if ( cyclic )
 			{
@@ -452,12 +456,12 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 					final double value = k * ( double ) n + offset;
 					if ( value < rangeMin || value > rangeMax )
 						continue;
-					drawControlPointAt( g, pixelXFromValue( value ), py );
+					drawControlPointAt( g, valueToPixelX( value ), py );
 				}
 			}
 			else
 			{
-				drawControlPointAt( g, pixelX( curve.getX( i ) ), py );
+				drawControlPointAt( g, curveXToPixelX( curve.getX( i ) ), py );
 			}
 		}
 	}
@@ -514,7 +518,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		for ( final double frac : OUTPUT_TICK_FRACTIONS )
 		{
 			final String text = Integer.toString( ( int ) Math.round( frac * lastColor ) );
-			final int py = pixelY( ( int ) Math.round( frac * 255.0 ) );
+			final int py = outputToPixelY( ( int ) Math.round( frac * 255.0 ) );
 			g.drawString( text, barLeft - fm.stringWidth( text ) - 6, py + fm.getAscent() / 2 - 1 );
 		}
 	}
@@ -576,7 +580,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			final double t = i / 4.0;
 			final double value = rangeMin + t * ( rangeMax - rangeMin );
 			final String text = formatValue( value );
-			final int px = pixelX( t );
+			final int px = curveXToPixelX( t );
 			g.drawString( text, px - fm.stringWidth( text ) / 2, bottom + fm.getAscent() + 4 );
 		}
 	}
@@ -599,7 +603,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		// mode, clicking any repetition of the curve correctly hits/creates
 		// the single underlying control point (see #valueToCurveX).
 		final double x = valueToCurveX( pixelXToValue( e.getX() ) );
-		final int y = toValueY( e.getY() );
+		final int y = pixelYToOutput( e.getY() );
 
 		if ( e.getButton() == MouseEvent.BUTTON1 )
 		{
@@ -629,7 +633,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	{
 		if ( editMode && draggedPoint != null && draggedPoint >= 0 )
 		{
-			model.getCurve().setPoint( draggedPoint, toValueY( e.getY() ) );
+			model.getCurve().setPoint( draggedPoint, pixelYToOutput( e.getY() ) );
 			model.notifyCurveEdited();
 			repaint();
 		}

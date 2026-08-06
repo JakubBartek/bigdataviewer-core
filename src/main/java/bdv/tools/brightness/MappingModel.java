@@ -41,9 +41,9 @@ import java.util.List;
  * <li>{@link RangeMode#CYCLIC}: the value cycles through the palette's
  * actual number of colors, anchored at min (a value of exactly min always
  * gets the palette's first color) and otherwise ignoring min/max. An integer
- * value lands exactly on a palette color, wrapping every {@code lutColorCount}
- * values (e.g. label/segmentation ids cycling through a small categorical
- * palette).</li>
+ * value lands exactly on a palette color, wrapping once per full trip through
+ * the palette (e.g. label/segmentation ids cycling through a small
+ * categorical palette).</li>
  * </ul>
  * That position is then evaluated smoothly against a {@link Curve} to produce
  * a LUT index in [0, 255]. The current {@link ValueMatching} strategy is

@@ -68,7 +68,6 @@ import bdv.viewer.ConverterSetups;
 import bdv.viewer.SourceAndConverter;
 import bdv.viewer.ViewerState;
 import net.imglib2.display.ColorTable;
-import net.imglib2.display.ColorTable8;
 
 /**
  * A LUT editor dialog. It separates two independent concerns:
@@ -102,23 +101,8 @@ public class LutEditorDialog extends JDialog
 	private final JComboBox< MappingPreset > comboMappingPreset;
 	private final JButton buttonInvertCurve;
 
-	/**
-	 * A black-to-white gradient used as a placeholder before any real palette
-	 * is loaded (e.g. no source selected yet, or a converter with no LUT of
-	 * its own). Deliberately a small, generic {@link ColorTableLut} rather than
-	 * {@link ColorTable8}: the latter is always fixed at 256 entries, which
-	 * would be a nonsensical wrap period if Cyclic mode were toggled before
-	 * a real (typically much smaller) palette is chosen.
-	 */
-	private static final ColorTable DEFAULT_PALETTE = new ColorTableLut(
-			new double[] { 0.0, 1.0 },
-			new double[] { 0.0, 1.0 },
-			new double[] { 0.0, 1.0 },
-			new double[] { 0.0, 1.0 },
-			new double[] { 1.0, 1.0 } );
-
 	/** The palette and mapping currently being edited (not yet applied until "Apply" is pressed). */
-	private ColorTable currentPalette = DEFAULT_PALETTE;
+	private ColorTable currentPalette = ColorTableLut.DEFAULT;
 	private final MappingModel mappingModel = new MappingModel();
 
 	/** The input value range currently being edited (not yet applied until "Apply" is pressed). */
@@ -135,21 +119,67 @@ public class LutEditorDialog extends JDialog
 		this.viewerState = viewerState;
 		this.repaintAction = repaintAction;
 
+		// -- Widgets ---------------------------------------------------------
+		comboSource = new JComboBox<>();
+		comboPalette = createPaletteCombo();
+		panelPaletteSwatch = new GradientPreviewPanel( mappingModel );
+		panelPaletteSwatch.setPreferredSize( new Dimension( 200, 16 ) );
+		panelPaletteSwatch.setMaximumSize( new Dimension( Integer.MAX_VALUE, 16 ) );
+
+		radioFit = new JRadioButton( "Fit" );
+		radioCyclic = new JRadioButton( "Cyclic" );
+		radioFit.setSelected( true );
+		checkTreatMinAsBackground = new JCheckBox( "Treat min as Bg" );
+		checkTreatMinAsBackground.setVisible( false );
+		buttonBackgroundColor = createBackgroundColorButton();
+		comboMappingPreset = new JComboBox<>( MappingPreset.values() );
+		buttonInvertCurve = new JButton( "Invert" );
+		buttonInvertCurve.setFocusable( false );
+
+		panelMappingCurve = new MappingCurvePanel( mappingModel );
+		panelMappingCurve.setRangeChangeListener( ( min, max ) ->
+		{
+			editedRangeMin = min;
+			editedRangeMax = max;
+		} );
+
+		labelStatus = new JLabel( "" );
+
+		// -- Layout ----------------------------------------------------------
 		setLayout( new BorderLayout( 0, 4 ) );
 		( ( JPanel ) getContentPane() ).setBorder( new EmptyBorder( 12, 12, 12, 12 ) );
 
-		// -- Data panel: source + color palette -----------------------------
-		comboSource = new JComboBox<>();
+		final JPanel panelLeftColumn = createLeftColumn();
+		final JPanel panelMappingCurveColumn = createMappingCurveColumn();
 
-		final PaletteComboModel paletteModel = new PaletteComboModel();
+		final JPanel panelCenter = new JPanel( new BorderLayout( 12, 0 ) );
+		panelCenter.add( panelLeftColumn, BorderLayout.WEST );
+		panelCenter.add( hugContents( panelMappingCurveColumn ), BorderLayout.CENTER );
+		add( panelCenter, BorderLayout.CENTER );
+		add( createBottomBar(), BorderLayout.SOUTH );
+
+		// -- Behavior --------------------------------------------------------
+		installControlListeners();
+		rebuildList();
+		packAndMatchGraphWidth( panelLeftColumn, panelMappingCurveColumn );
+	}
+
+	/**
+	 * The color palette chooser: every discovered palette, grouped under a
+	 * non-selectable {@link CategoryHeader} per {@link LutCategories} category.
+	 */
+	private JComboBox< Object > createPaletteCombo()
+	{
+		final PaletteComboModel model = new PaletteComboModel();
 		for ( final Map.Entry< String, List< String > > category : LutCategories.groupByCategory( LutPalettes.discoverNames() ).entrySet() )
 		{
-			paletteModel.addElement( new CategoryHeader( category.getKey() ) );
+			model.addElement( new CategoryHeader( category.getKey() ) );
 			for ( final String name : category.getValue() )
-				paletteModel.addElement( name );
+				model.addElement( name );
 		}
-		comboPalette = new JComboBox<>( paletteModel );
-		comboPalette.setRenderer( new DefaultListCellRenderer()
+
+		final JComboBox< Object > combo = new JComboBox<>( model );
+		combo.setRenderer( new DefaultListCellRenderer()
 		{
 			@Override
 			public Component getListCellRendererComponent( final JList< ? > list, final Object value,
@@ -174,12 +204,29 @@ public class LutEditorDialog extends JDialog
 				return this;
 			}
 		} );
-		comboPalette.setSelectedIndex( -1 );
+		combo.setSelectedIndex( -1 );
+		return combo;
+	}
 
-		panelPaletteSwatch = new GradientPreviewPanel( mappingModel );
-		panelPaletteSwatch.setPreferredSize( new Dimension( 200, 16 ) );
-		panelPaletteSwatch.setMaximumSize( new Dimension( Integer.MAX_VALUE, 16 ) );
+	/** The small swatch button that opens the background color chooser. */
+	private static JButton createBackgroundColorButton()
+	{
+		final JButton button = new JButton();
+		button.setToolTipText( "Background color" );
+		final Dimension size = new Dimension( 20, 20 );
+		button.setPreferredSize( size );
+		button.setMinimumSize( size );
+		button.setMaximumSize( size );
+		button.setBackground( new Color( 0xff000000, false ) );
+		// Only meaningful alongside "Treat min as Bg", which is Cyclic-only.
+		button.setVisible( false );
+		button.setEnabled( false );
+		return button;
+	}
 
+	/** The "Data" and "Mapping" panels, stacked. */
+	private JPanel createLeftColumn()
+	{
 		final JPanel panelData = new JPanel();
 		panelData.setLayout( new BoxLayout( panelData, BoxLayout.PAGE_AXIS ) );
 		panelData.setBorder( BorderFactory.createTitledBorder( "Data" ) );
@@ -188,34 +235,13 @@ public class LutEditorDialog extends JDialog
 		panelData.add( labeledRow( "Color palette:", comboPalette ) );
 		panelData.add( Box.createVerticalStrut( 4 ) );
 		panelData.add( panelPaletteSwatch );
-
 		panelData.setAlignmentX( Component.LEFT_ALIGNMENT );
 		panelData.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelData.getPreferredSize().height ) );
 
-		// -- Mapping panel: range mode, preset -------------------------------
-		radioFit = new JRadioButton( "Fit" );
-		radioCyclic = new JRadioButton( "Cyclic" );
 		final ButtonGroup groupRangeMode = new ButtonGroup();
 		groupRangeMode.add( radioFit );
 		groupRangeMode.add( radioCyclic );
-		radioFit.setSelected( true );
-		checkTreatMinAsBackground = new JCheckBox( "Treat min as Bg" );
-		checkTreatMinAsBackground.setVisible( false );
-		buttonBackgroundColor = new JButton();
-		buttonBackgroundColor.setToolTipText( "Background color" );
-		buttonBackgroundColor.setPreferredSize( new Dimension( 20, 20 ) );
-		buttonBackgroundColor.setMinimumSize( new Dimension( 20, 20 ) );
-		buttonBackgroundColor.setMaximumSize( new Dimension( 20, 20 ) );
-		buttonBackgroundColor.setBackground( new Color( 0xff000000, false ) );
-		buttonBackgroundColor.setVisible( false );
-		buttonBackgroundColor.setEnabled( false );
-		comboMappingPreset = new JComboBox<>( MappingPreset.values() );
-		buttonInvertCurve = new JButton( "Invert" );
-		buttonInvertCurve.setFocusable( false );
 
-		final JPanel panelMapping = new JPanel();
-		panelMapping.setLayout( new BoxLayout( panelMapping, BoxLayout.PAGE_AXIS ) );
-		panelMapping.setBorder( BorderFactory.createTitledBorder( "Mapping" ) );
 		final JPanel panelRangeMode = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
 		panelRangeMode.add( new JLabel( "Range mode:" ) );
 		panelRangeMode.add( Box.createHorizontalStrut( 8 ) );
@@ -227,6 +253,10 @@ public class LutEditorDialog extends JDialog
 		panelRangeMode.add( Box.createHorizontalStrut( 4 ) );
 		panelRangeMode.add( buttonBackgroundColor );
 		panelRangeMode.setAlignmentX( Component.LEFT_ALIGNMENT );
+
+		final JPanel panelMapping = new JPanel();
+		panelMapping.setLayout( new BoxLayout( panelMapping, BoxLayout.PAGE_AXIS ) );
+		panelMapping.setBorder( BorderFactory.createTitledBorder( "Mapping" ) );
 		panelMapping.add( Box.createVerticalStrut( 4 ) );
 		panelMapping.add( panelRangeMode );
 		panelMapping.add( Box.createVerticalStrut( 4 ) );
@@ -234,63 +264,71 @@ public class LutEditorDialog extends JDialog
 		panelMapping.setAlignmentX( Component.LEFT_ALIGNMENT );
 		panelMapping.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelMapping.getPreferredSize().height ) );
 
-		final JPanel panelLeftColumn = new JPanel();
-		panelLeftColumn.setLayout( new BoxLayout( panelLeftColumn, BoxLayout.PAGE_AXIS ) );
-		panelLeftColumn.add( panelData );
-		panelLeftColumn.add( Box.createVerticalStrut( 20 ) );
-		panelLeftColumn.add( panelMapping );
+		final JPanel column = new JPanel();
+		column.setLayout( new BoxLayout( column, BoxLayout.PAGE_AXIS ) );
+		column.add( panelData );
+		column.add( Box.createVerticalStrut( 20 ) );
+		column.add( panelMapping );
+		return column;
+	}
 
-		// -- Mapping curve panel ---------------------------------------------
-		panelMappingCurve = new MappingCurvePanel( mappingModel );
-		panelMappingCurve.setRangeChangeListener( ( min, max ) ->
-		{
-			editedRangeMin = min;
-			editedRangeMax = max;
-		} );
-		// Wrap in a non-stretching FlowLayout so the panel renders at its own
-		// preferred size instead of being stretched to fill BorderLayout.CENTER.
-		final JPanel panelGraphWrapper = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
-		panelGraphWrapper.add( panelMappingCurve );
+	/** The titled "Mapping curve" panel around the interactive graph. */
+	private JPanel createMappingCurveColumn()
+	{
+		final JPanel column = new JPanel( new BorderLayout() );
+		column.setBorder( BorderFactory.createTitledBorder( "Mapping curve" ) );
+		column.add( hugContents( panelMappingCurve ), BorderLayout.CENTER );
+		return column;
+	}
 
-		final JPanel panelRightColumn = new JPanel( new BorderLayout() );
-		panelRightColumn.setBorder( BorderFactory.createTitledBorder( "Mapping curve" ) );
-		panelRightColumn.add( panelGraphWrapper, BorderLayout.CENTER );
-
-		// Likewise, wrap panelRightColumn itself so its titled border hugs the graph
-		// tightly instead of stretching to fill panelCenter's CENTER slot.
-		final JPanel panelRightColumnWrapper = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
-		panelRightColumnWrapper.add( panelRightColumn );
-
-		final JPanel panelCenter = new JPanel( new BorderLayout( 12, 0 ) );
-		panelCenter.add( panelLeftColumn, BorderLayout.WEST );
-		panelCenter.add( panelRightColumnWrapper, BorderLayout.CENTER );
-		add( panelCenter, BorderLayout.CENTER );
-
-		// -- Bottom bar: status/reset on the left, cancel/apply on the right -
-		labelStatus = new JLabel( "" );
-
-		final JPanel panelBottom = new JPanel( new BorderLayout() );
-		final JPanel panelLeftBottom = new JPanel( new FlowLayout( FlowLayout.LEFT, 8, 0 ) );
+	/** Help/Edit Curve/status on the left, Cancel/Apply on the right. */
+	private JPanel createBottomBar()
+	{
 		final JButton buttonHelp = new JButton( "Help" );
 		buttonHelp.setFocusable( false );
-		panelLeftBottom.add( buttonHelp );
+		buttonHelp.addActionListener( e -> showHelp() );
+
 		final JToggleButton toggleEditCurve = new JToggleButton( "Edit Curve" );
 		toggleEditCurve.setFocusable( false );
+		toggleEditCurve.addActionListener( e ->
+		{
+			final boolean editMode = toggleEditCurve.isSelected();
+			panelMappingCurve.setEditMode( editMode );
+			labelStatus.setText( editMode ? "Edit mode activated." : "" );
+		} );
+
+		final JPanel panelLeftBottom = new JPanel( new FlowLayout( FlowLayout.LEFT, 8, 0 ) );
+		panelLeftBottom.add( buttonHelp );
 		panelLeftBottom.add( toggleEditCurve );
 		panelLeftBottom.add( labelStatus );
-		panelBottom.add( panelLeftBottom, BorderLayout.WEST );
 
 		final JButton buttonCancel = new JButton( "Cancel" );
+		buttonCancel.addActionListener( e ->
+		{
+			onSourceChanged();
+			setVisible( false );
+		} );
 		final JButton buttonApply = new JButton( "Apply" );
+		buttonApply.addActionListener( e -> applyCurrent() );
 		normalizeButtonSizes( buttonCancel, buttonApply );
+
 		final JPanel panelRightBottom = new JPanel( new GridLayout( 1, 2, 8, 0 ) );
 		panelRightBottom.add( buttonCancel );
 		panelRightBottom.add( buttonApply );
+
+		final JPanel panelBottom = new JPanel( new BorderLayout() );
+		panelBottom.add( panelLeftBottom, BorderLayout.WEST );
 		panelBottom.add( panelRightBottom, BorderLayout.EAST );
+		return panelBottom;
+	}
 
-		add( panelBottom, BorderLayout.SOUTH );
-
-		// -- Event listeners --------------------------------------------------
+	/**
+	 * Wire up the persistent controls (the bottom bar's buttons wire
+	 * themselves, in {@link #createBottomBar()}, since nothing else refers to
+	 * them).
+	 */
+	private void installControlListeners()
+	{
 		comboSource.addActionListener( e -> onSourceChanged() );
 
 		comboPalette.addActionListener( e ->
@@ -359,28 +397,18 @@ public class LutEditorDialog extends JDialog
 
 		buttonInvertCurve.addActionListener( e -> mappingModel.invertCurve() );
 
-		buttonApply.addActionListener( e -> applyCurrent() );
-		buttonCancel.addActionListener( e ->
-		{
-			onSourceChanged();
-			setVisible( false );
-		} );
-
-		toggleEditCurve.addActionListener( e ->
-		{
-			final boolean editMode = toggleEditCurve.isSelected();
-			panelMappingCurve.setEditMode( editMode );
-			labelStatus.setText( editMode ? "Edit mode activated." : "" );
-		} );
-
-		buttonHelp.addActionListener( e -> showHelp() );
 		getRootPane().registerKeyboardAction( e -> showHelp(), KeyStroke.getKeyStroke( KeyEvent.VK_F1, 0 ), JComponent.WHEN_IN_FOCUSED_WINDOW );
 
 		mappingModel.addChangeListener( panelMappingCurve::repaint );
 		mappingModel.addChangeListener( panelPaletteSwatch::repaint );
+	}
 
-		rebuildList();
-
+	/**
+	 * Size the window to its contents, with the graph widened to line up with
+	 * the left column's titled panels.
+	 */
+	private void packAndMatchGraphWidth( final JPanel panelLeftColumn, final JPanel panelMappingCurveColumn )
+	{
 		// A first pack() is needed before we can trust any preferred-size
 		// measurements below: JComboBox (and text components generally)
 		// under-measure their preferred width until the component hierarchy
@@ -389,18 +417,30 @@ public class LutEditorDialog extends JDialog
 		// be significantly too narrow.
 		pack();
 
-		// Match the left column's actual rendered width (not just panelData's
-		// own preferred width: BoxLayout stretches panelData to panelLeftColumn's
-		// width, which is the widest of panelData/panelMapping), accounting
-		// for panelRightColumn's own titled border insets so the two titled panels
-		// line up exactly.
-		final Insets insetsRight = panelRightColumn.getBorder().getBorderInsets( panelRightColumn );
-		final int targetGraphWidth = panelLeftColumn.getWidth() - insetsRight.left - insetsRight.right;
+		// Match the left column's actual rendered width (not just the Data
+		// panel's own preferred width: BoxLayout stretches it to the column's
+		// width, which is the widest of Data/Mapping), accounting for the
+		// curve column's own titled border insets so the two line up exactly.
+		final Insets insets = panelMappingCurveColumn.getBorder().getBorderInsets( panelMappingCurveColumn );
+		final int targetGraphWidth = panelLeftColumn.getWidth() - insets.left - insets.right;
 		panelMappingCurve.setPreferredSize( new Dimension( targetGraphWidth, panelMappingCurve.getPreferredSize().height ) );
 
 		// Second pack() applies the corrected graph width to the final layout.
 		pack();
 		setMinimumSize( getPreferredSize() );
+	}
+
+	/**
+	 * Wrap {@code component} so it renders at its own preferred size instead
+	 * of being stretched to fill whatever slot it lands in (e.g. a
+	 * {@link BorderLayout#CENTER}), which is what makes titled borders hug
+	 * their contents rather than the available space.
+	 */
+	private static JPanel hugContents( final JComponent component )
+	{
+		final JPanel wrapper = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
+		wrapper.add( component );
+		return wrapper;
 	}
 
 	/**
@@ -426,7 +466,7 @@ public class LutEditorDialog extends JDialog
 		labelStatus.setText( "" );
 
 		final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
-		currentPalette = lutConv.getLUT() != null ? lutConv.getLUT() : DEFAULT_PALETTE;
+		currentPalette = lutConv.getLUT() != null ? lutConv.getLUT() : ColorTableLut.DEFAULT;
 		panelPaletteSwatch.update( currentPalette );
 
 		final MappingModel existing = lutConv.getMapping();
@@ -660,7 +700,7 @@ public class LutEditorDialog extends JDialog
 		{
 			this.model = model;
 			setPreferredSize( new Dimension( 300, 16 ) );
-			this.colorTable = DEFAULT_PALETTE;
+			this.colorTable = ColorTableLut.DEFAULT;
 		}
 
 		public void update( final ColorTable ct )

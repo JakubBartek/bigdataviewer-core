@@ -73,7 +73,7 @@ public class RealLUTConverter< R extends RealType< R > > extends
 
 	public void setLUT( final ColorTable lut )
 	{
-		this.lut = lut == null ? new ColorTable8() : lut;
+		this.lut = lut == null ? ColorTableLut.DEFAULT : lut;
 		this.lutColorPositions = ColorTableLut.colorPositions( this.lut );
 	}
 

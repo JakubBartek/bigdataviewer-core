@@ -42,6 +42,22 @@ import net.imglib2.display.ColorTable;
  */
 public class ColorTableLut implements ColorTable
 {
+	/**
+	 * A black-to-white gradient, used as the placeholder whenever no real
+	 * palette has been chosen yet. Deliberately a two-stop
+	 * {@code ColorTableLut} rather than a {@link net.imglib2.display.ColorTable8}:
+	 * the latter always reports 256 entries, which would be a nonsensical
+	 * wrap period if {@link RangeMode#CYCLIC} were selected before a real
+	 * (typically much smaller) palette is loaded. Safe to share, since a
+	 * {@code ColorTableLut} exposes no mutators.
+	 */
+	public static final ColorTableLut DEFAULT = new ColorTableLut(
+			new double[] { 0.0, 1.0 },
+			new double[] { 0.0, 1.0 },
+			new double[] { 0.0, 1.0 },
+			new double[] { 0.0, 1.0 },
+			new double[] { 1.0, 1.0 } );
+
 	private final double[] positions;
 
 	private final double[] red;
