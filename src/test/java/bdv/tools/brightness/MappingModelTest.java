@@ -398,6 +398,33 @@ public class MappingModelTest
 	}
 
 	/**
+	 * Unlike {@link MappingModel#cyclicPosition}, {@link MappingModel#steppedCyclicPosition}
+	 * must not interpolate towards the next label at all -- every raw value
+	 * within one label's unit interval snaps to that label's own exact
+	 * position (see {@link #testMapToLutIndexForColorDoesNotBleedWhenCurveIsInverted}
+	 * for why this matters).
+	 */
+	@Test
+	public void testSteppedCyclicPositionSnapsInsteadOfInterpolating()
+	{
+		final double[] uneven = { 0.0, 0.05, 0.9, 1.0 };
+
+		// Exact labels match cyclicPosition.
+		Assert.assertEquals( uneven[ 0 ], MappingModel.steppedCyclicPosition( 0, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 1 ], MappingModel.steppedCyclicPosition( 1, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 2 ], MappingModel.steppedCyclicPosition( 2, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 3 ], MappingModel.steppedCyclicPosition( 3, 0, uneven, false ), 1e-9 );
+
+		// Anywhere within label 1's interval [1, 2) stays pinned at
+		// uneven[1], unlike cyclicPosition which would already be most of
+		// the way towards uneven[2] by v=1.9.
+		Assert.assertEquals( uneven[ 1 ], MappingModel.steppedCyclicPosition( 1.9, 0, uneven, false ), 1e-9 );
+
+		// Wraps every n = uneven.length values, back to the first color.
+		Assert.assertEquals( uneven[ 0 ], MappingModel.steppedCyclicPosition( 4, 0, uneven, false ), 1e-9 );
+	}
+
+	/**
 	 * The inverse used by {@link MappingCurvePanel} to draw/hit-test control
 	 * points must round-trip {@link MappingModel#cyclicPosition} even when
 	 * the palette's colors are unevenly spaced.
@@ -563,6 +590,89 @@ public class MappingModelTest
 				Assert.assertEquals( "label=" + label + " v=" + v, expectedRed, redLevel );
 			}
 		}
+	}
+
+	/**
+	 * Regression test: {@link MappingModel#mapToLutIndex} sweeps continuously
+	 * across each label's raw-value interval (needed so
+	 * {@link MappingCurvePanel#drawCurve} can show the curve's own true
+	 * shape) -- but under {@link RangeMode#CYCLIC} + {@link ValueMatching#TRUNCATE},
+	 * if the curve decreases across that interval (e.g. after
+	 * {@link MappingModel#invertCurve()}), that continuous sweep makes the
+	 * actual color lookup fall through to the <em>previous</em> label's
+	 * color for almost the whole interval -- Truncate holds whichever
+	 * control point was most recently passed in increasing-position order,
+	 * and a decreasing sweep passes the interval's own position immediately
+	 * and keeps going. Reported symptom: with a 10-color palette, the last
+	 * color barely appeared while the first dominated roughly two labels'
+	 * worth of space instead of one. {@link MappingModel#mapToLutIndexForColor}
+	 * must not have this problem: every label gets its own color, for its
+	 * whole interval, regardless of curve direction.
+	 */
+	@Test
+	public void testMapToLutIndexForColorDoesNotBleedWhenCurveIsInverted()
+	{
+		final int n = 10;
+		final double[] positions = new double[ n ];
+		final double[] red = new double[ n ];
+		final double[] green = new double[ n ];
+		final double[] blue = new double[ n ];
+		final double[] alpha = new double[ n ];
+		for ( int i = 0; i < n; i++ )
+		{
+			positions[ i ] = i / ( double ) ( n - 1 );
+			red[ i ] = i / ( double ) ( n - 1 ); // a distinct red level per color
+			green[ i ] = 0;
+			blue[ i ] = 0;
+			alpha[ i ] = 1;
+		}
+		final ColorTableLut palette = new ColorTableLut( positions, red, green, blue, alpha );
+
+		final MappingModel model = new MappingModel();
+		model.setRangeMode( RangeMode.CYCLIC );
+		model.setValueMatching( ValueMatching.TRUNCATE );
+		model.invertCurve();
+
+		// Inverted: label L consistently shows color (n - 1 - L), not just
+		// at the exact integer point but across its whole interval.
+		for ( int label = 0; label < n; label++ )
+		{
+			final int expectedRed = ( int ) Math.round( 255 * red[ n - 1 - label ] );
+			for ( int step = 0; step < 19; step++ )
+			{
+				final double v = label + step * 0.05;
+				final int lutIndex = model.mapToLutIndexForColor( v, 0, 1000, positions );
+				final int argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, ValueMatching.TRUNCATE );
+				final int redLevel = ( argb >> 16 ) & 0xFF;
+				Assert.assertEquals( "label=" + label + " v=" + v, expectedRed, redLevel );
+			}
+		}
+	}
+
+	/**
+	 * {@link MappingModel#mapToLutIndexForColor}'s label-snapping only makes
+	 * sense for Cyclic + a stepped {@link ValueMatching}; it must be a no-op
+	 * (identical to {@link MappingModel#mapToLutIndex}) for Interpolate,
+	 * where continuous blending across labels is the whole point, and for
+	 * {@link RangeMode#FIT}, which has no per-label interval structure to
+	 * begin with.
+	 */
+	@Test
+	public void testMapToLutIndexForColorMatchesMapToLutIndexOutsideCyclicTruncate()
+	{
+		final double[] positions = { 0.0, 0.25, 0.5, 0.75, 1.0 };
+		final MappingModel model = new MappingModel();
+		model.invertCurve();
+
+		model.setRangeMode( RangeMode.CYCLIC );
+		model.setValueMatching( ValueMatching.INTERPOLATE );
+		for ( double v = 0; v < 5; v += 0.37 )
+			Assert.assertEquals( "v=" + v, model.mapToLutIndex( v, 0, 1000, positions ), model.mapToLutIndexForColor( v, 0, 1000, positions ) );
+
+		model.setRangeMode( RangeMode.FIT );
+		model.setValueMatching( ValueMatching.TRUNCATE );
+		for ( double v = 0; v < 100; v += 7.3 )
+			Assert.assertEquals( "v=" + v, model.mapToLutIndex( v, 0, 100, positions ), model.mapToLutIndexForColor( v, 0, 100, positions ) );
 	}
 
 	@Test

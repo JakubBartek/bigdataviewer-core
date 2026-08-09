@@ -526,16 +526,24 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	/**
 	 * Horizontal color bar along the x (input value) axis, showing the LUT
 	 * color actually produced after passing each input value through the
-	 * mapping curve ("after transform"). In {@link RangeMode#FIT}, uses
-	 * proportional qualitative bands under {@link ValueMatching#TRUNCATE}
-	 * like {@link #drawOutputColorBar}. Not in {@link RangeMode#CYCLIC}: there,
-	 * {@link MappingModel#cyclicPosition} already reserves the last color's
-	 * own full raw-value interval via its flat-hold branch, so the plain
-	 * lookup already shows it correctly -- applying the qualitative band
-	 * extension on top would double up on that (rescaling the whole [0, 1]
-	 * range pulls the last color's band earlier, bleeding into what should
-	 * still be the second-to-last color's interval, so the last color would
-	 * appear to repeat before the actual wrap to the first color).
+	 * mapping curve ("after transform"). Uses {@link MappingModel#mapToLutIndexForColor}
+	 * rather than {@link MappingModel#mapToLutIndex} (unlike {@link #drawCurve},
+	 * which draws the curve's own continuous shape): in {@link RangeMode#CYCLIC}
+	 * with {@link ValueMatching#TRUNCATE}, that snaps each label to its own
+	 * exact position instead of sweeping across its raw-value interval, so a
+	 * decreasing curve there (e.g. after Invert) can't make one color bleed
+	 * into its neighbor's territory.
+	 * <p>
+	 * In {@link RangeMode#FIT}, additionally uses proportional qualitative
+	 * bands under {@link ValueMatching#TRUNCATE} like {@link #drawOutputColorBar}.
+	 * Not in {@link RangeMode#CYCLIC}: there, {@link MappingModel#cyclicPosition}
+	 * already reserves the last color's own full raw-value interval via its
+	 * flat-hold branch, so the plain lookup already shows it correctly --
+	 * applying the qualitative band extension on top would double up on that
+	 * (rescaling the whole [0, 1] range pulls the last color's band earlier,
+	 * bleeding into what should still be the second-to-last color's interval,
+	 * so the last color would appear to repeat before the actual wrap to the
+	 * first color).
 	 */
 	private void drawTransformColorBar( final Graphics2D g )
 	{
@@ -558,7 +566,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			}
 			else
 			{
-				final int lutIndex = model.mapToLutIndex( value, rangeMin, rangeMax, paletteColorPositions );
+				final int lutIndex = model.mapToLutIndexForColor( value, rangeMin, rangeMax, paletteColorPositions );
 				if ( useQualitativeBands )
 					argb = ColorTableLut.lookupARGBQualitative( palette, lutIndex / 255.0, lastIntervalSize );
 				else

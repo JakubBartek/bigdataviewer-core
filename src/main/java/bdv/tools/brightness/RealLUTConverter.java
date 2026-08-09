@@ -95,7 +95,7 @@ public class RealLUTConverter< R extends RealType< R > > extends
 		if ( mapping != null && mapping.isBackgroundValue( a, min ) )
 			argb = mapping.getBackgroundColor();
 		else if ( mapping != null )
-			argb = ColorTableLut.lookupARGB( lut, 0, 255, mapping.mapToLutIndex( a, min, max, lutColorPositions ), mapping.getValueMatching() );
+			argb = ColorTableLut.lookupARGB( lut, 0, 255, mapping.mapToLutIndexForColor( a, min, max, lutColorPositions ), mapping.getValueMatching() );
 		else
 			argb = lut.lookupARGB( min, max, a );
 		output.set( argb );

@@ -242,6 +242,36 @@ public class MappingModel
 	}
 
 	/**
+	 * Like {@link #mapToLutIndex}, but meant for an actual color lookup
+	 * rather than drawing the curve's own shape (see
+	 * {@link MappingCurvePanel#drawCurve}, which needs the continuously
+	 * swept version instead). In {@link RangeMode#CYCLIC} with anything
+	 * other than {@link ValueMatching#INTERPOLATE}, evaluates the curve at
+	 * the raw value's own label's exact position instead of continuously
+	 * sweeping across that label's whole raw-value interval.
+	 * <p>
+	 * Without this, a curve that decreases across a label's interval (e.g.
+	 * after {@link #invertCurve()}) makes {@link ColorTableLut}'s Truncate
+	 * lookup pick up the <em>previous</em> label's color for almost the
+	 * entire interval -- the interval's own intended color is only reached
+	 * for an instant right at its start, since Truncate holds whichever
+	 * control point was most recently passed in increasing-position order,
+	 * and a decreasing sweep passes the interval's own position immediately
+	 * and keeps going. The net effect: one color barely appears while its
+	 * neighbor visually dominates two labels' worth of space instead of one.
+	 * Snapping to the label's exact position sidesteps this entirely, since
+	 * the curve is then evaluated once per label rather than swept.
+	 */
+	public int mapToLutIndexForColor( final double value, final double min, final double max, final double[] colorPositions )
+	{
+		if ( rangeMode != RangeMode.CYCLIC || valueMatching == ValueMatching.INTERPOLATE )
+			return mapToLutIndex( value, min, max, colorPositions );
+
+		final double t = steppedCyclicPosition( value, min, colorPositions, treatMinAsBackground );
+		return Math.max( 0, Math.min( 255, curve.evaluate( t ) ) );
+	}
+
+	/**
 	 * Normalized curve position for a raw value in {@link RangeMode#FIT}:
 	 * clamped against [min, max]. Package-visible so the UI can reuse the
 	 * exact same formula used by {@link #mapToLutIndex} (e.g. to draw the
@@ -272,14 +302,7 @@ public class MappingModel
 		final int n = colorPositions.length;
 		if ( n <= 1 )
 			return 0.0;
-		final double shifted = value - min;
-		// When min is reserved for the background color (handled separately,
-		// see isBackgroundValue), the cycle instead starts at min+1, so all n
-		// palette colors remain reachable without min itself ever competing
-		// for one of them.
-		double m = treatMinAsBackground ? ( shifted - 1 ) % n : shifted % n;
-		if ( m < 0 )
-			m += n;
+		final double m = cyclicOffset( value, min, n, treatMinAsBackground );
 		// The last unit interval before wrapping back to color 0 (m in
 		// [n - 1, n)) holds flat at the last color, rather than blending
 		// into the next cycle's first color.
@@ -288,6 +311,38 @@ public class MappingModel
 		final int k = ( int ) Math.floor( m );
 		final double frac = m - k;
 		return colorPositions[ k ] + frac * ( colorPositions[ k + 1 ] - colorPositions[ k ] );
+	}
+
+	/**
+	 * Like {@link #cyclicPosition}, but snapped to the exact position of
+	 * whichever label {@code value} falls into, instead of interpolating
+	 * towards the next one. Used by {@link #mapToLutIndexForColor} so every
+	 * raw value within one label's unit interval resolves to that label's
+	 * own color, regardless of the curve's local direction there.
+	 */
+	static double steppedCyclicPosition( final double value, final double min, final double[] colorPositions, final boolean treatMinAsBackground )
+	{
+		final int n = colorPositions.length;
+		if ( n <= 1 )
+			return 0.0;
+		final double m = cyclicOffset( value, min, n, treatMinAsBackground );
+		final int k = Math.min( n - 1, ( int ) Math.floor( m ) );
+		return colorPositions[ k ];
+	}
+
+	/**
+	 * Raw value's offset into the current cycle, in {@code [0, n)}. When
+	 * {@code treatMinAsBackground}, the cycle instead starts at min+1, so
+	 * all n palette colors remain reachable without min itself ever
+	 * competing for one of them.
+	 */
+	private static double cyclicOffset( final double value, final double min, final int n, final boolean treatMinAsBackground )
+	{
+		final double shifted = value - min;
+		double m = treatMinAsBackground ? ( shifted - 1 ) % n : shifted % n;
+		if ( m < 0 )
+			m += n;
+		return m;
 	}
 
 	/**
