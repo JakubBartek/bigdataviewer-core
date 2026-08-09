@@ -130,7 +130,6 @@ public class LutEditorDialog extends JDialog
 		radioCyclic = new JRadioButton( "Cyclic" );
 		radioFit.setSelected( true );
 		checkTreatMinAsBackground = new JCheckBox();
-		checkTreatMinAsBackground.setVisible( false );
 		buttonBackgroundColor = createBackgroundColorButton();
 		comboMappingPreset = new JComboBox<>( MappingPreset.values() );
 		buttonInvertCurve = new JButton( "Invert" );
@@ -220,8 +219,7 @@ public class LutEditorDialog extends JDialog
 		button.setMinimumSize( size );
 		button.setMaximumSize( size );
 		button.setBackground( new Color( 0xff000000, false ) );
-		// Only meaningful alongside checkTreatMinAsBackground, which is Cyclic-only.
-		button.setVisible( false );
+		// Only meaningful once checkTreatMinAsBackground is checked.
 		button.setEnabled( false );
 		return button;
 	}
@@ -364,7 +362,6 @@ public class LutEditorDialog extends JDialog
 
 		final ActionListener listenerRangeMode = e ->
 		{
-			setTreatMinAsBackgroundVisible( radioCyclic.isSelected() );
 			if ( loadingControls )
 				return;
 			mappingModel.setRangeMode( radioFit.isSelected() ? RangeMode.FIT : RangeMode.CYCLIC );
@@ -495,7 +492,6 @@ public class LutEditorDialog extends JDialog
 			checkTreatMinAsBackground.setSelected( mappingModel.isTreatMinAsBackground() );
 			buttonBackgroundColor.setBackground( new Color( mappingModel.getBackgroundColor(), false ) );
 			buttonBackgroundColor.setEnabled( mappingModel.isTreatMinAsBackground() );
-			setTreatMinAsBackgroundVisible( mappingModel.getRangeMode() == RangeMode.CYCLIC );
 			comboMappingPreset.setSelectedItem( mappingModel.getPreset() );
 		}
 		finally
@@ -551,16 +547,6 @@ public class LutEditorDialog extends JDialog
 		if ( comboSource.getItemCount() > 0 )
 			comboSource.setSelectedIndex( 0 );
 		onSourceChanged();
-	}
-
-	private void setTreatMinAsBackgroundVisible( final boolean visible )
-	{
-		if ( checkTreatMinAsBackground.isVisible() == visible )
-			return;
-		checkTreatMinAsBackground.setVisible( visible );
-		buttonBackgroundColor.setVisible( visible );
-		checkTreatMinAsBackground.getParent().revalidate();
-		checkTreatMinAsBackground.getParent().repaint();
 	}
 
 	/**
@@ -641,12 +627,15 @@ public class LutEditorDialog extends JDialog
 				"  graph's y axis), anchored at min -- e.g. with a 10-color palette",
 				"  and min=5, value 5 gets the palette's first color, value 15 gets the",
 				"  same color again, and so on.",
-				"- When Cyclic is selected, \"Treat {min} as Bg\" (its label shows the",
-				"  actual min value) forces the range's min value (the left value of the",
-				"  range), and anything below it, to always map to a dedicated background",
-				"  color, instead of cycling like other values. Values above min still",
-				"  cycle normally. Click the swatch next to the checkbox to choose that",
-				"  color (defaults to black). It is not one of the palette's cycled colors.",
+				"- \"Treat {min} as Bg\" (its label shows the actual min value) forces raw",
+				"  values at or below min to always map to a dedicated background color,",
+				"  instead of the palette. In Cyclic mode this also reserves the range's",
+				"  min value itself so it stops competing with the cycled colors, and the",
+				"  cutoff extends slightly above min (up to but not including min + 1) so",
+				"  continuous data right next to it doesn't leak through as the palette's",
+				"  last color. Click the swatch next to the checkbox to choose the",
+				"  background color (defaults to black); it is not one of the palette's",
+				"  own colors.",
 				"- Mapping preset replaces the curve with a predefined shape (Linear, Percentile",
 				"  Stretch, Log, Exp, Sigmoid, α-Sigmoid, Tan, Atan). The curve can still be",
 				"  adjusted afterwards.",

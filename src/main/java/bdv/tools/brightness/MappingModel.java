@@ -64,12 +64,12 @@ public class MappingModel
 	private RangeMode rangeMode = RangeMode.FIT;
 
 	/**
-	 * When {@code true} (and {@link #rangeMode} is {@link RangeMode#CYCLIC}),
-	 * a raw source value of exactly {@code min} (the left/start value of the
-	 * range) is always mapped to {@link #backgroundColor}, bypassing the
-	 * cyclic wrap entirely -- it is a dedicated color, not one of the
-	 * palette's cycled colors, and is used only for that one value. Useful
-	 * for label/segmentation images where the min value marks background.
+	 * When {@code true}, raw source values at or below {@code min} (the
+	 * left/start value of the range) are always mapped to
+	 * {@link #backgroundColor} instead of the palette -- see
+	 * {@link #isBackgroundValue} for the exact threshold, which differs
+	 * slightly by {@link #rangeMode}. Useful for label/segmentation images
+	 * where the min value (e.g. 0) marks background.
 	 */
 	private boolean treatMinAsBackground = false;
 
@@ -135,13 +135,18 @@ public class MappingModel
 	/**
 	 * Whether {@code value} should be rendered as the dedicated
 	 * {@link #getBackgroundColor()} instead of being looked up in the
-	 * palette. Only applies in {@link RangeMode#CYCLIC}, when
-	 * {@link #isTreatMinAsBackground()} is enabled, for any raw value below
-	 * {@code min + 1} -- i.e. the "reserved" unit interval {@code [min, min +
-	 * 1)} itself (the left/start value of the range), and everything below
-	 * {@code min} too (out-of-range values on the low side are background,
-	 * not cycled; out-of-range values on the high side still cycle normally,
-	 * same as when this option is off).
+	 * palette. Never applies unless {@link #isTreatMinAsBackground()} is
+	 * enabled; when it is, the exact threshold depends on {@link #rangeMode}:
+	 * <ul>
+	 * <li>{@link RangeMode#FIT}: any raw value at or below {@code min}. FIT
+	 * has no notion of discrete steps, so this is simply "below the bottom
+	 * of the range".</li>
+	 * <li>{@link RangeMode#CYCLIC}: any raw value below {@code min + 1} --
+	 * i.e. the "reserved" unit interval {@code [min, min + 1)} itself (the
+	 * left/start value of the range), and everything below {@code min} too
+	 * (out-of-range values on the low side are background, not cycled;
+	 * out-of-range values on the high side still cycle normally, same as
+	 * when this option is off).
 	 * <p>
 	 * The {@code [min, min + 1)} part is not just the exact point
 	 * {@code value == min}: {@link #cyclicPosition} only defines integer
@@ -150,11 +155,14 @@ public class MappingModel
 	 * {@code min + 1} (e.g. continuous image data, or a continuous preview)
 	 * would fall through to {@link #mapToLutIndex} and incorrectly render as
 	 * the palette's *last* color, since that gap is exactly what is skipped
-	 * to make the cycle start at min + 1.
+	 * to make the cycle start at min + 1.</li>
+	 * </ul>
 	 */
 	public boolean isBackgroundValue( final double value, final double min )
 	{
-		return rangeMode == RangeMode.CYCLIC && treatMinAsBackground && value < min + 1;
+		if ( !treatMinAsBackground )
+			return false;
+		return rangeMode == RangeMode.CYCLIC ? value < min + 1 : value <= min;
 	}
 
 	public ValueMatching getValueMatching()

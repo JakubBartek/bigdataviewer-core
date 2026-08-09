@@ -146,29 +146,46 @@ public class MappingModelTest
 		Assert.assertEquals( 0, model.mapToLutIndex( 500, 0, 100, uniform( 0 ) ) );
 	}
 
+	/**
+	 * Treat-min-as-background is available in both range modes, but the
+	 * exact cutoff differs: Cyclic reserves the whole unit interval
+	 * {@code [min, min + 1)} (see {@link #testBackgroundCoversWholeUnitIntervalNotJustExactMin}
+	 * for why), while Fit -- which has no notion of discrete steps -- simply
+	 * treats anything at or below {@code min} as background, with no "+1"
+	 * widening (a raw "+1" would be meaningless for Fit's arbitrary,
+	 * possibly sub-1-wide, continuous range).
+	 */
 	@Test
-	public void testTreatMinAsBackgroundOnlyAppliesWhenCyclic()
+	public void testTreatMinAsBackgroundThresholdDependsOnRangeMode()
 	{
 		final MappingModel model = new MappingModel();
 		model.setTreatMinAsBackground( true );
 		model.setBackgroundColor( 0xff112233 );
 
-		// Not cyclic: background never applies, regardless of the value.
+		// Fit: exactly at or below min is background...
 		model.setRangeMode( RangeMode.FIT );
-		Assert.assertFalse( model.isBackgroundValue( 5, 5 ) );
+		Assert.assertTrue( model.isBackgroundValue( 5, 5 ) );
+		Assert.assertTrue( model.isBackgroundValue( 0, 5 ) );
+		Assert.assertEquals( 0xff112233, model.getBackgroundColor() );
+		// ...but, unlike Cyclic, values strictly between min and min+1 are
+		// NOT background -- Fit has no per-label interval to reserve.
+		Assert.assertFalse( model.isBackgroundValue( 5.5, 5 ) );
+		Assert.assertFalse( model.isBackgroundValue( 6, 5 ) );
 
 		// Cyclic: a raw value exactly equal to min is flagged as background...
 		model.setRangeMode( RangeMode.CYCLIC );
 		Assert.assertTrue( model.isBackgroundValue( 5, 5 ) );
-		Assert.assertEquals( 0xff112233, model.getBackgroundColor() );
 
 		// Values below min are background too (out-of-range, low side)...
 		Assert.assertTrue( model.isBackgroundValue( 0, 5 ) );
 		// ...but values at/above min+1 are not (they cycle normally).
 		Assert.assertFalse( model.isBackgroundValue( 6, 5 ) );
 
-		// Disabling the flag means no value is ever flagged as background.
+		// Disabling the flag means no value is ever flagged as background,
+		// in either mode.
 		model.setTreatMinAsBackground( false );
+		Assert.assertFalse( model.isBackgroundValue( 5, 5 ) );
+		model.setRangeMode( RangeMode.FIT );
 		Assert.assertFalse( model.isBackgroundValue( 5, 5 ) );
 	}
 
