@@ -129,7 +129,7 @@ public class LutEditorDialog extends JDialog
 		radioFit = new JRadioButton( "Fit" );
 		radioCyclic = new JRadioButton( "Cyclic" );
 		radioFit.setSelected( true );
-		checkTreatMinAsBackground = new JCheckBox( "Treat min as Bg" );
+		checkTreatMinAsBackground = new JCheckBox();
 		checkTreatMinAsBackground.setVisible( false );
 		buttonBackgroundColor = createBackgroundColorButton();
 		comboMappingPreset = new JComboBox<>( MappingPreset.values() );
@@ -141,7 +141,9 @@ public class LutEditorDialog extends JDialog
 		{
 			editedRangeMin = min;
 			editedRangeMax = max;
+			updateTreatMinAsBackgroundText();
 		} );
+		updateTreatMinAsBackgroundText();
 
 		labelStatus = new JLabel( "" );
 
@@ -218,7 +220,7 @@ public class LutEditorDialog extends JDialog
 		button.setMinimumSize( size );
 		button.setMaximumSize( size );
 		button.setBackground( new Color( 0xff000000, false ) );
-		// Only meaningful alongside "Treat min as Bg", which is Cyclic-only.
+		// Only meaningful alongside checkTreatMinAsBackground, which is Cyclic-only.
 		button.setVisible( false );
 		button.setEnabled( false );
 		return button;
@@ -483,6 +485,7 @@ public class LutEditorDialog extends JDialog
 		editedRangeMax = setup != null ? setup.getDisplayRangeMax() : 255;
 		panelMappingCurve.setRange( editedRangeMin, editedRangeMax );
 		panelMappingCurve.setPalette( currentPalette );
+		updateTreatMinAsBackgroundText();
 
 		loadingControls = true;
 		try
@@ -560,6 +563,28 @@ public class LutEditorDialog extends JDialog
 		checkTreatMinAsBackground.getParent().repaint();
 	}
 
+	/**
+	 * Keep the checkbox's own label showing the actual min value it would
+	 * reserve for the background color (e.g. "Treat 5 as Bg"), since "min"
+	 * on its own doesn't say what's actually being treated as background.
+	 */
+	private void updateTreatMinAsBackgroundText()
+	{
+		checkTreatMinAsBackground.setText( "Treat " + formatValue( editedRangeMin ) + " as Bg" );
+	}
+
+	/**
+	 * Format a range value the same way {@link MappingCurvePanel} formats
+	 * its min/max fields: as a plain integer when it is (numerically) one,
+	 * otherwise to 2 decimal places.
+	 */
+	private static String formatValue( final double value )
+	{
+		if ( Math.abs( value - Math.round( value ) ) < 1e-6 )
+			return Long.toString( Math.round( value ) );
+		return String.format( "%.2f", value );
+	}
+
 	private static JPanel labeledRow( final String label, final JComponent component )
 	{
 		return labeledRow( label, component, null );
@@ -616,12 +641,12 @@ public class LutEditorDialog extends JDialog
 				"  graph's y axis), anchored at min -- e.g. with a 10-color palette",
 				"  and min=5, value 5 gets the palette's first color, value 15 gets the",
 				"  same color again, and so on.",
-				"- When Cyclic is selected, \"Treat min as Bg\" forces the range's min",
-				"  value (the left value of the range), and anything below it, to always map",
-				"  to a dedicated background color, instead of cycling like other values.",
-				"  Values above min still cycle normally. Click the swatch next to the",
-				"  checkbox to choose that color (defaults to black). It is not one of the",
-				"  palette's cycled colors.",
+				"- When Cyclic is selected, \"Treat {min} as Bg\" (its label shows the",
+				"  actual min value) forces the range's min value (the left value of the",
+				"  range), and anything below it, to always map to a dedicated background",
+				"  color, instead of cycling like other values. Values above min still",
+				"  cycle normally. Click the swatch next to the checkbox to choose that",
+				"  color (defaults to black). It is not one of the palette's cycled colors.",
 				"- Mapping preset replaces the curve with a predefined shape (Linear, Percentile",
 				"  Stretch, Log, Exp, Sigmoid, α-Sigmoid, Tan, Atan). The curve can still be",
 				"  adjusted afterwards.",
