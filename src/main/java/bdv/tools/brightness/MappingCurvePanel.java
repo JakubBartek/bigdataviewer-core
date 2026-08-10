@@ -79,6 +79,18 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	private static final int COLORBAR_GAP = 10;
 
+	/**
+	 * Minimum on-screen width (in pixels) of the "treat min as background"
+	 * swatch in {@link RangeMode#FIT}. There, {@link MappingModel#isBackgroundValue}
+	 * is true only for the single point {@code value == min}, which would
+	 * otherwise occupy at most one pixel column here -- too thin to notice.
+	 * Widening it is purely cosmetic for this preview; real rendering (e.g.
+	 * {@link RealLUTConverter}) is unaffected and keeps using the exact
+	 * single-point cutoff. Not needed in {@link RangeMode#CYCLIC}, where the
+	 * reserved {@code [min, min + 1)} interval is already wide enough.
+	 */
+	private static final int MIN_BACKGROUND_PIXELS = 4;
+
 	private static final Color CURVE_COLOR = Color.BLACK;
 
 	private static final Color POINT_FILL = Color.WHITE;
@@ -319,6 +331,24 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 				: MappingModel.fitPosition( value, rangeMin, rangeMax );
 	}
 
+	/**
+	 * Whether a raw input value should be shown as the dedicated background
+	 * swatch in this preview. Delegates to {@link MappingModel#isBackgroundValue}
+	 * but, in {@link RangeMode#FIT}, additionally widens its single-point
+	 * cutoff to {@link #MIN_BACKGROUND_PIXELS} worth of raw value so the
+	 * swatch is actually visible here -- see that constant's javadoc.
+	 */
+	private boolean isBackgroundForPreview( final double value )
+	{
+		if ( model.isBackgroundValue( value, rangeMin ) )
+			return true;
+		if ( model.getRangeMode() != RangeMode.FIT || !model.isTreatMinAsBackground() )
+			return false;
+		final double span = rangeMax - rangeMin;
+		final double minVisibleSpan = span > 0 ? span * MIN_BACKGROUND_PIXELS / plotWidth() : 0;
+		return value < rangeMin + minVisibleSpan;
+	}
+
 	/** Pixel x-coordinate for a normalized curve position in [0, 1]. */
 	private int curveXToPixelX( final double normX )
 	{
@@ -404,7 +434,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			// is not part of the curve's 0-255 output scale at all, so skip
 			// drawing the line here entirely rather than showing a misleading
 			// position for it.
-			if ( model.isBackgroundValue( value, rangeMin ) )
+			if ( isBackgroundForPreview( value ) )
 			{
 				prevX = null;
 				continue;
@@ -560,7 +590,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		{
 			final double value = pixelXToValue( px );
 			final int argb;
-			if ( model.isBackgroundValue( value, rangeMin ) )
+			if ( isBackgroundForPreview( value ) )
 			{
 				argb = model.getBackgroundColor();
 			}
