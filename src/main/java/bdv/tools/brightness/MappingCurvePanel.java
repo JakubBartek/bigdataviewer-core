@@ -327,7 +327,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	private double valueToCurveX( final double value )
 	{
 		return model.getRangeMode() == RangeMode.CYCLIC
-				? MappingModel.cyclicPosition( value, rangeMin, paletteColorPositions, model.isTreatMinAsBackground() )
+				? MappingModel.cyclicPosition( value, rangeMin, paletteColorPositions, model.effectiveCyclicPeriod( paletteColorPositions ), model.isTreatMinAsBackground() )
 				: MappingModel.fitPosition( value, rangeMin, rangeMax );
 	}
 
@@ -408,18 +408,18 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	 * Draws the curve exactly as it is actually applied to input values (via
 	 * {@link MappingModel#mapToLutIndex}), rather than just plotting the raw
 	 * {@link Curve} across the full plot width. In {@link RangeMode#CYCLIC}
-	 * this means the curve repeats every {@code palette.getLength()} input
-	 * units; the line is not drawn across a wrap boundary, so each repetition
-	 * appears as a separate segment (like a sawtooth), matching the actual
-	 * discontinuity in the mapping.
+	 * this means the curve repeats every {@link MappingModel#effectiveCyclicPeriod}
+	 * input units; the line is not drawn across a wrap boundary, so each
+	 * repetition appears as a separate segment (like a sawtooth), matching
+	 * the actual discontinuity in the mapping.
 	 */
 	private void drawCurve( final Graphics2D g )
 	{
 		g.setColor( CURVE_COLOR );
 		g.setStroke( new BasicStroke( 2 ) );
 
-		final int n = palette.getLength();
-		final boolean cyclic = model.getRangeMode() == RangeMode.CYCLIC && n > 1;
+		final double period = model.effectiveCyclicPeriod( paletteColorPositions );
+		final boolean cyclic = model.getRangeMode() == RangeMode.CYCLIC && period > 0;
 		final int left = plotLeft();
 		final int right = plotRight();
 
@@ -443,7 +443,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			final int smoothY = model.mapToLutIndex( value, rangeMin, rangeMax, paletteColorPositions );
 			final int py = outputToPixelY( smoothY );
 
-			final boolean wrapped = cyclic && prevX != null && Math.floor( value / n ) != Math.floor( prevValue / n );
+			final boolean wrapped = cyclic && prevX != null && Math.floor( value / period ) != Math.floor( prevValue / period );
 			if ( prevX != null && !wrapped )
 				g.drawLine( prevX, prevY, px, py );
 
@@ -457,9 +457,9 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	 * Draws each curve control point. In {@link RangeMode#CYCLIC}, the cycle
 	 * is anchored at rangeMin (see {@link MappingModel#cyclicPosition}), so a
 	 * control point at normalized x corresponds to a raw value of
-	 * {@code k*n + rangeMin + offset} for every repetition {@code k}, where
-	 * {@code offset} is {@link MappingModel#inverseCyclicPosition} of the
-	 * point's x -- i.e. the inverse of {@link MappingModel#cyclicPosition},
+	 * {@code k*period + rangeMin + offset} for every repetition {@code k},
+	 * where {@code offset} is {@link MappingModel#inverseCyclicPosition} of
+	 * the point's x -- i.e. the inverse of {@link MappingModel#cyclicPosition},
 	 * so this lines up correctly even when the palette's colors are not
 	 * evenly spaced; it is drawn once per repetition that falls within the
 	 * visible [rangeMin, rangeMax] range, matching the repeated segments
@@ -468,8 +468,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	private void drawControlPoints( final Graphics2D g )
 	{
 		final Curve curve = model.getCurve();
-		final int n = paletteColorPositions.length;
-		final boolean cyclic = model.getRangeMode() == RangeMode.CYCLIC && n > 1;
+		final double period = model.effectiveCyclicPeriod( paletteColorPositions );
+		final boolean cyclic = model.getRangeMode() == RangeMode.CYCLIC && period > 0;
 		final boolean treatMinAsBackground = model.isTreatMinAsBackground();
 
 		for ( int i = 0; i < curve.getPointCount(); i++ )
@@ -478,12 +478,12 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 			if ( cyclic )
 			{
-				final double offset = rangeMin + MappingModel.inverseCyclicPosition( curve.getX( i ), paletteColorPositions, treatMinAsBackground );
-				final int kMin = ( int ) Math.floor( ( rangeMin - offset ) / n ) - 1;
-				final int kMax = ( int ) Math.ceil( ( rangeMax - offset ) / n ) + 1;
+				final double offset = rangeMin + MappingModel.inverseCyclicPosition( curve.getX( i ), paletteColorPositions, period, treatMinAsBackground );
+				final int kMin = ( int ) Math.floor( ( rangeMin - offset ) / period ) - 1;
+				final int kMax = ( int ) Math.ceil( ( rangeMax - offset ) / period ) + 1;
 				for ( int k = kMin; k <= kMax; k++ )
 				{
-					final double value = k * ( double ) n + offset;
+					final double value = k * period + offset;
 					if ( value < rangeMin || value > rangeMax )
 						continue;
 					drawControlPointAt( g, valueToPixelX( value ), py );

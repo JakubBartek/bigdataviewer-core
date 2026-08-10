@@ -4,6 +4,7 @@
   "rangeMode": "CYCLIC",
   "treatMinAsBackground": true,
   "backgroundColor": -16777216,
+  "cyclicPeriod": 0,
   "curveXs": [0.0, 1.0],
   "curveYs": [0, 255]
 }

@@ -113,20 +113,20 @@ public class MappingModelTest
 	{
 		final int n = 10;
 		// A value of k*n + x*(n-1) should land at normalized curve position x.
-		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 0, 0, uniform( n ), false ), 1e-9 );
-		Assert.assertEquals( 1.0, MappingModel.cyclicPosition( n - 1, 0, uniform( n ), false ), 1e-9 );
-		Assert.assertEquals( 0.5, MappingModel.cyclicPosition( 4.5, 0, uniform( n ), false ), 1e-9 );
+		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 0, 0, uniform( n ), n, false ), 1e-9 );
+		Assert.assertEquals( 1.0, MappingModel.cyclicPosition( n - 1, 0, uniform( n ), n, false ), 1e-9 );
+		Assert.assertEquals( 0.5, MappingModel.cyclicPosition( 4.5, 0, uniform( n ), n, false ), 1e-9 );
 		// Wraps every n, independent of how many periods away.
-		Assert.assertEquals( MappingModel.cyclicPosition( 3, 0, uniform( n ), false ), MappingModel.cyclicPosition( 3 + 5 * n, 0, uniform( n ), false ), 1e-9 );
+		Assert.assertEquals( MappingModel.cyclicPosition( 3, 0, uniform( n ), n, false ), MappingModel.cyclicPosition( 3 + 5 * n, 0, uniform( n ), n, false ), 1e-9 );
 		// Degenerate color count never divides by zero.
-		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 7, 0, uniform( 1 ), false ), 1e-9 );
-		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 7, 0, uniform( 0 ), false ), 1e-9 );
+		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 7, 0, uniform( 1 ), 1, false ), 1e-9 );
+		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 7, 0, uniform( 0 ), 1, false ), 1e-9 );
 
 		// Anchored at min: a value of exactly min always lands on position 0
 		// (the palette's first color), regardless of what min is.
-		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 5, 5, uniform( n ), false ), 1e-9 );
-		Assert.assertEquals( 1.0, MappingModel.cyclicPosition( 5 + n - 1, 5, uniform( n ), false ), 1e-9 );
-		Assert.assertEquals( MappingModel.cyclicPosition( 5, 5, uniform( n ), false ), MappingModel.cyclicPosition( 5 + n, 5, uniform( n ), false ), 1e-9 );
+		Assert.assertEquals( 0.0, MappingModel.cyclicPosition( 5, 5, uniform( n ), n, false ), 1e-9 );
+		Assert.assertEquals( 1.0, MappingModel.cyclicPosition( 5 + n - 1, 5, uniform( n ), n, false ), 1e-9 );
+		Assert.assertEquals( MappingModel.cyclicPosition( 5, 5, uniform( n ), n, false ), MappingModel.cyclicPosition( 5 + n, 5, uniform( n ), n, false ), 1e-9 );
 
 		Assert.assertEquals( 0.0, MappingModel.fitPosition( 0, 0, 100 ), 1e-9 );
 		Assert.assertEquals( 1.0, MappingModel.fitPosition( 100, 0, 100 ), 1e-9 );
@@ -215,6 +215,56 @@ public class MappingModelTest
 		// min+1 and beyond are real cycled values again, not background.
 		Assert.assertFalse( model.isBackgroundValue( 6.0, min ) );
 		Assert.assertFalse( model.isBackgroundValue( 6.5, min ) );
+	}
+
+	/**
+	 * Regression test: the reserved background interval {@code [min, min + 1)}
+	 * is always exactly 1 raw unit wide -- it must NOT scale with
+	 * {@link MappingModel#setCyclicPeriod}. The background cutoff is defined
+	 * purely by {@code min} as entered by the user; the period only governs
+	 * how the (non-background) colors themselves cycle.
+	 */
+	@Test
+	public void testCyclicBackgroundThresholdIndependentOfPeriod()
+	{
+		final MappingModel model = new MappingModel();
+		model.setRangeMode( RangeMode.CYCLIC );
+		model.setTreatMinAsBackground( true );
+
+		final double min = 5;
+
+		for ( final double period : new double[] { 1, 3, 10, 100 } )
+		{
+			model.setCyclicPeriod( period );
+			Assert.assertTrue( "period=" + period, model.isBackgroundValue( 5.9, min ) );
+			Assert.assertFalse( "period=" + period, model.isBackgroundValue( 6.0, min ) );
+		}
+	}
+
+	/**
+	 * Regression test: with a non-default period, the first color after the
+	 * fixed 1-unit background reservation must still land exactly at
+	 * {@code min + 1} (not at {@code min + period / colorCount}, which the
+	 * background interval was briefly, incorrectly, tied to) -- i.e. the
+	 * color cycle itself starts right where the fixed background interval
+	 * ends, regardless of period.
+	 */
+	@Test
+	public void testCyclicFirstColorStartsRightAfterFixedBackgroundInterval()
+	{
+		final int n = 4;
+		final double[] positions = new double[ n ];
+		for ( int i = 0; i < n; i++ )
+			positions[ i ] = i / ( double ) ( n - 1 );
+
+		final MappingModel model = new MappingModel();
+		model.setRangeMode( RangeMode.CYCLIC );
+		model.setTreatMinAsBackground( true );
+		model.setCyclicPeriod( 40 ); // 10 raw units per color slot
+
+		final double min = 5;
+		Assert.assertEquals( positions[ 0 ], MappingModel.cyclicPosition( 6, min, positions, 40, true ), 1e-9 );
+		Assert.assertEquals( positions[ 1 ], MappingModel.cyclicPosition( 16, min, positions, 40, true ), 1e-9 );
 	}
 
 	/**
@@ -400,18 +450,19 @@ public class MappingModelTest
 	public void testCyclicPositionRespectsUnevenColorSpacing()
 	{
 		final double[] uneven = { 0.0, 0.05, 0.9, 1.0 };
+		final int period = uneven.length;
 
-		Assert.assertEquals( uneven[ 0 ], MappingModel.cyclicPosition( 0, 0, uneven, false ), 1e-9 );
-		Assert.assertEquals( uneven[ 1 ], MappingModel.cyclicPosition( 1, 0, uneven, false ), 1e-9 );
-		Assert.assertEquals( uneven[ 2 ], MappingModel.cyclicPosition( 2, 0, uneven, false ), 1e-9 );
-		Assert.assertEquals( uneven[ 3 ], MappingModel.cyclicPosition( 3, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 0 ], MappingModel.cyclicPosition( 0, 0, uneven, period, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 1 ], MappingModel.cyclicPosition( 1, 0, uneven, period, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 2 ], MappingModel.cyclicPosition( 2, 0, uneven, period, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 3 ], MappingModel.cyclicPosition( 3, 0, uneven, period, false ), 1e-9 );
 
 		// Halfway between two colors interpolates linearly between their
 		// actual (unevenly spaced) positions, not a uniform step.
-		Assert.assertEquals( ( uneven[ 1 ] + uneven[ 2 ] ) / 2, MappingModel.cyclicPosition( 1.5, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( ( uneven[ 1 ] + uneven[ 2 ] ) / 2, MappingModel.cyclicPosition( 1.5, 0, uneven, period, false ), 1e-9 );
 
 		// Wraps every n = uneven.length values, back to the first color.
-		Assert.assertEquals( uneven[ 0 ], MappingModel.cyclicPosition( 4, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 0 ], MappingModel.cyclicPosition( 4, 0, uneven, period, false ), 1e-9 );
 	}
 
 	/**
@@ -425,20 +476,21 @@ public class MappingModelTest
 	public void testSteppedCyclicPositionSnapsInsteadOfInterpolating()
 	{
 		final double[] uneven = { 0.0, 0.05, 0.9, 1.0 };
+		final int period = uneven.length;
 
 		// Exact labels match cyclicPosition.
-		Assert.assertEquals( uneven[ 0 ], MappingModel.steppedCyclicPosition( 0, 0, uneven, false ), 1e-9 );
-		Assert.assertEquals( uneven[ 1 ], MappingModel.steppedCyclicPosition( 1, 0, uneven, false ), 1e-9 );
-		Assert.assertEquals( uneven[ 2 ], MappingModel.steppedCyclicPosition( 2, 0, uneven, false ), 1e-9 );
-		Assert.assertEquals( uneven[ 3 ], MappingModel.steppedCyclicPosition( 3, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 0 ], MappingModel.steppedCyclicPosition( 0, 0, uneven, period, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 1 ], MappingModel.steppedCyclicPosition( 1, 0, uneven, period, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 2 ], MappingModel.steppedCyclicPosition( 2, 0, uneven, period, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 3 ], MappingModel.steppedCyclicPosition( 3, 0, uneven, period, false ), 1e-9 );
 
 		// Anywhere within label 1's interval [1, 2) stays pinned at
 		// uneven[1], unlike cyclicPosition which would already be most of
 		// the way towards uneven[2] by v=1.9.
-		Assert.assertEquals( uneven[ 1 ], MappingModel.steppedCyclicPosition( 1.9, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 1 ], MappingModel.steppedCyclicPosition( 1.9, 0, uneven, period, false ), 1e-9 );
 
 		// Wraps every n = uneven.length values, back to the first color.
-		Assert.assertEquals( uneven[ 0 ], MappingModel.steppedCyclicPosition( 4, 0, uneven, false ), 1e-9 );
+		Assert.assertEquals( uneven[ 0 ], MappingModel.steppedCyclicPosition( 4, 0, uneven, period, false ), 1e-9 );
 	}
 
 	/**
@@ -450,11 +502,12 @@ public class MappingModelTest
 	public void testInverseCyclicPositionRoundTripsUnevenColorSpacing()
 	{
 		final double[] uneven = { 0.0, 0.05, 0.9, 1.0 };
+		final int period = uneven.length;
 
 		for ( double raw = 0; raw < uneven.length - 1; raw += 0.25 )
 		{
-			final double t = MappingModel.cyclicPosition( raw, 0, uneven, false );
-			Assert.assertEquals( "raw=" + raw, raw, MappingModel.inverseCyclicPosition( t, uneven, false ), 1e-9 );
+			final double t = MappingModel.cyclicPosition( raw, 0, uneven, period, false );
+			Assert.assertEquals( "raw=" + raw, raw, MappingModel.inverseCyclicPosition( t, uneven, period, false ), 1e-9 );
 		}
 	}
 

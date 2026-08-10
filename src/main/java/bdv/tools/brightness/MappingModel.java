@@ -39,12 +39,13 @@ import java.util.List;
  * <ul>
  * <li>{@link RangeMode#FIT}: the value is clamped against the given
  * [min, max] range.</li>
- * <li>{@link RangeMode#CYCLIC}: the value cycles through the palette's
- * actual number of colors, anchored at min (a value of exactly min always
- * gets the palette's first color) and otherwise ignoring min/max. An integer
- * value lands exactly on a palette color, wrapping once per full trip through
- * the palette (e.g. label/segmentation ids cycling through a small
- * categorical palette).</li>
+ * <li>{@link RangeMode#CYCLIC}: the value cycles with a period of
+ * {@link #getCyclicPeriod()} raw input units (by default, the palette's own
+ * color count -- see that method), anchored at min (a value of exactly min
+ * always gets the palette's first color) and otherwise ignoring min/max. An
+ * integer number of colors' worth past min lands exactly on a palette color,
+ * wrapping once per full period (e.g. label/segmentation ids cycling through
+ * a small categorical palette).</li>
  * </ul>
  * That position is then evaluated smoothly against a {@link Curve} to produce
  * a LUT index in [0, 255]. The current {@link ValueMatching} strategy is
@@ -82,6 +83,18 @@ public class MappingModel
 	private int backgroundColor = 0xff000000;
 
 	private ValueMatching valueMatching = ValueMatching.INTERPOLATE;
+
+	/**
+	 * Number of raw input units one full cycle spans in {@link RangeMode#CYCLIC}
+	 * (see {@link #cyclicPosition}), independent of the palette's actual color
+	 * count. {@code 0} (the default) means "derive it automatically from
+	 * whichever palette is passed in" -- i.e. exactly the old, fixed behavior
+	 * from before this was configurable -- so {@link LutEditorDialog}'s
+	 * "Period" field can show that derived number as its own starting point
+	 * without this model needing to know about palettes at all; setting it to
+	 * anything greater than {@code 0} overrides that.
+	 */
+	private double cyclicPeriod = 0;
 
 	private MappingPreset preset;
 
@@ -134,6 +147,42 @@ public class MappingModel
 	}
 
 	/**
+	 * The configured cycle period; see the field javadoc for what {@code 0}
+	 * means. Use {@link #effectiveCyclicPeriod} to resolve that to an actual
+	 * number of raw units for a given palette.
+	 */
+	public double getCyclicPeriod()
+	{
+		return cyclicPeriod;
+	}
+
+	/**
+	 * Set the {@link RangeMode#CYCLIC} cycle period explicitly, in raw input
+	 * units; {@code 0} reverts to the automatic, palette-color-count-derived
+	 * default (see the field javadoc).
+	 */
+	public void setCyclicPeriod( final double cyclicPeriod )
+	{
+		this.cyclicPeriod = cyclicPeriod;
+		fireChangeListeners();
+	}
+
+	/**
+	 * The actual {@link RangeMode#CYCLIC} period to use with a given
+	 * palette's {@code colorPositions}: {@link #cyclicPeriod} if explicitly
+	 * set (greater than {@code 0}), otherwise that array's own length.
+	 * Public (unlike {@link #cyclicPeriod} being an implementation detail
+	 * otherwise) since {@link MappingCurvePanel} needs this same resolution
+	 * -- e.g. for {@link #cyclicPosition} -- and {@link #getCyclicPeriod()}
+	 * alone (which can be the {@code 0} "auto" sentinel) is not safe to pass
+	 * there directly.
+	 */
+	public double effectiveCyclicPeriod( final double[] colorPositions )
+	{
+		return cyclicPeriod > 0 ? cyclicPeriod : colorPositions.length;
+	}
+
+	/**
 	 * Whether {@code value} should be rendered as the dedicated
 	 * {@link #getBackgroundColor()} instead of being looked up in the
 	 * palette. Never applies unless {@link #isTreatMinAsBackground()} is
@@ -147,16 +196,20 @@ public class MappingModel
 	 * left/start value of the range), and everything below {@code min} too
 	 * (out-of-range values on the low side are background, not cycled;
 	 * out-of-range values on the high side still cycle normally, same as
-	 * when this option is off).
+	 * when this option is off). This is always exactly 1 raw unit wide,
+	 * deliberately independent of {@link #getCyclicPeriod()}: the background
+	 * cutoff is defined purely by {@code min} as entered by the user, not by
+	 * whatever period happens to be configured (see {@link #cyclicOffset},
+	 * which anchors the color cycle to start right after this same fixed
+	 * 1-unit reservation, regardless of period).
 	 * <p>
 	 * The {@code [min, min + 1)} part is not just the exact point
-	 * {@code value == min}: {@link #cyclicPosition} only defines integer
+	 * {@code value == min}: {@link #cyclicPosition} only defines specific
 	 * inputs exactly on a palette color, so without covering the whole unit
-	 * interval, any non-integer value strictly between {@code min} and
-	 * {@code min + 1} (e.g. continuous image data, or a continuous preview)
-	 * would fall through to {@link #mapToLutIndex} and incorrectly render as
-	 * the palette's *last* color, since that gap is exactly what is skipped
-	 * to make the cycle start at min + 1.</li>
+	 * interval, any value strictly inside it (e.g. continuous image data, or
+	 * a continuous preview) would fall through to {@link #mapToLutIndex} and
+	 * incorrectly render as the palette's *last* color, since that gap is
+	 * exactly what is skipped to make the cycle start at min + 1.</li>
 	 * </ul>
 	 */
 	public boolean isBackgroundValue( final double value, final double min )
@@ -215,6 +268,7 @@ public class MappingModel
 		this.treatMinAsBackground = other.treatMinAsBackground;
 		this.backgroundColor = other.backgroundColor;
 		this.valueMatching = other.valueMatching;
+		this.cyclicPeriod = other.cyclicPeriod;
 		this.preset = other.preset;
 		this.curve.setPoints( other.curve.xsArray(), other.curve.ysArray() );
 		fireChangeListeners();
@@ -222,9 +276,9 @@ public class MappingModel
 
 	/**
 	 * Whether {@code other} represents the same mapping as this one (range
-	 * mode, background handling, value matching, preset and curve shape) --
-	 * used to detect unapplied edits worth warning about before discarding
-	 * them, rather than a general-purpose {@code equals}.
+	 * mode, background handling, value matching, cyclic period, preset and
+	 * curve shape) -- used to detect unapplied edits worth warning about
+	 * before discarding them, rather than a general-purpose {@code equals}.
 	 */
 	public boolean hasSameState( final MappingModel other )
 	{
@@ -232,6 +286,7 @@ public class MappingModel
 				&& treatMinAsBackground == other.treatMinAsBackground
 				&& backgroundColor == other.backgroundColor
 				&& valueMatching == other.valueMatching
+				&& cyclicPeriod == other.cyclicPeriod
 				&& preset == other.preset
 				&& Arrays.equals( curve.xsArray(), other.curve.xsArray() )
 				&& Arrays.equals( curve.ysArray(), other.curve.ysArray() );
@@ -253,13 +308,13 @@ public class MappingModel
 	 * @param colorPositions
 	 * 		the target LUT's colors' normalized positions, in order (see
 	 * 		{@link ColorTableLut#colorPositions(net.imglib2.display.ColorTable)});
-	 * 		only used in {@link RangeMode#CYCLIC}, whose wrap period is the
-	 * 		array's length.
+	 * 		only used in {@link RangeMode#CYCLIC}, to resolve
+	 * 		{@link #effectiveCyclicPeriod}.
 	 */
 	public int mapToLutIndex( final double value, final double min, final double max, final double[] colorPositions )
 	{
 		final double t = rangeMode == RangeMode.CYCLIC
-				? cyclicPosition( value, min, colorPositions, treatMinAsBackground )
+				? cyclicPosition( value, min, colorPositions, effectiveCyclicPeriod( colorPositions ), treatMinAsBackground )
 				: fitPosition( value, min, max );
 		// Always smooth here -- see the class javadoc for why ValueMatching
 		// is applied only once, at the palette-color stage, instead of here too.
@@ -293,7 +348,7 @@ public class MappingModel
 		if ( rangeMode != RangeMode.CYCLIC || valueMatching == ValueMatching.INTERPOLATE )
 			return mapToLutIndex( value, min, max, colorPositions );
 
-		final double t = steppedCyclicPosition( value, min, colorPositions, treatMinAsBackground );
+		final double t = steppedCyclicPosition( value, min, colorPositions, effectiveCyclicPeriod( colorPositions ), treatMinAsBackground );
 		return Math.max( 0, Math.min( 255, curve.evaluate( t ) ) );
 	}
 
@@ -312,23 +367,25 @@ public class MappingModel
 	/**
 	 * Normalized curve position for a raw value in {@link RangeMode#CYCLIC}:
 	 * the value cycles through the palette's colors (one per entry of
-	 * {@code colorPositions}), anchored at {@code min} (a raw value of
-	 * exactly {@code min} always lands on the palette's first color -- e.g.
-	 * setting min to 5 means value 5 gets whatever color is first in the
-	 * palette) and otherwise ignoring min/max, landing exactly on
-	 * {@code colorPositions[k]} for integer inputs {@code k} steps past min.
-	 * Non-integer inputs interpolate linearly between the two neighboring
-	 * colors' actual positions, so unevenly-spaced palettes (not all LUTs
-	 * have evenly-spaced colors) are still followed correctly rather than
-	 * assuming a uniform {@code k / (n - 1)} step. Package-visible so the UI
-	 * can reuse the exact same formula used by {@link #mapToLutIndex}.
+	 * {@code colorPositions}) over {@code period} raw input units, anchored
+	 * at {@code min} (a raw value of exactly {@code min} always lands on the
+	 * palette's first color -- e.g. setting min to 5 means value 5 gets
+	 * whatever color is first in the palette) and otherwise ignoring
+	 * min/max, landing exactly on {@code colorPositions[k]} for raw values
+	 * {@code k} whole color-slots (i.e. {@code k * period / colorPositions.length}
+	 * raw units) past min. Values in between interpolate linearly between
+	 * the two neighboring colors' actual positions, so unevenly-spaced
+	 * palettes (not all LUTs have evenly-spaced colors) are still followed
+	 * correctly rather than assuming a uniform {@code k / (n - 1)} step.
+	 * Package-visible so the UI can reuse the exact same formula used by
+	 * {@link #mapToLutIndex}.
 	 */
-	static double cyclicPosition( final double value, final double min, final double[] colorPositions, final boolean treatMinAsBackground )
+	static double cyclicPosition( final double value, final double min, final double[] colorPositions, final double period, final boolean treatMinAsBackground )
 	{
 		final int n = colorPositions.length;
 		if ( n <= 1 )
 			return 0.0;
-		final double m = cyclicOffset( value, min, n, treatMinAsBackground );
+		final double m = cyclicOffset( value, min, period, n, treatMinAsBackground );
 		// The last unit interval before wrapping back to color 0 (m in
 		// [n - 1, n)) holds flat at the last color, rather than blending
 		// into the next cycle's first color.
@@ -343,49 +400,57 @@ public class MappingModel
 	 * Like {@link #cyclicPosition}, but snapped to the exact position of
 	 * whichever label {@code value} falls into, instead of interpolating
 	 * towards the next one. Used by {@link #mapToLutIndexForColor} so every
-	 * raw value within one label's unit interval resolves to that label's
-	 * own color, regardless of the curve's local direction there.
+	 * raw value within one label's slot resolves to that label's own color,
+	 * regardless of the curve's local direction there.
 	 */
-	static double steppedCyclicPosition( final double value, final double min, final double[] colorPositions, final boolean treatMinAsBackground )
+	static double steppedCyclicPosition( final double value, final double min, final double[] colorPositions, final double period, final boolean treatMinAsBackground )
 	{
 		final int n = colorPositions.length;
 		if ( n <= 1 )
 			return 0.0;
-		final double m = cyclicOffset( value, min, n, treatMinAsBackground );
+		final double m = cyclicOffset( value, min, period, n, treatMinAsBackground );
 		final int k = Math.min( n - 1, ( int ) Math.floor( m ) );
 		return colorPositions[ k ];
 	}
 
 	/**
-	 * Raw value's offset into the current cycle, in {@code [0, n)}. When
-	 * {@code treatMinAsBackground}, the cycle instead starts at min+1, so
-	 * all n palette colors remain reachable without min itself ever
-	 * competing for one of them.
+	 * Raw value's offset into the current cycle, rescaled into color-index
+	 * space (i.e. {@code [0, n)}, one unit per color slot -- a slot being
+	 * {@code period / n} raw units wide). When {@code treatMinAsBackground},
+	 * the cycle instead starts a fixed 1 raw unit past min -- matching
+	 * {@link #isBackgroundValue}'s own fixed {@code [min, min + 1)}
+	 * reservation exactly, regardless of {@code period} -- so all {@code n}
+	 * palette colors remain reachable without min itself ever competing for
+	 * one of them.
 	 */
-	private static double cyclicOffset( final double value, final double min, final int n, final boolean treatMinAsBackground )
+	private static double cyclicOffset( final double value, final double min, final double period, final int n, final boolean treatMinAsBackground )
 	{
-		final double shifted = value - min;
-		double m = treatMinAsBackground ? ( shifted - 1 ) % n : shifted % n;
+		final double step = period / n;
+		final double reservedRawUnits = treatMinAsBackground ? 1 : 0;
+		double m = ( value - min - reservedRawUnits ) / step;
+		m %= n;
 		if ( m < 0 )
 			m += n;
 		return m;
 	}
 
 	/**
-	 * The inverse of {@link #cyclicPosition(double, double, double[], boolean)}:
+	 * The inverse of {@link #cyclicPosition(double, double, double[], double, boolean)}:
 	 * given a normalized curve position {@code t}, the corresponding "raw
 	 * value minus min" offset within a single cycle. Used to draw/hit-test a
 	 * curve control point at its correct raw input value in
-	 * {@link RangeMode#CYCLIC} (repeated every {@code colorPositions.length}
-	 * raw units), without assuming evenly-spaced colors.
+	 * {@link RangeMode#CYCLIC} (repeated every {@code period} raw units),
+	 * without assuming evenly-spaced colors.
 	 */
-	static double inverseCyclicPosition( final double t, final double[] colorPositions, final boolean treatMinAsBackground )
+	static double inverseCyclicPosition( final double t, final double[] colorPositions, final double period, final boolean treatMinAsBackground )
 	{
 		final int n = colorPositions.length;
+		final double step = n > 0 ? period / n : 0;
+		final double reservedRawUnits = treatMinAsBackground ? 1 : 0;
 		if ( n <= 1 )
-			return treatMinAsBackground ? 1 : 0;
+			return reservedRawUnits;
 
-		final double raw;
+		final double raw; // in color-index space, [0, n)
 		if ( t >= colorPositions[ n - 1 ] )
 		{
 			raw = n - 1;
@@ -399,7 +464,7 @@ public class MappingModel
 			final double frac = span > 0 ? ( t - colorPositions[ k ] ) / span : 0.0;
 			raw = k + frac;
 		}
-		return treatMinAsBackground ? raw + 1 : raw;
+		return raw * step + reservedRawUnits;
 	}
 
 	/**

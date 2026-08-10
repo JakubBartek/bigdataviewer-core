@@ -52,6 +52,14 @@ public class EditorPreset
 
 	private int backgroundColor;
 
+	/**
+	 * See {@link MappingModel#getCyclicPeriod()}; {@code 0} (also what a
+	 * preset file saved before this field existed deserializes to, since
+	 * that's Gson's default for a missing {@code double}) means the same
+	 * "derive it from the palette's color count" default there.
+	 */
+	private double cyclicPeriod;
+
 	private double[] curveXs;
 
 	private int[] curveYs;
@@ -64,7 +72,7 @@ public class EditorPreset
 	{}
 
 	public EditorPreset( final String name, final String paletteName, final RangeMode rangeMode,
-			final boolean treatMinAsBackground, final int backgroundColor,
+			final boolean treatMinAsBackground, final int backgroundColor, final double cyclicPeriod,
 			final double[] curveXs, final int[] curveYs )
 	{
 		this.name = name;
@@ -72,6 +80,7 @@ public class EditorPreset
 		this.rangeMode = rangeMode;
 		this.treatMinAsBackground = treatMinAsBackground;
 		this.backgroundColor = backgroundColor;
+		this.cyclicPeriod = cyclicPeriod;
 		this.curveXs = curveXs;
 		this.curveYs = curveYs;
 	}
@@ -99,6 +108,11 @@ public class EditorPreset
 	public int getBackgroundColor()
 	{
 		return backgroundColor;
+	}
+
+	public double getCyclicPeriod()
+	{
+		return cyclicPeriod;
 	}
 
 	public double[] getCurveXs()

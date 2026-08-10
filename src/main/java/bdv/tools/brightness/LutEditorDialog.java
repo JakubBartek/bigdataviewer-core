@@ -38,6 +38,8 @@ import java.awt.Graphics;
 import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.event.ActionListener;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,8 +62,10 @@ import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
+import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
+import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 
 import bdv.viewer.ConverterSetups;
@@ -98,6 +102,8 @@ public class LutEditorDialog extends JDialog
 
 	private final JRadioButton radioFit;
 	private final JRadioButton radioCyclic;
+	private final JLabel labelCyclicPeriod;
+	private final JTextField fieldCyclicPeriod;
 	private final JCheckBox checkTreatMinAsBackground;
 	private final JButton buttonBackgroundColor;
 	private final JComboBox< MappingPreset > comboMappingPreset;
@@ -157,6 +163,20 @@ public class LutEditorDialog extends JDialog
 		radioFit = new JRadioButton( "Fit" );
 		radioCyclic = new JRadioButton( "Cyclic" );
 		radioFit.setSelected( true );
+		labelCyclicPeriod = new JLabel( "Period:" );
+		labelCyclicPeriod.setEnabled( false );
+		fieldCyclicPeriod = new JTextField( 4 );
+		fieldCyclicPeriod.setHorizontalAlignment( SwingConstants.CENTER );
+		fieldCyclicPeriod.setEnabled( false );
+		fieldCyclicPeriod.addActionListener( e -> commitCyclicPeriodField() );
+		fieldCyclicPeriod.addFocusListener( new FocusAdapter()
+		{
+			@Override
+			public void focusLost( final FocusEvent e )
+			{
+				commitCyclicPeriodField();
+			}
+		} );
 		checkTreatMinAsBackground = new JCheckBox();
 		buttonBackgroundColor = createBackgroundColorButton();
 		comboMappingPreset = new JComboBox<>( MappingPreset.values() );
@@ -382,6 +402,10 @@ public class LutEditorDialog extends JDialog
 		panelRangeMode.add( Box.createHorizontalStrut( 4 ) );
 		panelRangeMode.add( radioCyclic );
 		panelRangeMode.add( Box.createHorizontalStrut( 8 ) );
+		panelRangeMode.add( labelCyclicPeriod );
+		panelRangeMode.add( Box.createHorizontalStrut( 4 ) );
+		panelRangeMode.add( fieldCyclicPeriod );
+		panelRangeMode.add( Box.createHorizontalStrut( 8 ) );
 		panelRangeMode.add( checkTreatMinAsBackground );
 		panelRangeMode.add( Box.createHorizontalStrut( 4 ) );
 		panelRangeMode.add( buttonBackgroundColor );
@@ -490,13 +514,24 @@ public class LutEditorDialog extends JDialog
 			// typically read (each raw value holds the color of the control
 			// point at or before it).
 			mappingModel.setValueMatching( ColorTableLut.isInterpolated( ct ) ? ValueMatching.INTERPOLATE : ValueMatching.TRUNCATE );
+
+			// Revert to the "auto" cyclic period (see MappingModel#getCyclicPeriod)
+			// so it re-derives from this palette's own color count, same as
+			// picking a palette always overrides value matching above --
+			// rather than silently keeping a period sized for the previous,
+			// possibly differently-sized, palette.
+			mappingModel.setCyclicPeriod( 0 );
+			updateCyclicPeriodFieldText();
 		} );
 
 		final ActionListener listenerRangeMode = e ->
 		{
+			final boolean cyclic = radioCyclic.isSelected();
+			labelCyclicPeriod.setEnabled( cyclic );
+			fieldCyclicPeriod.setEnabled( cyclic );
 			if ( loadingControls )
 				return;
-			mappingModel.setRangeMode( radioFit.isSelected() ? RangeMode.FIT : RangeMode.CYCLIC );
+			mappingModel.setRangeMode( cyclic ? RangeMode.CYCLIC : RangeMode.FIT );
 		};
 		radioFit.addActionListener( listenerRangeMode );
 		radioCyclic.addActionListener( listenerRangeMode );
@@ -702,6 +737,9 @@ public class LutEditorDialog extends JDialog
 
 			radioFit.setSelected( mappingModel.getRangeMode() == RangeMode.FIT );
 			radioCyclic.setSelected( mappingModel.getRangeMode() == RangeMode.CYCLIC );
+			labelCyclicPeriod.setEnabled( mappingModel.getRangeMode() == RangeMode.CYCLIC );
+			fieldCyclicPeriod.setEnabled( mappingModel.getRangeMode() == RangeMode.CYCLIC );
+			updateCyclicPeriodFieldText();
 			checkTreatMinAsBackground.setSelected( mappingModel.isTreatMinAsBackground() );
 			buttonBackgroundColor.setBackground( new Color( mappingModel.getBackgroundColor(), false ) );
 			buttonBackgroundColor.setEnabled( mappingModel.isTreatMinAsBackground() );
@@ -711,6 +749,38 @@ public class LutEditorDialog extends JDialog
 		{
 			loadingControls = false;
 		}
+	}
+
+	/**
+	 * Parse {@link #fieldCyclicPeriod}'s text and, if it is a valid positive
+	 * number, apply it via {@link MappingModel#setCyclicPeriod}; either way,
+	 * reset the field's text to whatever period is now actually in effect
+	 * (see {@link #updateCyclicPeriodFieldText()}), same as
+	 * {@link MappingCurvePanel}'s own min/max fields do for invalid input.
+	 */
+	private void commitCyclicPeriodField()
+	{
+		try
+		{
+			final double v = Double.parseDouble( fieldCyclicPeriod.getText().trim() );
+			if ( v > 0 )
+				mappingModel.setCyclicPeriod( v );
+		}
+		catch ( final NumberFormatException ignored )
+		{
+		}
+		updateCyclicPeriodFieldText();
+	}
+
+	/**
+	 * Show the cyclic period actually in effect for {@link #currentPalette}
+	 * (see {@link MappingModel#effectiveCyclicPeriod}) -- i.e. the palette's
+	 * own color count while {@link MappingModel#getCyclicPeriod()} is at its
+	 * "auto" default, or the explicitly set value otherwise.
+	 */
+	private void updateCyclicPeriodFieldText()
+	{
+		fieldCyclicPeriod.setText( formatValue( mappingModel.effectiveCyclicPeriod( ColorTableLut.colorPositions( currentPalette ) ) ) );
 	}
 
 	/** Snapshot the editor's current state as the new {@link #baselinePalette} etc. to revert unapplied edits back to. */
@@ -744,6 +814,7 @@ public class LutEditorDialog extends JDialog
 		presetMapping.setTreatMinAsBackground( preset.isTreatMinAsBackground() );
 		presetMapping.setBackgroundColor( preset.getBackgroundColor() );
 		presetMapping.setValueMatching( ColorTableLut.isInterpolated( palette ) ? ValueMatching.INTERPOLATE : ValueMatching.TRUNCATE );
+		presetMapping.setCyclicPeriod( preset.getCyclicPeriod() );
 		presetMapping.getCurve().setPoints( preset.getCurveXs(), preset.getCurveYs() );
 
 		loadIntoEditor( palette, preset.getPaletteName(), presetMapping, editedRangeMin, editedRangeMax );
@@ -785,7 +856,7 @@ public class LutEditorDialog extends JDialog
 		}
 
 		EditorPresets.save( new EditorPreset( name, currentPaletteName, mappingModel.getRangeMode(),
-				mappingModel.isTreatMinAsBackground(), mappingModel.getBackgroundColor(),
+				mappingModel.isTreatMinAsBackground(), mappingModel.getBackgroundColor(), mappingModel.getCyclicPeriod(),
 				mappingModel.getCurve().xsArray(), mappingModel.getCurve().ysArray() ) );
 
 		refreshEditorPresetCombo( comboEditorPreset );
@@ -961,19 +1032,23 @@ public class LutEditorDialog extends JDialog
 				"  file: it is not a separate setting here.",
 				"- Range mode controls how input values are handled:",
 				"  Fit clamps values to [min, max]. Cyclic ignores max and instead cycles",
-				"  values through the palette's actual number of colors (shown on the",
-				"  graph's y axis), anchored at min -- e.g. with a 10-color palette",
-				"  and min=5, value 5 gets the palette's first color, value 15 gets the",
-				"  same color again, and so on.",
+				"  values with the given Period (raw input units per full cycle), anchored",
+				"  at min -- e.g. with Period 10 and min=5, value 5 gets the palette's",
+				"  first color, value 15 gets the same color again, and so on.",
+				"- Period defaults to the palette's own color count (shown on the graph's",
+				"  y axis), spreading exactly one color per raw unit; setting it to",
+				"  something else spreads the same colors across a longer or shorter span",
+				"  instead. Only used in Cyclic mode; editing the palette resets it back",
+				"  to that default for the newly chosen palette.",
 				"- \"Treat {min} as Bg\" (its label shows the actual min value) forces raw",
 				"  values at or below min to always map to a dedicated background color,",
 				"  instead of the palette. In Cyclic mode this also reserves the range's",
 				"  min value itself so it stops competing with the cycled colors, and the",
-				"  cutoff extends slightly above min (up to but not including min + 1) so",
-				"  continuous data right next to it doesn't leak through as the palette's",
-				"  last color. Click the swatch next to the checkbox to choose the",
-				"  background color (defaults to black); it is not one of the palette's",
-				"  own colors.",
+				"  cutoff extends slightly above min (up to but not including min + 1,",
+				"  always exactly 1 raw unit regardless of Period) so continuous data",
+				"  right next to it doesn't leak through as the palette's last color.",
+				"  Click the swatch next to the checkbox to choose the background color",
+				"  (defaults to black); it is not one of the palette's own colors.",
 				"- Mapping preset replaces the curve with a predefined shape (Linear, Percentile",
 				"  Stretch, Log, Exp, Sigmoid, α-Sigmoid, Tan, Atan). The curve can still be",
 				"  adjusted afterwards.",
