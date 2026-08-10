@@ -128,7 +128,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	public MappingCurvePanel( final MappingModel model )
 	{
 		this.model = model;
-		setPreferredSize( new Dimension( 280, 183 ) );
+		setPreferredSize( new Dimension( 280, 200 ) );
 		setBackground( Color.WHITE );
 		addMouseListener( this );
 		addMouseMotionListener( this );

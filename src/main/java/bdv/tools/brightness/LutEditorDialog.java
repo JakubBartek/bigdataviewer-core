@@ -89,6 +89,8 @@ public class LutEditorDialog extends JDialog
 
 	private final JComboBox< String > comboSource;
 	private final JComboBox< Object > comboPalette;
+	private final JComboBox< Object > comboEditorPreset;
+	private final JButton buttonSaveEditorPreset;
 	private final JLabel labelStatus;
 
 	private final GradientPreviewPanel panelPaletteSwatch;
@@ -145,6 +147,9 @@ public class LutEditorDialog extends JDialog
 		// -- Widgets ---------------------------------------------------------
 		comboSource = new JComboBox<>();
 		comboPalette = createPaletteCombo();
+		comboEditorPreset = createEditorPresetCombo();
+		buttonSaveEditorPreset = new JButton( "Save..." );
+		buttonSaveEditorPreset.setFocusable( false );
 		panelPaletteSwatch = new GradientPreviewPanel( mappingModel );
 		panelPaletteSwatch.setPreferredSize( new Dimension( 200, 16 ) );
 		panelPaletteSwatch.setMaximumSize( new Dimension( Integer.MAX_VALUE, 16 ) );
@@ -230,15 +235,72 @@ public class LutEditorDialog extends JDialog
 	 */
 	private JComboBox< Object > createPaletteCombo()
 	{
-		final PaletteComboModel model = new PaletteComboModel();
+		final JComboBox< Object > combo = createGroupedCombo( "Select Palette" );
+		final PaletteComboModel model = ( PaletteComboModel ) combo.getModel();
 		for ( final Map.Entry< String, List< String > > category : LutCategories.groupByCategory( LutPalettes.discoverNames() ).entrySet() )
 		{
 			model.addElement( new CategoryHeader( category.getKey() ) );
 			for ( final String name : category.getValue() )
 				model.addElement( name );
 		}
+		return combo;
+	}
 
-		final JComboBox< Object > combo = new JComboBox<>( model );
+	/**
+	 * The saved-setting chooser (see {@link EditorPresets}): built-in and
+	 * user-saved settings, grouped under a non-selectable
+	 * {@link CategoryHeader} each. Populated by {@link #refreshEditorPresetCombo}.
+	 */
+	private JComboBox< Object > createEditorPresetCombo()
+	{
+		final JComboBox< Object > combo = createGroupedCombo( "Select Preset" );
+		refreshEditorPresetCombo( combo );
+		return combo;
+	}
+
+	/**
+	 * Rebuild {@code combo}'s items from {@link EditorPresets#discoverNames()},
+	 * grouped into "My Settings" (user-saved) and "Built-in", preserving the
+	 * current selection if it is still present. Called on construction and
+	 * again after {@link #promptAndSaveEditorPreset()} adds/overwrites one.
+	 */
+	private static void refreshEditorPresetCombo( final JComboBox< Object > combo )
+	{
+		final PaletteComboModel model = ( PaletteComboModel ) combo.getModel();
+		final Object previouslySelected = combo.getSelectedItem();
+
+		final List< String > userDefined = new ArrayList<>();
+		final List< String > builtin = new ArrayList<>();
+		for ( final String name : EditorPresets.discoverNames() )
+			( EditorPresets.isUserDefined( name ) ? userDefined : builtin ).add( name );
+
+		model.removeAllElements();
+		if ( !userDefined.isEmpty() )
+		{
+			model.addElement( new CategoryHeader( "My Settings" ) );
+			for ( final String name : userDefined )
+				model.addElement( name );
+		}
+		if ( !builtin.isEmpty() )
+		{
+			model.addElement( new CategoryHeader( "Built-in" ) );
+			for ( final String name : builtin )
+				model.addElement( name );
+		}
+
+		combo.setSelectedItem( previouslySelected );
+	}
+
+	/**
+	 * A combo box that renders {@link CategoryHeader} items as bold,
+	 * unselectable group labels (see {@link PaletteComboModel}) among regular
+	 * {@code String} items, showing {@code placeholderText} when nothing is
+	 * selected. Shared by {@link #createPaletteCombo()} and
+	 * {@link #createEditorPresetCombo()}.
+	 */
+	private static JComboBox< Object > createGroupedCombo( final String placeholderText )
+	{
+		final JComboBox< Object > combo = new JComboBox<>( new PaletteComboModel() );
 		combo.setRenderer( new DefaultListCellRenderer()
 		{
 			@Override
@@ -259,7 +321,7 @@ public class LutEditorDialog extends JDialog
 					setEnabled( true );
 					setBorder( BorderFactory.createEmptyBorder( 0, 4, 0, 4 ) );
 					if ( index == -1 && value == null )
-						setText( "Select Palette" );
+						setText( placeholderText );
 				}
 				return this;
 			}
@@ -283,9 +345,21 @@ public class LutEditorDialog extends JDialog
 		return button;
 	}
 
-	/** The "Data" and "Mapping" panels, stacked. */
+	/** The "Setting", "Data" and "Mapping" panels, stacked. */
 	private JPanel createLeftColumn()
 	{
+		final JPanel panelSetting = new JPanel();
+		panelSetting.setLayout( new BoxLayout( panelSetting, BoxLayout.PAGE_AXIS ) );
+		final JPanel rowPresetSetting = new JPanel( new BorderLayout( 8, 0 ) );
+		rowPresetSetting.setBorder( BorderFactory.createEmptyBorder(0, 2, 0, 2) );
+		rowPresetSetting.add( comboEditorPreset, BorderLayout.CENTER );
+		rowPresetSetting.add( buttonSaveEditorPreset, BorderLayout.EAST );
+		rowPresetSetting.setMaximumSize( new Dimension( Integer.MAX_VALUE, rowPresetSetting.getPreferredSize().height ) );
+		rowPresetSetting.setAlignmentX( Component.LEFT_ALIGNMENT );
+		panelSetting.add( rowPresetSetting );
+		panelSetting.setAlignmentX( Component.LEFT_ALIGNMENT );
+		panelSetting.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelSetting.getPreferredSize().height ) );
+
 		final JPanel panelData = new JPanel();
 		panelData.setLayout( new BoxLayout( panelData, BoxLayout.PAGE_AXIS ) );
 		panelData.setBorder( BorderFactory.createTitledBorder( "Data" ) );
@@ -325,8 +399,10 @@ public class LutEditorDialog extends JDialog
 
 		final JPanel column = new JPanel();
 		column.setLayout( new BoxLayout( column, BoxLayout.PAGE_AXIS ) );
+		column.add( panelSetting );
+		column.add( Box.createVerticalStrut( 4 ) );
 		column.add( panelData );
-		column.add( Box.createVerticalStrut( 20 ) );
+		column.add( Box.createVerticalStrut( 4 ) );
 		column.add( panelMapping );
 		return column;
 	}
@@ -451,6 +527,25 @@ public class LutEditorDialog extends JDialog
 		} );
 
 		buttonInvertCurve.addActionListener( e -> mappingModel.invertCurve() );
+
+		comboEditorPreset.addActionListener( e ->
+		{
+			if ( loadingControls )
+				return;
+			final Object selected = comboEditorPreset.getSelectedItem();
+			if ( !( selected instanceof String ) )
+				return;
+			final String name = ( String ) selected;
+			final EditorPreset preset = EditorPresets.load( name );
+			if ( preset == null )
+			{
+				labelStatus.setText( "Failed to load setting: " + name );
+				return;
+			}
+			applyEditorPreset( preset );
+		} );
+
+		buttonSaveEditorPreset.addActionListener( e -> promptAndSaveEditorPreset() );
 
 		getRootPane().registerKeyboardAction( e -> showHelp(), KeyStroke.getKeyStroke( KeyEvent.VK_F1, 0 ), JComponent.WHEN_IN_FOCUSED_WINDOW );
 
@@ -629,6 +724,84 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
+	 * Apply a saved {@link EditorPreset} (see {@link #comboEditorPreset}):
+	 * its palette, range mode, background handling and curve, live and
+	 * immediately, same as any other edit here. Deliberately leaves
+	 * {@link #editedRangeMin}/{@link #editedRangeMax} alone -- a preset is a
+	 * reusable "look", not tied to any particular source's data range.
+	 */
+	private void applyEditorPreset( final EditorPreset preset )
+	{
+		final ColorTable palette = LutPalettes.load( preset.getPaletteName() );
+		if ( palette == null )
+		{
+			labelStatus.setText( "Setting's palette not found: " + preset.getPaletteName() );
+			return;
+		}
+
+		final MappingModel presetMapping = new MappingModel();
+		presetMapping.setRangeMode( preset.getRangeMode() );
+		presetMapping.setTreatMinAsBackground( preset.isTreatMinAsBackground() );
+		presetMapping.setBackgroundColor( preset.getBackgroundColor() );
+		presetMapping.setValueMatching( ColorTableLut.isInterpolated( palette ) ? ValueMatching.INTERPOLATE : ValueMatching.TRUNCATE );
+		presetMapping.getCurve().setPoints( preset.getCurveXs(), preset.getCurveYs() );
+
+		loadIntoEditor( palette, preset.getPaletteName(), presetMapping, editedRangeMin, editedRangeMax );
+		pushLiveEdits();
+		labelStatus.setText( "" );
+	}
+
+	/**
+	 * Ask the user for a name and save the editor's current palette, range
+	 * mode, background handling and curve as a reusable {@link EditorPreset}
+	 * (see {@link #applyEditorPreset}) under it, confirming first if that
+	 * would overwrite an existing one.
+	 */
+	private void promptAndSaveEditorPreset()
+	{
+		final Object selected = comboEditorPreset.getSelectedItem();
+		final Object input = JOptionPane.showInputDialog( this, "Setting name:", "Save Setting",
+				JOptionPane.PLAIN_MESSAGE, null, null, selected instanceof String ? selected : "" );
+		if ( input == null )
+			return;
+		final String name = ( ( String ) input ).trim();
+		if ( name.isEmpty() )
+		{
+			labelStatus.setText( "Setting name cannot be empty." );
+			return;
+		}
+		if ( currentPaletteName == null )
+		{
+			labelStatus.setText( "Select a named palette before saving a setting." );
+			return;
+		}
+		if ( EditorPresets.discoverNames().contains( name ) )
+		{
+			final int choice = JOptionPane.showConfirmDialog( this,
+					"A setting named \"" + name + "\" already exists. Overwrite it?", "Overwrite Setting",
+					JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE );
+			if ( choice != JOptionPane.YES_OPTION )
+				return;
+		}
+
+		EditorPresets.save( new EditorPreset( name, currentPaletteName, mappingModel.getRangeMode(),
+				mappingModel.isTreatMinAsBackground(), mappingModel.getBackgroundColor(),
+				mappingModel.getCurve().xsArray(), mappingModel.getCurve().ysArray() ) );
+
+		refreshEditorPresetCombo( comboEditorPreset );
+		loadingControls = true;
+		try
+		{
+			comboEditorPreset.setSelectedItem( name );
+		}
+		finally
+		{
+			loadingControls = false;
+		}
+		labelStatus.setText( "Saved setting \"" + name + "\"." );
+	}
+
+	/**
 	 * Move the "revert to" baseline forward to the currently edited state,
 	 * which is already live-pushed to the converter as it was edited (see
 	 * {@link #pushLiveEdits()}) -- so closing the dialog, or switching to
@@ -769,6 +942,14 @@ public class LutEditorDialog extends JDialog
 	{
 		final String message = String.join( "\n",
 				"LUT Editor help:",
+				"",
+				"Setting:",
+				"- Applies a saved combination of palette, range mode, background handling",
+				"  and curve (see EditorPreset) -- built-in ones ship with the app, and",
+				"  \"Save...\" stores the current combination (under a name you choose) for",
+				"  reuse later, next to the built-in ones under \"My Settings\". Applying one",
+				"  leaves the current input value range alone, since that is specific to",
+				"  whatever source's data you are editing, not part of the saved look.",
 				"",
 				"Data:",
 				"- Source selects which setup you are editing.",

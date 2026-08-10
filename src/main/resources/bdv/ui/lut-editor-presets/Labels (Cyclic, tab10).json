@@ -1,0 +1,9 @@
+{
+  "name": "Labels (Cyclic, tab10)",
+  "paletteName": "tab10",
+  "rangeMode": "CYCLIC",
+  "treatMinAsBackground": true,
+  "backgroundColor": -16777216,
+  "curveXs": [0.0, 1.0],
+  "curveYs": [0, 255]
+}
