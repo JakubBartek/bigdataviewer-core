@@ -28,6 +28,7 @@
 package bdv.tools.brightness;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -217,6 +218,23 @@ public class MappingModel
 		this.preset = other.preset;
 		this.curve.setPoints( other.curve.xsArray(), other.curve.ysArray() );
 		fireChangeListeners();
+	}
+
+	/**
+	 * Whether {@code other} represents the same mapping as this one (range
+	 * mode, background handling, value matching, preset and curve shape) --
+	 * used to detect unapplied edits worth warning about before discarding
+	 * them, rather than a general-purpose {@code equals}.
+	 */
+	public boolean hasSameState( final MappingModel other )
+	{
+		return rangeMode == other.rangeMode
+				&& treatMinAsBackground == other.treatMinAsBackground
+				&& backgroundColor == other.backgroundColor
+				&& valueMatching == other.valueMatching
+				&& preset == other.preset
+				&& Arrays.equals( curve.xsArray(), other.curve.xsArray() )
+				&& Arrays.equals( curve.ysArray(), other.curve.ysArray() );
 	}
 
 	/**

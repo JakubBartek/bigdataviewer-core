@@ -127,4 +127,40 @@ public class LutPalettesTest
 		Assert.assertFalse( ColorTableLut.isInterpolated( LutPalettes.load( "Accent" ) ) );
 		Assert.assertTrue( ColorTableLut.isInterpolated( LutPalettes.load( "viridis" ) ) );
 	}
+
+	/**
+	 * {@link LutPalettes#findName} is the reverse of {@link LutPalettes#load}:
+	 * given just a loaded table (as read back from a converter that doesn't
+	 * itself remember which resource it came from), it should recover the
+	 * same name -- even though {@link #testLoadIsIndependentAcrossCalls}
+	 * establishes that reloading never returns the *same* table instance, so
+	 * this can only work via a genuine value comparison, not identity.
+	 */
+	@Test
+	public void testFindNameRecoversLoadedPalettesName()
+	{
+		Assert.assertEquals( "tab10", LutPalettes.findName( LutPalettes.load( "tab10" ) ) );
+		Assert.assertEquals( "viridis", LutPalettes.findName( LutPalettes.load( "viridis" ) ) );
+	}
+
+	/**
+	 * A table that isn't one of the bundled resources at all (e.g. the
+	 * generic placeholder used before any real palette is chosen) has no
+	 * name to find.
+	 */
+	@Test
+	public void testFindNameReturnsNullForUnmatchedTable()
+	{
+		Assert.assertNull( LutPalettes.findName( ColorTableLut.DEFAULT ) );
+	}
+
+	/**
+	 * A non-{@link ColorTableLut} table (e.g. a plain {@link net.imglib2.display.ColorTable8})
+	 * can't match any bundled resource either, regardless of its colors.
+	 */
+	@Test
+	public void testFindNameReturnsNullForNonColorTableLut()
+	{
+		Assert.assertNull( LutPalettes.findName( new net.imglib2.display.ColorTable8() ) );
+	}
 }

@@ -169,6 +169,28 @@ public final class LutPalettes
 	}
 
 	/**
+	 * Reverse of {@link #load(String)}: the name of the discovered LUT
+	 * resource whose colors exactly match {@code ct}, or {@code null} if none
+	 * do (e.g. {@code ct} isn't one of these resources at all, such as
+	 * {@link ColorTableLut#DEFAULT} or a palette set up some other way).
+	 * Used to recover a display name for a bare {@link ColorTable} read back
+	 * from a converter, which doesn't otherwise remember which resource (if
+	 * any) it was originally loaded from.
+	 */
+	public static String findName( final ColorTable ct )
+	{
+		if ( !( ct instanceof ColorTableLut ) )
+			return null;
+		for ( final String name : discoverNames() )
+		{
+			final ColorTable candidate = load( name );
+			if ( candidate != null && ( ( ColorTableLut ) ct ).hasSameColors( candidate ) )
+				return name;
+		}
+		return null;
+	}
+
+	/**
 	 * Read and parse the named LUT resource's root JSON object, or
 	 * {@code null} if it cannot be found or parsed.
 	 */

@@ -27,6 +27,8 @@
  */
 package bdv.tools.brightness;
 
+import java.util.Arrays;
+
 import net.imglib2.display.ColorTable;
 
 /**
@@ -179,6 +181,26 @@ public class ColorTableLut implements ColorTable
 	public boolean isInterpolated()
 	{
 		return interpolated;
+	}
+
+	/**
+	 * Whether {@code other} is a {@link ColorTableLut} with exactly the same
+	 * control points and interpolation flag as this one. Used to recover a
+	 * loaded {@link ColorTable}'s resource name (see
+	 * {@link LutPalettes#findName(ColorTable)}) when only the bare table is
+	 * known, e.g. read back from a converter that was set up elsewhere.
+	 */
+	public boolean hasSameColors( final ColorTable other )
+	{
+		if ( !( other instanceof ColorTableLut ) )
+			return false;
+		final ColorTableLut o = ( ColorTableLut ) other;
+		return interpolated == o.interpolated
+				&& Arrays.equals( positions, o.positions )
+				&& Arrays.equals( red, o.red )
+				&& Arrays.equals( green, o.green )
+				&& Arrays.equals( blue, o.blue )
+				&& Arrays.equals( alpha, o.alpha );
 	}
 
 	/**

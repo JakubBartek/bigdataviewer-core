@@ -101,15 +101,38 @@ public class LutEditorDialog extends JDialog
 	private final JComboBox< MappingPreset > comboMappingPreset;
 	private final JButton buttonInvertCurve;
 
-	/** The palette and mapping currently being edited (not yet applied until "Apply" is pressed). */
+	/**
+	 * The palette and mapping currently being edited. Edits are pushed live
+	 * to {@link #activeLutConv} as they happen (see {@link #pushLiveEdits()}),
+	 * so they are visible in the viewer immediately, not just after "Apply".
+	 */
 	private ColorTable currentPalette = ColorTableLut.DEFAULT;
+
+	/** Name of {@link #currentPalette} in {@link #comboPalette}, or {@code null} if it doesn't (or isn't known to) correspond to one -- see {@link #loadIntoEditor}. */
+	private String currentPaletteName = null;
+
 	private final MappingModel mappingModel = new MappingModel();
 
-	/** The input value range currently being edited (not yet applied until "Apply" is pressed). */
+	/** The input value range currently being edited; see {@link #currentPalette}. */
 	private double editedRangeMin = 0;
 	private double editedRangeMax = 255;
 
-	/** Guards against control listeners firing while we are programmatically syncing them. */
+	/** The setup/converter {@link #currentPalette} etc. are being live-pushed to; {@code null} if none is currently editable. */
+	private RealLUTConverter< ? > activeLutConv = null;
+	private ConverterSetup activeSetup = null;
+
+	/**
+	 * Snapshot of {@link #activeLutConv}'s state as of the last "Apply" (or,
+	 * absent that, as loaded by {@link #onSourceChanged()}) -- what
+	 * {@link #revertLiveEdits()} restores unapplied live edits back to.
+	 */
+	private ColorTable baselinePalette = ColorTableLut.DEFAULT;
+	private String baselinePaletteName = null;
+	private final MappingModel baselineMapping = new MappingModel();
+	private double baselineRangeMin = 0;
+	private double baselineRangeMax = 255;
+
+	/** Guards against control listeners (including the live-push one) firing while we are programmatically syncing them. */
 	private boolean loadingControls = false;
 
 	public LutEditorDialog( final Frame owner, final ConverterSetups converterSetups, final ViewerState viewerState, final Runnable repaintAction )
@@ -141,6 +164,7 @@ public class LutEditorDialog extends JDialog
 			editedRangeMin = min;
 			editedRangeMax = max;
 			updateTreatMinAsBackgroundText();
+			pushLiveEdits();
 		} );
 		updateTreatMinAsBackgroundText();
 
@@ -163,6 +187,41 @@ public class LutEditorDialog extends JDialog
 		installControlListeners();
 		rebuildList();
 		packAndMatchGraphWidth( panelLeftColumn, panelMappingCurveColumn );
+	}
+
+	/**
+	 * Edits are pushed live to the viewer as they are made (see
+	 * {@link #pushLiveEdits()}); hiding the dialog without having pressed
+	 * "Apply" since the last edit would otherwise leave those edits in place
+	 * with no way back. So: whenever this dialog transitions from visible to
+	 * hidden -- via "Cancel", the window's own close button, or toggling it
+	 * closed with its keyboard shortcut, all of which just call this -- first
+	 * confirm with the user if there are unapplied edits to discard, then
+	 * revert to the last-applied (or, absent that, originally loaded) state.
+	 */
+	@Override
+	public void setVisible( final boolean visible )
+	{
+		if ( !visible && isVisible() && isDirty() )
+		{
+			final int choice = JOptionPane.showConfirmDialog( this,
+					"Discard unapplied changes?", "Unapplied Changes",
+					JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE );
+			if ( choice != JOptionPane.YES_OPTION )
+				return;
+		}
+		if ( !visible && isVisible() )
+			revertLiveEdits();
+		super.setVisible( visible );
+	}
+
+	/** Whether the editor currently differs from {@link #baselinePalette} etc., i.e. has edits since the last "Apply" (or load) that closing now would discard. */
+	private boolean isDirty()
+	{
+		return currentPalette != baselinePalette
+				|| editedRangeMin != baselineRangeMin
+				|| editedRangeMax != baselineRangeMax
+				|| !mappingModel.hasSameState( baselineMapping );
 	}
 
 	/**
@@ -200,7 +259,7 @@ public class LutEditorDialog extends JDialog
 					setEnabled( true );
 					setBorder( BorderFactory.createEmptyBorder( 0, 4, 0, 4 ) );
 					if ( index == -1 && value == null )
-						setText( "Select Preset" );
+						setText( "Select Palette" );
 				}
 				return this;
 			}
@@ -303,11 +362,7 @@ public class LutEditorDialog extends JDialog
 		panelLeftBottom.add( labelStatus );
 
 		final JButton buttonCancel = new JButton( "Cancel" );
-		buttonCancel.addActionListener( e ->
-		{
-			onSourceChanged();
-			setVisible( false );
-		} );
+		buttonCancel.addActionListener( e -> setVisible( false ) );
 		final JButton buttonApply = new JButton( "Apply" );
 		buttonApply.addActionListener( e -> applyCurrent() );
 		normalizeButtonSizes( buttonCancel, buttonApply );
@@ -346,6 +401,7 @@ public class LutEditorDialog extends JDialog
 				return;
 			}
 			currentPalette = ct;
+			currentPaletteName = name;
 			panelPaletteSwatch.update( ct );
 			panelMappingCurve.setPalette( ct );
 			labelStatus.setText( "" );
@@ -400,6 +456,7 @@ public class LutEditorDialog extends JDialog
 
 		mappingModel.addChangeListener( panelMappingCurve::repaint );
 		mappingModel.addChangeListener( panelPaletteSwatch::repaint );
+		mappingModel.addChangeListener( this::pushLiveEdits );
 	}
 
 	/**
@@ -444,13 +501,21 @@ public class LutEditorDialog extends JDialog
 
 	/**
 	 * Load the currently applied palette and mapping (if any) of the selected
-	 * source/setup into the editor, discarding any unapplied local edits.
+	 * source/setup into the editor. Any live-pushed edits still outstanding
+	 * on whichever source/setup was previously active are first reverted
+	 * back to their own baseline, same as closing the dialog on them without
+	 * pressing "Apply" would have done.
 	 */
 	private void onSourceChanged()
 	{
+		revertActiveConverterToBaseline();
+
 		final int idx = comboSource.getSelectedIndex();
 		if ( idx < 0 || idx >= sources.size() )
 		{
+			activeLutConv = null;
+			activeSetup = null;
+			resetEditorToDefaults();
 			labelStatus.setText( "no setup selected" );
 			return;
 		}
@@ -459,34 +524,87 @@ public class LutEditorDialog extends JDialog
 		final Object conv = soc.getConverter();
 		if ( !( conv instanceof RealLUTConverter ) )
 		{
+			activeLutConv = null;
+			activeSetup = null;
+			resetEditorToDefaults();
 			labelStatus.setText( "Converter does not use a LUT." );
 			return;
 		}
 		labelStatus.setText( "" );
 
 		final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
-		currentPalette = lutConv.getLUT() != null ? lutConv.getLUT() : ColorTableLut.DEFAULT;
-		panelPaletteSwatch.update( currentPalette );
+		activeLutConv = lutConv;
+		activeSetup = setup;
+
+		final ColorTable palette = lutConv.getLUT() != null ? lutConv.getLUT() : ColorTableLut.DEFAULT;
 
 		final MappingModel existing = lutConv.getMapping();
+		final MappingModel loaded;
 		if ( existing != null )
-			mappingModel.copyFrom( existing );
+			loaded = existing;
 		else
 		{
-			mappingModel.setRangeMode( RangeMode.FIT );
-			mappingModel.setValueMatching( ValueMatching.INTERPOLATE );
-			mappingModel.applyPreset( MappingPreset.LINEAR );
+			loaded = new MappingModel();
+			loaded.setRangeMode( RangeMode.FIT );
+			loaded.setValueMatching( ValueMatching.INTERPOLATE );
+			loaded.applyPreset( MappingPreset.LINEAR );
 		}
 
-		editedRangeMin = setup != null ? setup.getDisplayRangeMin() : 0;
-		editedRangeMax = setup != null ? setup.getDisplayRangeMax() : 255;
-		panelMappingCurve.setRange( editedRangeMin, editedRangeMax );
-		panelMappingCurve.setPalette( currentPalette );
-		updateTreatMinAsBackgroundText();
+		final double min = setup != null ? setup.getDisplayRangeMin() : 0;
+		final double max = setup != null ? setup.getDisplayRangeMax() : 255;
+		// The palette itself doesn't remember which named resource (if any)
+		// it was loaded from, so recover it by matching colors against the
+		// known palettes -- leaving comboPalette deselected ("Select
+		// Palette") only for a genuinely unmatched/custom table, rather than
+		// unconditionally for every source.
+		loadIntoEditor( palette, LutPalettes.findName( palette ), loaded, min, max );
 
+		snapshotBaseline();
+	}
+
+	/**
+	 * Reset the editor to a neutral default state (as if freshly created),
+	 * used whenever there is no valid LUT-backed source/setup to actually
+	 * load -- otherwise every control would keep showing whatever the
+	 * previously selected source left behind, which is misleading (e.g. the
+	 * mapping preset combo still showing "Linear" for a source that isn't
+	 * even LUT-based).
+	 */
+	private void resetEditorToDefaults()
+	{
+		final MappingModel defaults = new MappingModel();
+		defaults.setRangeMode( RangeMode.FIT );
+		defaults.setValueMatching( ValueMatching.INTERPOLATE );
+		defaults.applyPreset( MappingPreset.LINEAR );
+		loadIntoEditor( ColorTableLut.DEFAULT, null, defaults, 0, 255 );
+		snapshotBaseline();
+	}
+
+	/**
+	 * Load a palette/mapping/range into the editor's own controls, without
+	 * touching {@link #activeLutConv} itself (callers decide separately
+	 * whether/what to push there). Used both for a newly selected source's
+	 * actually-applied state, and to reset the editor back to
+	 * {@link #baselinePalette} etc. when reverting.
+	 */
+	private void loadIntoEditor( final ColorTable palette, final String paletteName, final MappingModel mapping, final double min, final double max )
+	{
 		loadingControls = true;
 		try
 		{
+			currentPalette = palette;
+			currentPaletteName = paletteName;
+			editedRangeMin = min;
+			editedRangeMax = max;
+
+			panelPaletteSwatch.update( palette );
+			panelMappingCurve.setRange( min, max );
+			panelMappingCurve.setPalette( palette );
+			comboPalette.setSelectedItem( paletteName );
+
+			mappingModel.copyFrom( mapping );
+			updateTreatMinAsBackgroundText();
+
 			radioFit.setSelected( mappingModel.getRangeMode() == RangeMode.FIT );
 			radioCyclic.setSelected( mappingModel.getRangeMode() == RangeMode.CYCLIC );
 			checkTreatMinAsBackground.setSelected( mappingModel.isTreatMinAsBackground() );
@@ -500,34 +618,73 @@ public class LutEditorDialog extends JDialog
 		}
 	}
 
+	/** Snapshot the editor's current state as the new {@link #baselinePalette} etc. to revert unapplied edits back to. */
+	private void snapshotBaseline()
+	{
+		baselinePalette = currentPalette;
+		baselinePaletteName = currentPaletteName;
+		baselineMapping.copyFrom( mappingModel );
+		baselineRangeMin = editedRangeMin;
+		baselineRangeMax = editedRangeMax;
+	}
+
 	/**
-	 * Commit the currently edited palette and mapping to the selected setup's
-	 * converter.
+	 * Move the "revert to" baseline forward to the currently edited state,
+	 * which is already live-pushed to the converter as it was edited (see
+	 * {@link #pushLiveEdits()}) -- so closing the dialog, or switching to
+	 * another source and back, no longer discards it.
 	 */
 	private void applyCurrent()
 	{
-		final int idx = comboSource.getSelectedIndex();
-		if ( idx < 0 || idx >= sources.size() )
+		if ( activeLutConv == null )
 			return;
-		final SourceAndConverter< ? > soc = sources.get( idx );
-		final Object conv = soc.getConverter();
-		if ( !( conv instanceof RealLUTConverter ) )
-			return;
-
-		final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
-		lutConv.setLUT( currentPalette );
-
-		final MappingModel committed = lutConv.getMapping() != null ? lutConv.getMapping() : new MappingModel();
-		committed.copyFrom( mappingModel );
-		lutConv.setMapping( committed );
-
-		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
-		if ( setup != null )
-			setup.setDisplayRange( editedRangeMin, editedRangeMax );
-
+		snapshotBaseline();
 		labelStatus.setText( "Applied." );
+	}
+
+	/**
+	 * Push {@link #currentPalette}/{@link #mappingModel}/{@link #editedRangeMin}/
+	 * {@link #editedRangeMax} to {@link #activeLutConv} so edits are visible
+	 * in the viewer immediately. Wired as {@link #mappingModel}'s change
+	 * listener; also called directly wherever the range fields change, since
+	 * {@link #mappingModel} itself doesn't track those.
+	 */
+	private void pushLiveEdits()
+	{
+		if ( loadingControls )
+			return;
+		pushToActiveConverter( currentPalette, mappingModel, editedRangeMin, editedRangeMax );
+	}
+
+	/** Push {@link #baselinePalette}/{@link #baselineMapping}/{@link #baselineRangeMin}/{@link #baselineRangeMax} to {@link #activeLutConv}, discarding any live-pushed edits made since. */
+	private void revertActiveConverterToBaseline()
+	{
+		pushToActiveConverter( baselinePalette, baselineMapping, baselineRangeMin, baselineRangeMax );
+	}
+
+	private void pushToActiveConverter( final ColorTable palette, final MappingModel mapping, final double min, final double max )
+	{
+		if ( activeLutConv == null )
+			return;
+		activeLutConv.setLUT( palette );
+		final MappingModel target = activeLutConv.getMapping() != null ? activeLutConv.getMapping() : new MappingModel();
+		target.copyFrom( mapping );
+		activeLutConv.setMapping( target );
+		if ( activeSetup != null )
+			activeSetup.setDisplayRange( min, max );
 		if ( repaintAction != null )
 			repaintAction.run();
+	}
+
+	/**
+	 * Discard unapplied live edits: revert {@link #activeLutConv} to
+	 * {@link #baselinePalette} etc., and reset the editor's own controls to
+	 * match, so this dialog doesn't reopen showing the discarded edits.
+	 */
+	private void revertLiveEdits()
+	{
+		revertActiveConverterToBaseline();
+		loadIntoEditor( baselinePalette, baselinePaletteName, baselineMapping, baselineRangeMin, baselineRangeMax );
 	}
 
 	private void rebuildList()
@@ -650,8 +807,10 @@ public class LutEditorDialog extends JDialog
 				"- Click \"Edit Curve\" to show and edit the curve's control points:",
 				"  left-click to add or drag a point, right-click a point to remove it.",
 				"",
-				"- Apply commits the palette and mapping to the selected setup.",
-				"- Cancel discards unapplied edits.",
+				"- Edits here take effect in the viewer immediately, as you make them.",
+				"- Apply keeps the current edits as the new fallback to revert to.",
+				"- Cancel (or closing the dialog, or switching source without Apply)",
+				"  reverts to that fallback, discarding edits made since.",
 				"",
 				"Shortcut:",
 				"- Press F1 anywhere in this dialog to open this help." );
