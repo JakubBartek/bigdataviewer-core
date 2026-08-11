@@ -96,38 +96,55 @@ public final class EditorPresets
 	 * The writable directory {@link #save(EditorPreset)} writes to: the
 	 * {@value #USER_SUBDIR} subdirectory of wherever {@value #BUILTIN_RESOURCE_DIR}
 	 * actually resolves to on disk -- or {@link #USER_DIR_OVERRIDE_PROPERTY}
-	 * verbatim, if set.
+	 * verbatim, if set. {@code null} when there is no such directory (see
+	 * {@link #resolveBuiltinResourceDir()}), in which case user-saved presets
+	 * are simply unavailable; built-in ones still load normally.
 	 */
 	private static String userDir()
 	{
 		final String override = System.getProperty( USER_DIR_OVERRIDE_PROPERTY );
 		if ( override != null )
 			return override;
-		return new File( resolveBuiltinResourceDir(), USER_SUBDIR ).getAbsolutePath();
+		final File builtinDir = resolveBuiltinResourceDir();
+		return builtinDir == null ? null : new File( builtinDir, USER_SUBDIR ).getAbsolutePath();
 	}
 
 	/**
 	 * The real filesystem directory {@value #BUILTIN_RESOURCE_DIR} resolves
-	 * to. Throws if it cannot be found, or (e.g. running from inside a
-	 * packaged jar) is not an actual directory on the local filesystem --
-	 * only {@link #userDir()} needs this, since built-in presets themselves
-	 * are read via the classloader instead (see {@link #discoverNames()},
-	 * {@link #load(String)}), which works either way.
+	 * to, or {@code null} if it cannot be found or is not an actual
+	 * directory on the local filesystem -- notably when running from a
+	 * packaged jar, whose {@code jar:} URL is not a hierarchical URI and so
+	 * cannot become a {@link File} at all.
+	 * <p>
+	 * Only {@link #userDir()} needs this. Built-in presets themselves are
+	 * read through the classloader instead (see {@link #discoverNames()},
+	 * {@link #load(String)}), which works either way -- so returning
+	 * {@code null} here must degrade to "no user-saved presets", never break
+	 * the built-in ones.
 	 */
 	private static File resolveBuiltinResourceDir()
 	{
 		final URL dirUrl = EditorPresets.class.getClassLoader().getResource( BUILTIN_RESOURCE_DIR );
 		if ( dirUrl == null )
-			throw new IllegalStateException( "Could not locate \"" + BUILTIN_RESOURCE_DIR + "\" on the classpath" );
+			return null;
 		try
 		{
 			return new File( dirUrl.toURI() );
 		}
 		catch ( final URISyntaxException | IllegalArgumentException e )
 		{
-			throw new IllegalStateException( "Cannot save user-defined settings: \"" + BUILTIN_RESOURCE_DIR
-					+ "\" is not on the local filesystem here (e.g. running from inside a packaged jar)", e );
+			return null;
 		}
+	}
+
+	/**
+	 * The file a user-saved preset of this name lives in, or {@code null} if
+	 * there is no writable {@link #userDir()} at all.
+	 */
+	private static File userFile( final String name )
+	{
+		final String dir = userDir();
+		return dir == null ? null : new File( dir, sanitizeFileName( name ) + RESOURCE_EXTENSION );
 	}
 
 	/**
@@ -165,8 +182,8 @@ public final class EditorPresets
 			e.printStackTrace();
 		}
 
-		final File userDir = new File( userDir() );
-		final File[] userFiles = userDir.listFiles();
+		final String userDirPath = userDir();
+		final File[] userFiles = userDirPath == null ? null : new File( userDirPath ).listFiles();
 		if ( userFiles != null )
 		{
 			for ( final File f : userFiles )
@@ -174,8 +191,7 @@ public final class EditorPresets
 					sorted.put( f.getName().substring( 0, f.getName().length() - RESOURCE_EXTENSION.length() ), f.getName() );
 		}
 
-		final List< String > names = new ArrayList<>( sorted.keySet() );
-		return names;
+		return new ArrayList<>( sorted.keySet() );
 	}
 
 	private static void collectNames( final Stream< Path > paths, final TreeMap< String, String > sorted )
@@ -196,7 +212,8 @@ public final class EditorPresets
 	 */
 	public static boolean isUserDefined( final String name )
 	{
-		return new File( userDir(), sanitizeFileName( name ) + RESOURCE_EXTENSION ).isFile();
+		final File file = userFile( name );
+		return file != null && file.isFile();
 	}
 
 	/**
@@ -209,8 +226,8 @@ public final class EditorPresets
 	 */
 	public static EditorPreset load( final String name )
 	{
-		final File userFile = new File( userDir(), sanitizeFileName( name ) + RESOURCE_EXTENSION );
-		if ( userFile.isFile() )
+		final File userFile = userFile( name );
+		if ( userFile != null && userFile.isFile() )
 		{
 			try ( final FileReader reader = new FileReader( userFile ) )
 			{
@@ -240,10 +257,19 @@ public final class EditorPresets
 	 * {@link #userDir()}, creating the directory if needed and overwriting
 	 * any existing file of the same name -- including a built-in preset's
 	 * name, which this then takes precedence over (see {@link #load}).
+	 *
+	 * @throws IllegalStateException
+	 * 		if there is no writable directory to save into at all (see
+	 * 		{@link #resolveBuiltinResourceDir()}); unlike the read paths,
+	 * 		which just degrade to "no user-saved presets", saving cannot
+	 * 		silently do nothing.
 	 */
 	public static void save( final EditorPreset preset )
 	{
-		final File file = new File( userDir(), sanitizeFileName( preset.getName() ) + RESOURCE_EXTENSION );
+		final File file = userFile( preset.getName() );
+		if ( file == null )
+			throw new IllegalStateException( "No writable settings directory available"
+					+ " (running from a packaged jar?); cannot save \"" + preset.getName() + "\"" );
 		file.getParentFile().mkdirs();
 		try ( final FileWriter writer = new FileWriter( file ) )
 		{

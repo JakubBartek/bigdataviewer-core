@@ -494,6 +494,43 @@ public class MappingModelTest
 	}
 
 	/**
+	 * Regression test: {@link MappingModel#cycleIndex} must change exactly
+	 * where the mapping actually wraps back to the palette's first color --
+	 * i.e. anchored at min (plus the reserved background unit), not counted
+	 * from 0. {@link MappingCurvePanel#drawCurve} previously used
+	 * {@code floor(value / period)}, which with min=5, period=4 broke the
+	 * drawn line at 8/12/16 while the mapping really wraps at 9/13/17,
+	 * putting the sawtooth discontinuities at visibly wrong x positions (and
+	 * disagreeing with the control points, which were anchored correctly).
+	 */
+	@Test
+	public void testCycleIndexChangesExactlyWhereCyclicPositionWraps()
+	{
+		final double[] positions = { 0.0, 1.0 / 3, 2.0 / 3, 1.0 };
+		final double period = positions.length;
+		final double min = 5;
+
+		for ( final boolean treatMinAsBackground : new boolean[] { false, true } )
+		{
+			double prev = min + ( treatMinAsBackground ? 1 : 0 );
+			for ( double v = prev; v <= prev + 12; v += 0.25 )
+			{
+				final boolean indexChanged =
+						MappingModel.cycleIndex( v, min, period, treatMinAsBackground )
+								!= MappingModel.cycleIndex( prev, min, period, treatMinAsBackground );
+				// A real wrap is where the normalized position drops back
+				// towards the palette's first color instead of advancing.
+				final double tPrev = MappingModel.cyclicPosition( prev, min, positions, period, treatMinAsBackground );
+				final double tNow = MappingModel.cyclicPosition( v, min, positions, period, treatMinAsBackground );
+				final boolean actuallyWrapped = tNow < tPrev - 1e-9;
+
+				Assert.assertEquals( "bg=" + treatMinAsBackground + " v=" + v, actuallyWrapped, indexChanged );
+				prev = v;
+			}
+		}
+	}
+
+	/**
 	 * The inverse used by {@link MappingCurvePanel} to draw/hit-test control
 	 * points must round-trip {@link MappingModel#cyclicPosition} even when
 	 * the palette's colors are unevenly spaced.

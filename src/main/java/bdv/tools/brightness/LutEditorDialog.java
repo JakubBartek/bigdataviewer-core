@@ -855,9 +855,20 @@ public class LutEditorDialog extends JDialog
 				return;
 		}
 
-		EditorPresets.save( new EditorPreset( name, currentPaletteName, mappingModel.getRangeMode(),
-				mappingModel.isTreatMinAsBackground(), mappingModel.getBackgroundColor(), mappingModel.getCyclicPeriod(),
-				mappingModel.getCurve().xsArray(), mappingModel.getCurve().ysArray() ) );
+		try
+		{
+			EditorPresets.save( new EditorPreset( name, currentPaletteName, mappingModel.getRangeMode(),
+					mappingModel.isTreatMinAsBackground(), mappingModel.getBackgroundColor(), mappingModel.getCyclicPeriod(),
+					mappingModel.getCurve().xsArray(), mappingModel.getCurve().ysArray() ) );
+		}
+		catch ( final RuntimeException e )
+		{
+			// Saving is the one preset operation that can't degrade silently
+			// (see EditorPresets#save) -- report it here rather than letting
+			// it escape into the button's action listener.
+			labelStatus.setText( "Failed to save setting: " + e.getMessage() );
+			return;
+		}
 
 		refreshEditorPresetCombo( comboEditorPreset );
 		loadingControls = true;

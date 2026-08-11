@@ -420,6 +420,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 		final double period = model.effectiveCyclicPeriod( paletteColorPositions );
 		final boolean cyclic = model.getRangeMode() == RangeMode.CYCLIC && period > 0;
+		final boolean treatMinAsBackground = model.isTreatMinAsBackground();
 		final int left = plotLeft();
 		final int right = plotRight();
 
@@ -443,7 +444,9 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			final int smoothY = model.mapToLutIndex( value, rangeMin, rangeMax, paletteColorPositions );
 			final int py = outputToPixelY( smoothY );
 
-			final boolean wrapped = cyclic && prevX != null && Math.floor( value / period ) != Math.floor( prevValue / period );
+			final boolean wrapped = cyclic && prevX != null
+					&& MappingModel.cycleIndex( value, rangeMin, period, treatMinAsBackground )
+							!= MappingModel.cycleIndex( prevValue, rangeMin, period, treatMinAsBackground );
 			if ( prevX != null && !wrapped )
 				g.drawLine( prevX, prevY, px, py );
 

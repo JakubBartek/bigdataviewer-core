@@ -435,6 +435,27 @@ public class MappingModel
 	}
 
 	/**
+	 * Which repetition of the cycle {@code value} falls in, in
+	 * {@link RangeMode#CYCLIC}: {@code 0} for the cycle starting at the
+	 * anchor, {@code 1} for the next one, and so on (negative below the
+	 * anchor). The anchor is {@code min}, plus the fixed 1 raw unit reserved
+	 * for the background when {@code treatMinAsBackground} -- i.e. exactly
+	 * where {@link #cyclicOffset} wraps back to the palette's first color.
+	 * <p>
+	 * Used by {@link MappingCurvePanel#drawCurve} to break the drawn line at
+	 * each wrap. Counting from {@code 0} instead of from the anchor would put
+	 * those breaks at the wrong raw values whenever {@code min} is not itself
+	 * a multiple of {@code period} -- e.g. with {@code min = 5} and
+	 * {@code period = 4} the line would break at 8/12/16 while the mapping
+	 * actually wraps at 9/13/17.
+	 */
+	static double cycleIndex( final double value, final double min, final double period, final boolean treatMinAsBackground )
+	{
+		final double anchor = min + ( treatMinAsBackground ? 1 : 0 );
+		return Math.floor( ( value - anchor ) / period );
+	}
+
+	/**
 	 * The inverse of {@link #cyclicPosition(double, double, double[], double, boolean)}:
 	 * given a normalized curve position {@code t}, the corresponding "raw
 	 * value minus min" offset within a single cycle. Used to draw/hit-test a
