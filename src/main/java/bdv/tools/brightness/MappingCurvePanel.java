@@ -133,6 +133,11 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		addMouseListener( this );
 		addMouseMotionListener( this );
 
+		// Toggling "treat min as background" (or changing the range mode)
+		// changes the background swatch's width, which #doLayout uses to place
+		// the min field -- and a plain repaint would not re-run layout.
+		model.addChangeListener( this::revalidate );
+
 		setLayout( null );
 		for ( final JTextField field : new JTextField[] { minField, maxField } )
 		{
@@ -167,8 +172,49 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		if ( getWidth() <= 0 || getHeight() <= 0 )
 			return;
 		final int y = transformBarBottom() + 2;
-		minField.setBounds( curveXToPixelX( 0 ) - RANGE_FIELD_WIDTH / 2, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT );
-		maxField.setBounds( curveXToPixelX( 1 ) - RANGE_FIELD_WIDTH / 2, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT );
+		final int left = plotLeft();
+
+		// The min field straddles the boundary its value labels, centered on
+		// it. Normally that is the plot's left edge; while the "treat min as
+		// background" swatch is drawn there, the value instead belongs to the
+		// swatch's far side, so shift the field right by exactly the swatch's
+		// width -- keeping it centered, just on the other boundary.
+		final int maxFieldX = curveXToPixelX( 1 ) - RANGE_FIELD_WIDTH / 2;
+		final int minFieldX = Math.min(
+				left + backgroundBarWidthPixels() - RANGE_FIELD_WIDTH / 2,
+				// Never let it run into the max field, however wide the swatch
+				// gets (e.g. Cyclic over a range only a few units wide, where
+				// the reserved unit interval is a large share of the plot).
+				maxFieldX - RANGE_FIELD_WIDTH );
+
+		minField.setBounds( minFieldX, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT );
+		maxField.setBounds( maxFieldX, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT );
+	}
+
+	/**
+	 * Width, in pixel columns, of the "treat min as background" swatch at the
+	 * left edge of the plot -- i.e. exactly how many columns
+	 * {@link #drawTransformColorBar} fills with
+	 * {@link MappingModel#getBackgroundColor()} before the palette takes
+	 * over. {@code 0} when the option is off.
+	 * <p>
+	 * Deliberately measured by walking the same {@link #isBackgroundForPreview}
+	 * predicate the bar is painted with, rather than converting the raw-value
+	 * cutoff to pixels independently: the two roundings would not agree
+	 * (the cutoff differs by range mode, and {@link RangeMode#FIT} widens it
+	 * to {@link #MIN_BACKGROUND_PIXELS} purely for visibility), leaving the
+	 * min field a pixel or two off the swatch it is supposed to sit against.
+	 */
+	private int backgroundBarWidthPixels()
+	{
+		if ( !model.isTreatMinAsBackground() )
+			return 0;
+		final int left = plotLeft();
+		final int right = plotRight();
+		int px = left;
+		while ( px < right && isBackgroundForPreview( pixelXToValue( px ) ) )
+			px++;
+		return px - left;
 	}
 
 	/**
@@ -180,6 +226,9 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		this.rangeMax = max;
 		minField.setText( formatValue( min ) );
 		maxField.setText( formatValue( max ) );
+		// The range scales raw values to pixels, so it also changes how wide
+		// the background swatch is -- re-place the min field, not just repaint.
+		revalidate();
 		repaint();
 	}
 
@@ -539,10 +588,17 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			else
 				argb = ColorTableLut.lookupARGB( palette, 0, 255, ( int ) Math.round( t * 255.0 ), matching );
 			g.setColor( new Color( argb ) );
-			g.drawLine( barLeft, py, barLeft + COLORBAR_WIDTH, py );
+			// fillRect, not drawLine: the stroke is whatever the last caller
+			// left set (drawCurve uses 2px) and antialiasing is on, which
+			// together smear each 1px row across its neighbours instead of
+			// laying down the exact color.
+			g.fillRect( barLeft, py, COLORBAR_WIDTH + 1, 1 );
 		}
 
 		g.setColor( new Color( 120, 120, 120 ) );
+		// Explicit 1px stroke: whatever was set last (drawCurve leaves 2px)
+		// would otherwise be antialiased over the bar's own edge columns.
+		g.setStroke( new BasicStroke( 1 ) );
 		g.drawRect( barLeft, top, COLORBAR_WIDTH, bottom - top );
 
 		g.setColor( Color.DARK_GRAY );
@@ -606,10 +662,15 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 					argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, matching );
 			}
 			g.setColor( new Color( argb ) );
-			g.drawLine( px, top, px, bottom );
+			// fillRect rather than drawLine -- see drawOutputColorBar. Crisp
+			// columns also make the background swatch's right edge exact,
+			// which is what #backgroundBarWidthPixels measures against.
+			g.fillRect( px, top, 1, bottom - top + 1 );
 		}
 
 		g.setColor( new Color( 120, 120, 120 ) );
+		// See drawOutputColorBar's border for why the stroke is set explicitly.
+		g.setStroke( new BasicStroke( 1 ) );
 		g.drawRect( left, top, right - left, bottom - top );
 
 		// The min (t=0) and max (t=1) ticks are editable input boxes instead of
