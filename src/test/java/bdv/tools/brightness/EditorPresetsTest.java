@@ -156,6 +156,33 @@ public class EditorPresetsTest
 	}
 
 	/**
+	 * Regression test: when there is no user-preset directory at all --
+	 * which is what happens for real when running from a packaged jar, whose
+	 * {@code jar:} resource URL cannot become a {@link java.io.File} -- the
+	 * read paths must degrade to "no user-saved presets" rather than
+	 * throwing. Previously they threw, which took down the whole LUT editor
+	 * dialog (it builds the preset combo during construction), including the
+	 * built-in presets that don't need a writable directory at all.
+	 * <p>
+	 * Simulated here by pointing the directory override at a path that does
+	 * not exist; the jar case reaches the same {@code null} directory by a
+	 * different route.
+	 */
+	@Test
+	public void testReadPathsDegradeWhenNoUserDirectoryExists()
+	{
+		System.setProperty( EditorPresets.USER_DIR_OVERRIDE_PROPERTY,
+				new java.io.File( tmp.getRoot(), "does-not-exist" ).getAbsolutePath() );
+
+		// Built-in presets still discoverable and loadable...
+		Assert.assertTrue( EditorPresets.discoverNames().contains( "Labels (Cyclic, tab10)" ) );
+		Assert.assertNotNull( EditorPresets.load( "Labels (Cyclic, tab10)" ) );
+		// ...and nothing is reported as user-defined.
+		Assert.assertFalse( EditorPresets.isUserDefined( "Labels (Cyclic, tab10)" ) );
+		Assert.assertFalse( EditorPresets.isUserDefined( "anything" ) );
+	}
+
+	/**
 	 * A preset name with filesystem-significant characters must not let a
 	 * save escape the user directory (e.g. via {@code ../}) or otherwise
 	 * fail -- it should just round-trip through {@link EditorPresets#load}
