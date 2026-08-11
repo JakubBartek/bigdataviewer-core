@@ -39,7 +39,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
@@ -177,18 +179,54 @@ public final class LutPalettes
 	 * from a converter, which doesn't otherwise remember which resource (if
 	 * any) it was originally loaded from.
 	 */
-	public static String findName( final ColorTable ct )
+	public static synchronized String findName( final ColorTable ct )
 	{
 		if ( !( ct instanceof ColorTableLut ) )
 			return null;
-		for ( final String name : discoverNames() )
+		final ColorTableLut lut = ( ColorTableLut ) ct;
+		for ( final Map.Entry< String, ColorTable > candidate : cachedPalettes().entrySet() )
 		{
-			final ColorTable candidate = load( name );
-			if ( candidate != null && ( ( ColorTableLut ) ct ).hasSameColors( candidate ) )
-				return name;
+			// getLength() is just an array length, so checking it first skips
+			// the full component-by-component comparison for all but the few
+			// bundled palettes that happen to have the same color count.
+			final ColorTable table = candidate.getValue();
+			if ( table.getLength() == lut.getLength() && lut.hasSameColors( table ) )
+				return candidate.getKey();
 		}
 		return null;
 	}
+
+	/**
+	 * Every bundled palette, parsed once and kept for the life of the
+	 * process. Only {@link #findName} uses this: it would otherwise re-read
+	 * and re-parse all ~40 resources on every call, and it is called on the
+	 * EDT each time the LUT editor's selected source changes.
+	 * <p>
+	 * Deliberately not shared with {@link #load(String)}, which keeps
+	 * returning an independent instance per call -- these tables are handed
+	 * out to converters that may hold them indefinitely, so a single shared
+	 * instance per name would silently alias unrelated sources together.
+	 * (Safe to cache here regardless, since the bundled resources cannot
+	 * change while the process runs.)
+	 */
+	private static Map< String, ColorTable > cachedPalettes()
+	{
+		if ( cachedPalettes == null )
+		{
+			final Map< String, ColorTable > palettes = new LinkedHashMap<>();
+			for ( final String name : discoverNames() )
+			{
+				final ColorTable ct = load( name );
+				if ( ct != null )
+					palettes.put( name, ct );
+			}
+			cachedPalettes = palettes;
+		}
+		return cachedPalettes;
+	}
+
+	/** Guarded by {@code LutPalettes.class}, via {@link #findName}. */
+	private static Map< String, ColorTable > cachedPalettes = null;
 
 	/**
 	 * Read and parse the named LUT resource's root JSON object, or

@@ -144,7 +144,7 @@ public final class EditorPresets
 	private static File userFile( final String name )
 	{
 		final String dir = userDir();
-		return dir == null ? null : new File( dir, sanitizeFileName( name ) + RESOURCE_EXTENSION );
+		return dir == null ? null : new File( dir, canonicalName( name ) + RESOURCE_EXTENSION );
 	}
 
 	/**
@@ -239,7 +239,7 @@ public final class EditorPresets
 			}
 		}
 
-		final String path = BUILTIN_RESOURCE_DIR + "/" + name + RESOURCE_EXTENSION;
+		final String path = BUILTIN_RESOURCE_DIR + "/" + canonicalName( name ) + RESOURCE_EXTENSION;
 		try ( final InputStream is = EditorPresets.class.getClassLoader().getResourceAsStream( path ) )
 		{
 			if ( is == null )
@@ -263,13 +263,23 @@ public final class EditorPresets
 	 * 		{@link #resolveBuiltinResourceDir()}); unlike the read paths,
 	 * 		which just degrade to "no user-saved presets", saving cannot
 	 * 		silently do nothing.
+	 * @throws IllegalArgumentException
+	 * 		if the preset's name is not already {@link #canonicalName canonical}
+	 * 		-- filing it under a different name than it carries would make
+	 * 		{@link #discoverNames()} (which reads names off file names)
+	 * 		disagree with {@link EditorPreset#getName()}.
 	 */
 	public static void save( final EditorPreset preset )
 	{
-		final File file = userFile( preset.getName() );
+		final String name = preset.getName();
+		if ( !canonicalName( name ).equals( name ) )
+			throw new IllegalArgumentException( "Preset name \"" + name + "\" is not canonical; "
+					+ "pass EditorPresets.canonicalName(...) through first (would be \"" + canonicalName( name ) + "\")" );
+
+		final File file = userFile( name );
 		if ( file == null )
 			throw new IllegalStateException( "No writable settings directory available"
-					+ " (running from a packaged jar?); cannot save \"" + preset.getName() + "\"" );
+					+ " (running from a packaged jar?); cannot save \"" + name + "\"" );
 		file.getParentFile().mkdirs();
 		try ( final FileWriter writer = new FileWriter( file ) )
 		{
@@ -281,11 +291,20 @@ public final class EditorPresets
 	}
 
 	/**
-	 * Turn a user-chosen preset name into a safe file name: path separators
-	 * and other filesystem-significant characters would otherwise let a
-	 * preset name escape {@link #userDir()} or collide with it.
+	 * A preset's canonical name: trimmed, with path separators and other
+	 * filesystem-significant characters replaced, since a preset is
+	 * identified by its file name and those would otherwise let it escape
+	 * {@link #userDir()} or collide with something there.
+	 * <p>
+	 * Public because callers must canonicalize a user-typed name
+	 * <em>before</em> comparing it against {@link #discoverNames()} or
+	 * storing it in an {@link EditorPreset}: names there are always already
+	 * canonical (they come from file names), so comparing a raw name against
+	 * them would miss an existing preset, and storing a raw name would leave
+	 * {@link EditorPreset#getName()} disagreeing with the name this class
+	 * actually files it under.
 	 */
-	private static String sanitizeFileName( final String name )
+	public static String canonicalName( final String name )
 	{
 		return name.trim().replaceAll( "[\\\\/:*?\"<>|]", "_" );
 	}

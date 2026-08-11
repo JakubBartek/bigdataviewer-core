@@ -163,4 +163,28 @@ public class LutPalettesTest
 	{
 		Assert.assertNull( LutPalettes.findName( new net.imglib2.display.ColorTable8() ) );
 	}
+
+	/**
+	 * {@link LutPalettes#findName} caches the parsed palettes internally (it
+	 * is called on the EDT on every source change, and would otherwise
+	 * re-parse every bundled resource each time). That cache must not leak
+	 * into {@link LutPalettes#load}, which callers rely on to hand out an
+	 * independent instance per call -- see
+	 * {@link #testLoadIsIndependentAcrossCalls}, whose contract this pins
+	 * down again specifically after findName has populated the cache.
+	 */
+	@Test
+	public void testFindNameCacheDoesNotAliasLoadedInstances()
+	{
+		Assert.assertEquals( "tab10", LutPalettes.findName( LutPalettes.load( "tab10" ) ) );
+
+		final ColorTable first = LutPalettes.load( "tab10" );
+		final ColorTable second = LutPalettes.load( "tab10" );
+		Assert.assertNotSame( first, second );
+
+		// Repeated lookups keep working (i.e. the cache is actually reusable,
+		// not consumed by the first call).
+		Assert.assertEquals( "tab10", LutPalettes.findName( first ) );
+		Assert.assertEquals( "viridis", LutPalettes.findName( LutPalettes.load( "viridis" ) ) );
+	}
 }

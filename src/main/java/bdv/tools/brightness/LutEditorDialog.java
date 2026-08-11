@@ -830,20 +830,28 @@ public class LutEditorDialog extends JDialog
 	 */
 	private void promptAndSaveEditorPreset()
 	{
+		// Checked before prompting: nothing the user could type would make a
+		// palette-less setting saveable, so asking for a name first would
+		// only waste their time.
+		if ( currentPaletteName == null )
+		{
+			labelStatus.setText( "Select a named palette before saving a setting." );
+			return;
+		}
+
 		final Object selected = comboEditorPreset.getSelectedItem();
 		final Object input = JOptionPane.showInputDialog( this, "Setting name:", "Save Setting",
 				JOptionPane.PLAIN_MESSAGE, null, null, selected instanceof String ? selected : "" );
 		if ( input == null )
 			return;
-		final String name = ( ( String ) input ).trim();
+		// Canonicalize up front: a preset is identified by its file name, so
+		// this is the name it will actually be stored and listed under -- and
+		// the only form that can be meaningfully compared against
+		// discoverNames() just below.
+		final String name = EditorPresets.canonicalName( ( String ) input );
 		if ( name.isEmpty() )
 		{
 			labelStatus.setText( "Setting name cannot be empty." );
-			return;
-		}
-		if ( currentPaletteName == null )
-		{
-			labelStatus.setText( "Select a named palette before saving a setting." );
 			return;
 		}
 		if ( EditorPresets.discoverNames().contains( name ) )

@@ -184,17 +184,60 @@ public class EditorPresetsTest
 
 	/**
 	 * A preset name with filesystem-significant characters must not let a
-	 * save escape the user directory (e.g. via {@code ../}) or otherwise
-	 * fail -- it should just round-trip through {@link EditorPresets#load}
-	 * like any other name.
+	 * save escape the user directory (e.g. via {@code ../}). Canonicalizing
+	 * replaces those characters, and the canonical form is what the preset
+	 * is stored, listed and loaded under.
 	 */
 	@Test
-	public void testSaveSanitizesUnsafeCharactersInName()
+	public void testCanonicalNameReplacesUnsafeCharacters()
 	{
-		final String unsafeName = "weird/name:with*chars?";
-		EditorPresets.save( sample( unsafeName ) );
+		Assert.assertEquals( "weird_name_with_chars_", EditorPresets.canonicalName( "weird/name:with*chars?" ) );
+		Assert.assertEquals( "trimmed", EditorPresets.canonicalName( "  trimmed  " ) );
+		// Already-canonical names are left exactly as they are.
+		Assert.assertEquals( "Labels (Cyclic, tab10)", EditorPresets.canonicalName( "Labels (Cyclic, tab10)" ) );
+	}
 
-		Assert.assertEquals( unsafeName, EditorPresets.load( unsafeName ).getName() );
+	@Test
+	public void testSaveRoundTripsCanonicalizedUnsafeName()
+	{
+		final String canonical = EditorPresets.canonicalName( "weird/name:with*chars?" );
+		EditorPresets.save( sample( canonical ) );
+
+		Assert.assertEquals( canonical, EditorPresets.load( canonical ).getName() );
 		Assert.assertTrue( Arrays.asList( tmp.getRoot().list() ).stream().allMatch( f -> f.endsWith( ".json" ) ) );
+	}
+
+	/**
+	 * Regression test: a preset's own name must match the name it is filed
+	 * (and therefore listed) under, so {@link EditorPresets#discoverNames()}
+	 * -- which reads names off file names -- can never disagree with
+	 * {@link EditorPreset#getName()}. Saving a non-canonical name used to
+	 * silently file it elsewhere, which also made the caller's
+	 * "already exists?" check against discoverNames() miss and overwrite
+	 * without asking.
+	 */
+	@Test
+	public void testSaveRejectsNonCanonicalName()
+	{
+		try
+		{
+			EditorPresets.save( sample( "weird/name" ) );
+			Assert.fail( "expected IllegalArgumentException for a non-canonical preset name" );
+		}
+		catch ( final IllegalArgumentException expected )
+		{
+			// message should point at the canonical form to use instead
+			Assert.assertTrue( expected.getMessage(), expected.getMessage().contains( "weird_name" ) );
+		}
+	}
+
+	@Test
+	public void testDiscoverNamesAgreesWithSavedPresetsOwnName()
+	{
+		final String canonical = EditorPresets.canonicalName( "a/b:c" );
+		EditorPresets.save( sample( canonical ) );
+
+		Assert.assertTrue( EditorPresets.discoverNames().contains( canonical ) );
+		Assert.assertEquals( canonical, EditorPresets.load( canonical ).getName() );
 	}
 }
