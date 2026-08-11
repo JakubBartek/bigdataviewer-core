@@ -85,16 +85,24 @@ public class MappingModel
 	private ValueMatching valueMatching = ValueMatching.INTERPOLATE;
 
 	/**
+	 * Value of {@link #cyclicPeriod} meaning "derive the period automatically
+	 * from whichever palette is passed in" (see {@link #effectiveCyclicPeriod}).
+	 * Named rather than a bare {@code 0} at each call site because it is a
+	 * sentinel, not a period: passing it somewhere expecting a real period
+	 * would divide by zero.
+	 */
+	public static final double AUTO_CYCLIC_PERIOD = 0;
+
+	/**
 	 * Number of raw input units one full cycle spans in {@link RangeMode#CYCLIC}
 	 * (see {@link #cyclicPosition}), independent of the palette's actual color
-	 * count. {@code 0} (the default) means "derive it automatically from
-	 * whichever palette is passed in" -- i.e. exactly the old, fixed behavior
-	 * from before this was configurable -- so {@link LutEditorDialog}'s
-	 * "Period" field can show that derived number as its own starting point
-	 * without this model needing to know about palettes at all; setting it to
-	 * anything greater than {@code 0} overrides that.
+	 * count. {@link #AUTO_CYCLIC_PERIOD} (the default) derives it from the
+	 * palette instead -- i.e. exactly the old, fixed behavior from before
+	 * this was configurable -- so {@link LutEditorDialog}'s "Period" field
+	 * can show that derived number as its own starting point without this
+	 * model needing to know about palettes at all.
 	 */
-	private double cyclicPeriod = 0;
+	private double cyclicPeriod = AUTO_CYCLIC_PERIOD;
 
 	private MappingPreset preset;
 
@@ -147,19 +155,26 @@ public class MappingModel
 	}
 
 	/**
-	 * The configured cycle period; see the field javadoc for what {@code 0}
-	 * means. Use {@link #effectiveCyclicPeriod} to resolve that to an actual
-	 * number of raw units for a given palette.
+	 * The configured cycle period, possibly the {@link #AUTO_CYCLIC_PERIOD}
+	 * sentinel -- so this is <em>not</em> safe to use as a period directly;
+	 * call {@link #effectiveCyclicPeriod} to resolve it against a palette
+	 * first, or check {@link #isAutoCyclicPeriod()}.
 	 */
 	public double getCyclicPeriod()
 	{
 		return cyclicPeriod;
 	}
 
+	/** Whether the period follows the palette's own color count (the default) rather than an explicitly set value. */
+	public boolean isAutoCyclicPeriod()
+	{
+		return cyclicPeriod <= AUTO_CYCLIC_PERIOD;
+	}
+
 	/**
 	 * Set the {@link RangeMode#CYCLIC} cycle period explicitly, in raw input
-	 * units; {@code 0} reverts to the automatic, palette-color-count-derived
-	 * default (see the field javadoc).
+	 * units; {@link #AUTO_CYCLIC_PERIOD} reverts to the automatic,
+	 * palette-color-count-derived default (see the field javadoc).
 	 */
 	public void setCyclicPeriod( final double cyclicPeriod )
 	{
@@ -179,7 +194,7 @@ public class MappingModel
 	 */
 	public double effectiveCyclicPeriod( final double[] colorPositions )
 	{
-		return cyclicPeriod > 0 ? cyclicPeriod : colorPositions.length;
+		return isAutoCyclicPeriod() ? colorPositions.length : cyclicPeriod;
 	}
 
 	/**

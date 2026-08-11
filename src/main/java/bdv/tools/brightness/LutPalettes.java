@@ -42,7 +42,8 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import com.google.gson.JsonArray;
@@ -91,7 +92,7 @@ public final class LutPalettes
 			if ( dirUrl == null )
 				return names;
 			final URI uri = dirUrl.toURI();
-			final TreeMap< String, String > sorted = new TreeMap<>( String.CASE_INSENSITIVE_ORDER );
+			final TreeSet< String > sorted = new TreeSet<>( String.CASE_INSENSITIVE_ORDER );
 			if ( "jar".equals( uri.getScheme() ) )
 			{
 				try ( final FileSystem fs = FileSystems.newFileSystem( uri, Collections.emptyMap() );
@@ -106,7 +107,7 @@ public final class LutPalettes
 					collectNames( paths, sorted );
 				}
 			}
-			names.addAll( sorted.keySet() );
+			names.addAll( sorted );
 		} catch ( final Exception e )
 		{
 			e.printStackTrace();
@@ -114,13 +115,13 @@ public final class LutPalettes
 		return names;
 	}
 
-	private static void collectNames( final Stream< Path > paths, final TreeMap< String, String > sorted )
+	private static void collectNames( final Stream< Path > paths, final Set< String > sorted )
 	{
 		paths.filter( p -> p.toString().endsWith( LUT_RESOURCE_EXTENSION ) )
 				.forEach( p ->
 				{
 					final String fn = p.getFileName().toString();
-					sorted.put( fn.substring( 0, fn.length() - LUT_RESOURCE_EXTENSION.length() ), fn );
+					sorted.add( fn.substring( 0, fn.length() - LUT_RESOURCE_EXTENSION.length() ) );
 				} );
 	}
 

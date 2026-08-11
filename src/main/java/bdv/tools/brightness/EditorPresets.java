@@ -45,7 +45,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.TreeMap;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import com.google.gson.Gson;
@@ -155,7 +156,7 @@ public final class EditorPresets
 	 */
 	public static List< String > discoverNames()
 	{
-		final TreeMap< String, String > sorted = new TreeMap<>( String.CASE_INSENSITIVE_ORDER );
+		final TreeSet< String > sorted = new TreeSet<>( String.CASE_INSENSITIVE_ORDER );
 		try
 		{
 			final URL dirUrl = EditorPresets.class.getClassLoader().getResource( BUILTIN_RESOURCE_DIR );
@@ -188,20 +189,21 @@ public final class EditorPresets
 		{
 			for ( final File f : userFiles )
 				if ( f.getName().endsWith( RESOURCE_EXTENSION ) )
-					sorted.put( f.getName().substring( 0, f.getName().length() - RESOURCE_EXTENSION.length() ), f.getName() );
+					sorted.add( stripExtension( f.getName() ) );
 		}
 
-		return new ArrayList<>( sorted.keySet() );
+		return new ArrayList<>( sorted );
 	}
 
-	private static void collectNames( final Stream< Path > paths, final TreeMap< String, String > sorted )
+	private static void collectNames( final Stream< Path > paths, final Set< String > sorted )
 	{
 		paths.filter( p -> p.toString().endsWith( RESOURCE_EXTENSION ) )
-				.forEach( p ->
-				{
-					final String fn = p.getFileName().toString();
-					sorted.put( fn.substring( 0, fn.length() - RESOURCE_EXTENSION.length() ), fn );
-				} );
+				.forEach( p -> sorted.add( stripExtension( p.getFileName().toString() ) ) );
+	}
+
+	private static String stripExtension( final String fileName )
+	{
+		return fileName.substring( 0, fileName.length() - RESOURCE_EXTENSION.length() );
 	}
 
 	/**

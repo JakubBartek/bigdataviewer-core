@@ -44,6 +44,7 @@ import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -243,10 +244,32 @@ public class LutEditorDialog extends JDialog
 	/** Whether the editor currently differs from {@link #baselinePalette} etc., i.e. has edits since the last "Apply" (or load) that closing now would discard. */
 	private boolean isDirty()
 	{
-		return currentPalette != baselinePalette
+		return !samePaletteAsBaseline()
 				|| editedRangeMin != baselineRangeMin
 				|| editedRangeMax != baselineRangeMax
 				|| !mappingModel.hasSameState( baselineMapping );
+	}
+
+	/**
+	 * Whether {@link #currentPalette} is the same palette as
+	 * {@link #baselinePalette} -- deliberately not object identity:
+	 * {@link LutPalettes#load} returns a fresh instance per call, so
+	 * re-picking the palette that is already selected would otherwise count
+	 * as an edit and pop the "Discard unapplied changes?" prompt on close.
+	 * <p>
+	 * Named palettes compare by name (two different names are two different
+	 * palettes, even in the unlikely case their colors coincide); an unnamed
+	 * one -- e.g. loaded from a converter set up elsewhere, see
+	 * {@link #loadIntoEditor} -- has only its colors to go on.
+	 */
+	private boolean samePaletteAsBaseline()
+	{
+		if ( currentPalette == baselinePalette )
+			return true;
+		if ( currentPaletteName != null || baselinePaletteName != null )
+			return Objects.equals( currentPaletteName, baselinePaletteName );
+		return currentPalette instanceof ColorTableLut
+				&& ( ( ColorTableLut ) currentPalette ).hasSameColors( baselinePalette );
 	}
 
 	/**
@@ -520,7 +543,7 @@ public class LutEditorDialog extends JDialog
 			// picking a palette always overrides value matching above --
 			// rather than silently keeping a period sized for the previous,
 			// possibly differently-sized, palette.
-			mappingModel.setCyclicPeriod( 0 );
+			mappingModel.setCyclicPeriod( MappingModel.AUTO_CYCLIC_PERIOD );
 			updateCyclicPeriodFieldText();
 		} );
 

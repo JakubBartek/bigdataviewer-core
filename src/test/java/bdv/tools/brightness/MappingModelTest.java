@@ -512,8 +512,10 @@ public class MappingModelTest
 
 		for ( final boolean treatMinAsBackground : new boolean[] { false, true } )
 		{
-			double prev = min + ( treatMinAsBackground ? 1 : 0 );
-			for ( double v = prev; v <= prev + 12; v += 0.25 )
+			final double start = min + ( treatMinAsBackground ? 1 : 0 );
+			final double end = start + 3 * period;
+			double prev = start;
+			for ( double v = start; v <= end; v += 0.25 )
 			{
 				final boolean indexChanged =
 						MappingModel.cycleIndex( v, min, period, treatMinAsBackground )
@@ -780,6 +782,31 @@ public class MappingModelTest
 		model.setValueMatching( ValueMatching.TRUNCATE );
 		for ( double v = 0; v < 100; v += 7.3 )
 			Assert.assertEquals( "v=" + v, model.mapToLutIndex( v, 0, 100, positions ), model.mapToLutIndexForColor( v, 0, 100, positions ) );
+	}
+
+	/**
+	 * The {@code 0} sentinel is easy to mistake for a real period (passing it
+	 * to {@link MappingModel#cyclicPosition} would divide by zero), so pin
+	 * down that {@link MappingModel#isAutoCyclicPeriod()} and
+	 * {@link MappingModel#effectiveCyclicPeriod} agree about what it means.
+	 */
+	@Test
+	public void testAutoCyclicPeriodResolvesToPaletteColorCount()
+	{
+		final MappingModel model = new MappingModel();
+		Assert.assertTrue( model.isAutoCyclicPeriod() );
+		Assert.assertEquals( 10, model.effectiveCyclicPeriod( uniform( 10 ) ), 1e-9 );
+		Assert.assertEquals( 4, model.effectiveCyclicPeriod( uniform( 4 ) ), 1e-9 );
+
+		model.setCyclicPeriod( 25 );
+		Assert.assertFalse( model.isAutoCyclicPeriod() );
+		// No longer follows the palette at all.
+		Assert.assertEquals( 25, model.effectiveCyclicPeriod( uniform( 10 ) ), 1e-9 );
+		Assert.assertEquals( 25, model.effectiveCyclicPeriod( uniform( 4 ) ), 1e-9 );
+
+		model.setCyclicPeriod( MappingModel.AUTO_CYCLIC_PERIOD );
+		Assert.assertTrue( model.isAutoCyclicPeriod() );
+		Assert.assertEquals( 10, model.effectiveCyclicPeriod( uniform( 10 ) ), 1e-9 );
 	}
 
 	@Test
