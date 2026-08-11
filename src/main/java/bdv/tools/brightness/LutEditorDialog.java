@@ -75,14 +75,20 @@ import bdv.viewer.ViewerState;
 import net.imglib2.display.ColorTable;
 
 /**
- * A LUT editor dialog. It separates two independent concerns:
+ * A LUT editor dialog, laid out as three stacked panels:
  * <ul>
+ * <li><b>Setting</b>: a saved, reusable combination of everything below
+ * except the input value range (see {@link EditorPreset}), which can be
+ * applied in one step or saved back under a name of the user's choosing.</li>
  * <li><b>Data</b>: which source/setup is being edited, and which color
  * palette (LUT) is used to render it.</li>
  * <li><b>Mapping</b>: how a raw source value is turned into an index into
  * that palette, via a user-editable curve over the source's display
  * range.</li>
  * </ul>
+ * Edits take effect in the viewer immediately (see {@link #pushLiveEdits()});
+ * "Apply" moves the revert-to baseline forward, and closing without it
+ * restores that baseline (see {@link #setVisible(boolean)}).
  */
 public class LutEditorDialog extends JDialog
 {
@@ -279,7 +285,7 @@ public class LutEditorDialog extends JDialog
 	private JComboBox< Object > createPaletteCombo()
 	{
 		final JComboBox< Object > combo = createGroupedCombo( "Select Palette" );
-		final PaletteComboModel model = ( PaletteComboModel ) combo.getModel();
+		final GroupedComboModel model = ( GroupedComboModel ) combo.getModel();
 		for ( final Map.Entry< String, List< String > > category : LutCategories.groupByCategory( LutPalettes.discoverNames() ).entrySet() )
 		{
 			model.addElement( new CategoryHeader( category.getKey() ) );
@@ -309,7 +315,7 @@ public class LutEditorDialog extends JDialog
 	 */
 	private static void refreshEditorPresetCombo( final JComboBox< Object > combo )
 	{
-		final PaletteComboModel model = ( PaletteComboModel ) combo.getModel();
+		final GroupedComboModel model = ( GroupedComboModel ) combo.getModel();
 		final Object previouslySelected = combo.getSelectedItem();
 
 		final List< String > userDefined = new ArrayList<>();
@@ -336,14 +342,14 @@ public class LutEditorDialog extends JDialog
 
 	/**
 	 * A combo box that renders {@link CategoryHeader} items as bold,
-	 * unselectable group labels (see {@link PaletteComboModel}) among regular
+	 * unselectable group labels (see {@link GroupedComboModel}) among regular
 	 * {@code String} items, showing {@code placeholderText} when nothing is
 	 * selected. Shared by {@link #createPaletteCombo()} and
 	 * {@link #createEditorPresetCombo()}.
 	 */
 	private static JComboBox< Object > createGroupedCombo( final String placeholderText )
 	{
-		final JComboBox< Object > combo = new JComboBox<>( new PaletteComboModel() );
+		final JComboBox< Object > combo = new JComboBox<>( new GroupedComboModel() );
 		combo.setRenderer( new DefaultListCellRenderer()
 		{
 			@Override
@@ -1117,8 +1123,10 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * A non-selectable row in {@link #comboPalette}, labeling the group of
-	 * palette names that follow it (see {@link LutCategories}).
+	 * A non-selectable row in a {@link #createGroupedCombo grouped combo},
+	 * labeling the names that follow it: a {@link LutCategories} category in
+	 * {@link #comboPalette}, or built-in vs. user-saved in
+	 * {@link #comboEditorPreset}.
 	 */
 	private static final class CategoryHeader
 	{
@@ -1143,7 +1151,7 @@ public class LutEditorDialog extends JDialog
 	 * The header rows still show up in the dropdown list itself, just not
 	 * as something that can be "chosen".
 	 */
-	private static final class PaletteComboModel extends DefaultComboBoxModel< Object >
+	private static final class GroupedComboModel extends DefaultComboBoxModel< Object >
 	{
 		@Override
 		public void setSelectedItem( final Object item )

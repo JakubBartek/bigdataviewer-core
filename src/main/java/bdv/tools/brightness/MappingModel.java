@@ -40,8 +40,8 @@ import java.util.List;
  * <li>{@link RangeMode#FIT}: the value is clamped against the given
  * [min, max] range.</li>
  * <li>{@link RangeMode#CYCLIC}: the value cycles with a period of
- * {@link #getCyclicPeriod()} raw input units (by default, the palette's own
- * color count -- see that method), anchored at min (a value of exactly min
+ * {@link #effectiveCyclicPeriod} raw input units (by default, the palette's
+ * own color count), anchored at min (a value of exactly min
  * always gets the palette's first color) and otherwise ignoring min/max. An
  * integer number of colors' worth past min lands exactly on a palette color,
  * wrapping once per full period (e.g. label/segmentation ids cycling through
@@ -85,8 +85,8 @@ public class MappingModel
 	private ValueMatching valueMatching = ValueMatching.INTERPOLATE;
 
 	/**
-	 * Value of {@link #cyclicPeriod} meaning "derive the period automatically
-	 * from whichever palette is passed in" (see {@link #effectiveCyclicPeriod}).
+	 * Value meaning "derive the period automatically from whichever palette is
+	 * passed in" (see {@link #effectiveCyclicPeriod}, {@link #isAutoCyclicPeriod()}).
 	 * Named rather than a bare {@code 0} at each call site because it is a
 	 * sentinel, not a period: passing it somewhere expecting a real period
 	 * would divide by zero.
@@ -184,13 +184,13 @@ public class MappingModel
 
 	/**
 	 * The actual {@link RangeMode#CYCLIC} period to use with a given
-	 * palette's {@code colorPositions}: {@link #cyclicPeriod} if explicitly
-	 * set (greater than {@code 0}), otherwise that array's own length.
-	 * Public (unlike {@link #cyclicPeriod} being an implementation detail
-	 * otherwise) since {@link MappingCurvePanel} needs this same resolution
-	 * -- e.g. for {@link #cyclicPosition} -- and {@link #getCyclicPeriod()}
-	 * alone (which can be the {@code 0} "auto" sentinel) is not safe to pass
-	 * there directly.
+	 * palette's {@code colorPositions}: the explicitly set period, or -- when
+	 * {@link #isAutoCyclicPeriod()} -- that array's own length.
+	 * <p>
+	 * Public because {@link MappingCurvePanel} needs this same resolution
+	 * (e.g. to draw the curve the way it is actually applied), and
+	 * {@link #getCyclicPeriod()} alone is not safe to pass anywhere expecting
+	 * a real period: it may be the {@link #AUTO_CYCLIC_PERIOD} sentinel.
 	 */
 	public double effectiveCyclicPeriod( final double[] colorPositions )
 	{
@@ -214,9 +214,9 @@ public class MappingModel
 	 * when this option is off). This is always exactly 1 raw unit wide,
 	 * deliberately independent of {@link #getCyclicPeriod()}: the background
 	 * cutoff is defined purely by {@code min} as entered by the user, not by
-	 * whatever period happens to be configured (see {@link #cyclicOffset},
-	 * which anchors the color cycle to start right after this same fixed
-	 * 1-unit reservation, regardless of period).
+	 * whatever period happens to be configured. The color cycle itself starts
+	 * right after this same fixed 1-unit reservation, regardless of period
+	 * (see {@link #cycleIndex}).
 	 * <p>
 	 * The {@code [min, min + 1)} part is not just the exact point
 	 * {@code value == min}: {@link #cyclicPosition} only defines specific
