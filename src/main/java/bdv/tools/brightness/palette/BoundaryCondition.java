@@ -40,7 +40,7 @@ package bdv.tools.brightness.palette;
  * <p>
  * Deliberately owned by the wrapper, not the color scheme it wraps: a color
  * scheme already has its own fixed edge behavior for an out-of-domain value
- * (see {@code IColorScheme}, which always clamps), but boundary handling is a
+ * (see {@code ColorScheme}, which always clamps), but boundary handling is a
  * raw-value-mapping concern, kept out of the color scheme so it can stay
  * ignorant of anything upstream of a palette value.
  */

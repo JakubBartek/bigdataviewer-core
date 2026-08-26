@@ -29,7 +29,7 @@ package bdv.tools.brightness.palette;
 
 import java.util.Objects;
 
-import bdv.tools.brightness.colorscheme.IColorScheme;
+import bdv.tools.brightness.colorscheme.ColorScheme;
 
 /**
  * Shared boundary-condition state and {@code rawValue -> color} mechanics for
@@ -41,11 +41,11 @@ import bdv.tools.brightness.colorscheme.IColorScheme;
  * color scheme.
  * <p>
  * The two differ only in what "the domain" means and how a raw value crosses
- * into a palette value, which is exactly what the package-private hooks below
+ * into a palette value, which is exactly what the hooks below
  * abstract: the discrete wrapper's domain is half-open (its color scheme's is
  * {@code [0, N)}) and it converts with {@code (rawValue - min) / stepSize}; the
  * continuous wrapper's is closed (its color scheme's is
- * {@code [0, delkaIntervalu]}) and it converts through a
+ * {@code [0, paletteRangeLength]}) and it converts through a
  * {@code PresetFunc}.
  * <p>
  * Package-private: an implementation detail shared by the two public wrappers,
@@ -70,8 +70,11 @@ abstract class AbstractPaletteWrapper
 
 	// -- hooks ---------------------------------------------------------------
 
-	/** The color scheme a resolved palette value is finally looked up in. */
-	abstract IColorScheme colorScheme();
+	/**
+	 * The color scheme a resolved palette value is finally looked up in.
+	 * Subclasses narrow the return type to the concrete scheme they wrap.
+	 */
+	public abstract ColorScheme getColorScheme();
 
 	/** Raw value at the start of this wrapper's domain, i.e. the one mapping to palette value {@code 0}. */
 	abstract float rawDomainMin();
@@ -158,21 +161,21 @@ abstract class AbstractPaletteWrapper
 
 	/**
 	 * The color for a raw image value: {@link #getPaletteValueForRaw(float)},
-	 * looked up in {@link #colorScheme()} with alpha forced fully opaque.
+	 * looked up in {@link #getColorScheme()} with alpha forced fully opaque.
 	 */
 	public final int getRGBForRaw( final float rawValue )
 	{
-		return colorScheme().getRGB( getPaletteValueForRaw( rawValue ) );
+		return getColorScheme().getRGB( getPaletteValueForRaw( rawValue ) );
 	}
 
 	/**
 	 * Like {@link #getRGBForRaw(float)}, but carrying the color stop's own
 	 * alpha component instead of forcing full opacity -- see
-	 * {@link IColorScheme#getRGBA(float)}.
+	 * {@link ColorScheme#getRGBA(float)}.
 	 */
 	public final int getRGBAForRaw( final float rawValue )
 	{
-		return colorScheme().getRGBA( getPaletteValueForRaw( rawValue ) );
+		return getColorScheme().getRGBA( getPaletteValueForRaw( rawValue ) );
 	}
 
 	private float applyBoundary( final BoundaryCondition condition, final float rawValue, final float specialValue )
@@ -192,10 +195,23 @@ abstract class AbstractPaletteWrapper
 		}
 	}
 
-	/** {@code rawValue} wrapped back into {@code [rawDomainMin(), rawDomainMax())}. */
+	/**
+	 * {@code rawValue} wrapped back into {@code [rawDomainMin(), rawDomainMax())}.
+	 * <p>
+	 * Uses the "remainder, then add the modulus back if still negative" idiom
+	 * (as {@code MappingModel#cyclicOffset} already does) rather than a plain
+	 * {@code %}, which returns a <em>negative</em> result for a negative
+	 * dividend -- e.g. {@code -0.5 % 3 == -0.5}, still outside the domain it
+	 * was supposed to wrap into. {@link Math#floorMod(int, int)} would be the
+	 * ready-made equivalent, but it has no floating-point overload.
+	 */
 	private float cycled( final float rawValue )
 	{
 		final float domainMin = rawDomainMin();
-		return domainMin + FloatMath.floorMod( rawValue - domainMin, rawDomainMax() - domainMin );
+		final float period = rawDomainMax() - domainMin;
+		float offset = ( rawValue - domainMin ) % period;
+		if ( offset < 0 )
+			offset += period;
+		return domainMin + offset;
 	}
 }

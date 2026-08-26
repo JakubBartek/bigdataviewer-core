@@ -37,9 +37,9 @@ public class AtanPresetFunc extends AbstractPresetFunc
 {
 	private static final double K = 6.0;
 
-	public AtanPresetFunc( final float min, final float max, final float delkaIntervalu )
+	public AtanPresetFunc( final float min, final float max, final int paletteRangeLength )
 	{
-		super( min, max, delkaIntervalu );
+		super( min, max, paletteRangeLength );
 	}
 
 	@Override

@@ -37,9 +37,9 @@ public class TanPresetFunc extends AbstractPresetFunc
 {
 	private static final double K = 1.4;
 
-	public TanPresetFunc( final float min, final float max, final float delkaIntervalu )
+	public TanPresetFunc( final float min, final float max, final int paletteRangeLength )
 	{
-		super( min, max, delkaIntervalu );
+		super( min, max, paletteRangeLength );
 	}
 
 	@Override

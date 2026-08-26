@@ -67,8 +67,8 @@ public class ContinuousPaletteWrapper extends AbstractPaletteWrapper
 	 *                               entirely there (see the class javadoc).
 	 * @param leftBoundaryCondition  applied when {@code rawValue < presetFunc.getMin()}.
 	 * @param rightBoundaryCondition applied when {@code rawValue > presetFunc.getMax()}.
-	 * @throws IllegalArgumentException if {@code presetFunc.getDelkaIntervalu()} does not match
-	 *                                  {@code colorScheme.getDelkaIntervalu()} -- the preset function would
+	 * @throws IllegalArgumentException if {@code presetFunc.getPaletteRangeLength()} does not match
+	 *                                  {@code colorScheme.getPaletteRangeLength()} -- the preset function would
 	 *                                  then be scaling its output to a different domain than the color
 	 *                                  scheme actually has.
 	 */
@@ -78,7 +78,7 @@ public class ContinuousPaletteWrapper extends AbstractPaletteWrapper
 		super( leftBoundaryCondition, rightBoundaryCondition );
 		this.colorScheme = Objects.requireNonNull( colorScheme, "colorScheme" );
 		this.presetFunc = Objects.requireNonNull( presetFunc, "presetFunc" );
-		requireMatchingDelkaIntervalu( colorScheme, presetFunc );
+		requireMatchingPaletteRangeLength( colorScheme, presetFunc );
 	}
 
 	/**
@@ -90,7 +90,7 @@ public class ContinuousPaletteWrapper extends AbstractPaletteWrapper
 	}
 
 	@Override
-	ContinuousColorScheme colorScheme()
+	public ContinuousColorScheme getColorScheme()
 	{
 		return colorScheme;
 	}
@@ -107,7 +107,7 @@ public class ContinuousPaletteWrapper extends AbstractPaletteWrapper
 		return presetFunc.getMax();
 	}
 
-	/** The continuous domain is closed ({@code [0, delkaIntervalu]}), so {@link #rawDomainMax()} itself is still inside it. */
+	/** The continuous domain is closed ({@code [0, paletteRangeLength]}), so {@link #rawDomainMax()} itself is still inside it. */
 	@Override
 	boolean isAboveDomain( final float rawValue )
 	{
@@ -120,16 +120,11 @@ public class ContinuousPaletteWrapper extends AbstractPaletteWrapper
 		return presetFunc.getPaletteValueForRaw( rawValue );
 	}
 
-	public ContinuousColorScheme getColorScheme()
-	{
-		return colorScheme;
-	}
-
-	/** @throws IllegalArgumentException if the new color scheme's {@code getDelkaIntervalu()} no longer matches {@link #getPresetFunc()}'s. */
+	/** @throws IllegalArgumentException if the new color scheme's {@code getPaletteRangeLength()} no longer matches {@link #getPresetFunc()}'s. */
 	public void setColorScheme( final ContinuousColorScheme colorScheme )
 	{
 		Objects.requireNonNull( colorScheme, "colorScheme" );
-		requireMatchingDelkaIntervalu( colorScheme, presetFunc );
+		requireMatchingPaletteRangeLength( colorScheme, presetFunc );
 		this.colorScheme = colorScheme;
 	}
 
@@ -138,18 +133,18 @@ public class ContinuousPaletteWrapper extends AbstractPaletteWrapper
 		return presetFunc;
 	}
 
-	/** @throws IllegalArgumentException if the new preset function's {@code getDelkaIntervalu()} no longer matches {@link #getColorScheme()}'s. */
+	/** @throws IllegalArgumentException if the new preset function's {@code getPaletteRangeLength()} no longer matches {@link #getColorScheme()}'s. */
 	public void setPresetFunc( final PresetFunc presetFunc )
 	{
 		Objects.requireNonNull( presetFunc, "presetFunc" );
-		requireMatchingDelkaIntervalu( colorScheme, presetFunc );
+		requireMatchingPaletteRangeLength( colorScheme, presetFunc );
 		this.presetFunc = presetFunc;
 	}
 
-	private static void requireMatchingDelkaIntervalu( final ContinuousColorScheme colorScheme, final PresetFunc presetFunc )
+	private static void requireMatchingPaletteRangeLength( final ContinuousColorScheme colorScheme, final PresetFunc presetFunc )
 	{
-		if ( colorScheme.getDelkaIntervalu() != presetFunc.getDelkaIntervalu() )
-			throw new IllegalArgumentException( "colorScheme.getDelkaIntervalu() (" + colorScheme.getDelkaIntervalu() +
-					") must match presetFunc.getDelkaIntervalu() (" + presetFunc.getDelkaIntervalu() + ")" );
+		if ( colorScheme.getPaletteRangeLength() != presetFunc.getPaletteRangeLength() )
+			throw new IllegalArgumentException( "colorScheme.getPaletteRangeLength() (" + colorScheme.getPaletteRangeLength() +
+					") must match presetFunc.getPaletteRangeLength() (" + presetFunc.getPaletteRangeLength() + ")" );
 	}
 }

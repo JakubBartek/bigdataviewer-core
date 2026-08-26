@@ -40,10 +40,10 @@ import org.junit.Test;
  */
 public class TanPresetFuncTest
 {
-	/** min=100, max=200, delkaIntervalu=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
 	private static TanPresetFunc scaled()
 	{
-		return new TanPresetFunc( 100f, 200f, 10f );
+		return new TanPresetFunc( 100f, 200f, 10 );
 	}
 
 	@Test
@@ -72,7 +72,7 @@ public class TanPresetFuncTest
 	public void testRisesFasterNearTheEdgesThanLinear()
 	{
 		final TanPresetFunc tan = scaled();
-		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10f );
+		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10 );
 
 		Assert.assertTrue( tan.getPaletteValueForRaw( 145f ) > linear.getPaletteValueForRaw( 145f ) );
 		Assert.assertTrue( tan.getPaletteValueForRaw( 155f ) < linear.getPaletteValueForRaw( 155f ) );

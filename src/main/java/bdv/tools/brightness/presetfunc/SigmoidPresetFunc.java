@@ -35,9 +35,9 @@ public class SigmoidPresetFunc extends AbstractPresetFunc
 {
 	private static final double K = 10.0;
 
-	public SigmoidPresetFunc( final float min, final float max, final float delkaIntervalu )
+	public SigmoidPresetFunc( final float min, final float max, final int paletteRangeLength )
 	{
-		super( min, max, delkaIntervalu );
+		super( min, max, paletteRangeLength );
 	}
 
 	@Override

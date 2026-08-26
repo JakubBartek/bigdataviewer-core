@@ -39,9 +39,9 @@ public class PercentileStretchPresetFunc extends AbstractPresetFunc
 
 	private static final double HI = 0.98;
 
-	public PercentileStretchPresetFunc( final float min, final float max, final float delkaIntervalu )
+	public PercentileStretchPresetFunc( final float min, final float max, final int paletteRangeLength )
 	{
-		super( min, max, delkaIntervalu );
+		super( min, max, paletteRangeLength );
 	}
 
 	@Override

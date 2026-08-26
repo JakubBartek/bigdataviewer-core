@@ -40,10 +40,10 @@ import org.junit.Test;
  */
 public class SigmoidPresetFuncTest
 {
-	/** min=100, max=200, delkaIntervalu=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
 	private static SigmoidPresetFunc scaled()
 	{
-		return new SigmoidPresetFunc( 100f, 200f, 10f );
+		return new SigmoidPresetFunc( 100f, 200f, 10 );
 	}
 
 	@Test
@@ -67,7 +67,7 @@ public class SigmoidPresetFuncTest
 	public void testRisesFasterThroughTheMiddleThanLinear()
 	{
 		final SigmoidPresetFunc sigmoid = scaled();
-		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10f );
+		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10 );
 
 		// Just past the midpoint, sigmoid should already be further along than linear.
 		Assert.assertTrue( sigmoid.getPaletteValueForRaw( 155f ) > linear.getPaletteValueForRaw( 155f ) );

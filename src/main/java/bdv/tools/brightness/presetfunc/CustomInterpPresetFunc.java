@@ -38,7 +38,7 @@ import java.util.Objects;
  * function's own domain fraction -- {@code t} is how far across
  * {@code [getMin(), getMax()]} the knot sits (0 at {@link #getMin()}, 1 at
  * {@link #getMax()}), and {@code value} is how far across the palette-value
- * range the knot sits (0 at palette value 0, 1 at {@link #getDelkaIntervalu()}).
+ * range the knot sits (0 at palette value 0, 1 at {@link #getPaletteRangeLength()}).
  * Deliberately <em>not</em> raw values, palette values, or window/UI pixel
  * coordinates: a caller that has any of those (e.g. a future curve-editing
  * widget working in on-screen pixels) converts to this normalized {@code [0,1]}
@@ -62,11 +62,11 @@ import java.util.Objects;
  * decreasing curve would come back increasing, and a deliberately flat one
  * would divide by zero. So a {@code CustomInterpPresetFunc} may map
  * {@link #getMin()}/{@link #getMax()} to something other than {@code 0}/
- * {@link #getDelkaIntervalu()} (whatever its outermost knots say), and may be
+ * {@link #getPaletteRangeLength()} (whatever its outermost knots say), and may be
  * decreasing or flat; every other {@link PresetFunc} still guarantees the
  * exact endpoints. Knot values are constrained to {@code [0, 1]} instead, so
  * a palette value this produces still lands in
- * {@code [0, getDelkaIntervalu()]}.
+ * {@code [0, getPaletteRangeLength()]}.
  * <p>
  * This flat/clamped extrapolation is a property of the shape between {@code
  * t = 0} and {@code t = 1} -- it has nothing to do with, and does not
@@ -82,9 +82,9 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 	private double[] knotValues;
 
 	/** Starts with two knots, {@code (0, 0)} and {@code (1, 1)} -- the same shape as {@link LinearPresetFunc} until {@link #setKnots(double[], double[])} is called. */
-	public CustomInterpPresetFunc( final float min, final float max, final float delkaIntervalu )
+	public CustomInterpPresetFunc( final float min, final float max, final int paletteRangeLength )
 	{
-		super( min, max, delkaIntervalu );
+		super( min, max, paletteRangeLength );
 		setKnots( new double[] { 0.0, 1.0 }, new double[] { 0.0, 1.0 } );
 	}
 

@@ -38,13 +38,13 @@ import java.util.function.DoubleUnaryOperator;
  * mirrored here with the same constants for the same curve shapes -- see
  * each subclass); this class handles normalizing a raw value into that
  * {@code [0, 1]} domain and rescaling the result into
- * {@code [0, getDelkaIntervalu()]}.
+ * {@code [0, getPaletteRangeLength()]}.
  * <p>
  * Not built on {@code MappingModel}/{@code Curve}: those exist to drive an
  * interactively-draggable, {@code [0, 255]}-output, 9-point piecewise-linear
  * <em>approximation</em> of a shape, for a UI that lets a user further hand-edit
  * it -- a different job from computing a shape's exact value at an arbitrary
- * point over an arbitrary {@code [0, getDelkaIntervalu()]} output range, which
+ * point over an arbitrary {@code [0, getPaletteRangeLength()]} output range, which
  * is all a {@link PresetFunc} needs to do. The shape formulas themselves are
  * copied verbatim (same constants) from {@code MappingPreset} rather than
  * shared by reference, to avoid a dependency from this new, self-contained
@@ -56,18 +56,18 @@ abstract class AbstractPresetFunc implements PresetFunc
 
 	private final float max;
 
-	private final float delkaIntervalu;
+	private final int paletteRangeLength;
 
-	AbstractPresetFunc( final float min, final float max, final float delkaIntervalu )
+	AbstractPresetFunc( final float min, final float max, final int paletteRangeLength )
 	{
 		if ( !( max > min ) )
 			throw new IllegalArgumentException( "max must be strictly greater than min, got min=" + min + ", max=" + max );
-		if ( !( delkaIntervalu > 0 ) )
-			throw new IllegalArgumentException( "delkaIntervalu must be strictly positive, got " + delkaIntervalu );
+		if ( paletteRangeLength <= 0 )
+			throw new IllegalArgumentException( "paletteRangeLength must be strictly positive, got " + paletteRangeLength );
 
 		this.min = min;
 		this.max = max;
-		this.delkaIntervalu = delkaIntervalu;
+		this.paletteRangeLength = paletteRangeLength;
 	}
 
 	@Override
@@ -83,9 +83,9 @@ abstract class AbstractPresetFunc implements PresetFunc
 	}
 
 	@Override
-	public final float getDelkaIntervalu()
+	public final int getPaletteRangeLength()
 	{
-		return delkaIntervalu;
+		return paletteRangeLength;
 	}
 
 	@Override
@@ -93,7 +93,7 @@ abstract class AbstractPresetFunc implements PresetFunc
 	{
 		final float t = ( rawValue - min ) / ( max - min );
 		final float clampedT = Math.max( 0f, Math.min( 1f, t ) );
-		return ( float ) ( shape( clampedT ) * delkaIntervalu );
+		return ( float ) ( shape( clampedT ) * paletteRangeLength );
 	}
 
 	/**

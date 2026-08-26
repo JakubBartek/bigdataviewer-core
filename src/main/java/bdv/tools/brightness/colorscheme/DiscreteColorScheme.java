@@ -34,7 +34,7 @@ import net.imglib2.display.ColorTable;
  * them -- suited to qualitative/categorical palettes (e.g. label ids), where
  * each stop is its own distinct color rather than a point on a gradient.
  * <p>
- * {@link #getDelkaIntervalu()} is {@code N}; the valid palette-value domain is
+ * {@link #getPaletteRangeLength()} is {@code N}; the valid palette-value domain is
  * the half-open interval {@code [0, N)}. A palette value is truncated
  * (floored) to the stop whose unit-wide slot it falls into: for {@code N = 3},
  * {@code 0} and {@code 0.99} both land on stop {@code 0}, {@code 2.99} lands
@@ -56,7 +56,7 @@ public class DiscreteColorScheme extends AbstractColorScheme
 	}
 
 	@Override
-	public int getDelkaIntervalu()
+	public int getPaletteRangeLength()
 	{
 		return stops.length;
 	}

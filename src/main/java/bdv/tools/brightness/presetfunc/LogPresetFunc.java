@@ -25,34 +25,25 @@
  * POSSIBILITY OF SUCH DAMAGE.
  * #L%
  */
-package bdv.tools.brightness.palette;
+package bdv.tools.brightness.presetfunc;
 
 /**
- * Small numeric helpers shared by the {@code *PaletteWrapper} classes in this
- * package, split out to avoid duplicating {@link #floorMod(float, float)}
- * between {@link DiscretePaletteWrapper} and {@link ContinuousPaletteWrapper}
- * (both need it for {@link BoundaryCondition#CYCLE}).
+ * Rises quickly near the low end, then flattens out -- boosts detail in dark
+ * raw values at the expense of bright ones. Same shape and steepness
+ * ({@code k = 20}) as {@code MappingPreset#LOG}.
  */
-final class FloatMath
+public class LogPresetFunc extends AbstractPresetFunc
 {
-	private FloatMath()
+	private static final double K = 20.0;
+
+	public LogPresetFunc( final float min, final float max, final int paletteRangeLength )
 	{
+		super( min, max, paletteRangeLength );
 	}
 
-	/**
-	 * Floating-point equivalent of {@link Math#floorMod(int, int)} (which has
-	 * no float overload): wraps {@code value} into {@code [0, modulus)}.
-	 * Unlike Java's {@code %} operator, which returns a <em>negative</em>
-	 * result for a negative {@code value} (e.g. {@code -0.5 % 3 == -0.5}, still
-	 * outside the domain it was supposed to wrap into) -- the same
-	 * "remainder, then add the modulus back if still negative" idiom already
-	 * used for cyclic wrapping in {@code MappingModel#cyclicOffset}.
-	 */
-	static float floorMod( final float value, final float modulus )
+	@Override
+	double shape( final double t )
 	{
-		float m = value % modulus;
-		if ( m < 0 )
-			m += modulus;
-		return m;
+		return Math.log1p( K * t ) / Math.log1p( K );
 	}
 }

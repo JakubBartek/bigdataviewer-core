@@ -41,10 +41,10 @@ import org.junit.Test;
  */
 public class PercentileStretchPresetFuncTest
 {
-	/** min=100, max=200, delkaIntervalu=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
 	private static PercentileStretchPresetFunc scaled()
 	{
-		return new PercentileStretchPresetFunc( 100f, 200f, 10f );
+		return new PercentileStretchPresetFunc( 100f, 200f, 10 );
 	}
 
 	@Test
@@ -65,7 +65,7 @@ public class PercentileStretchPresetFuncTest
 		Assert.assertEquals( 0f, f.getPaletteValueForRaw( 101.9f ), 1e-4f );
 	}
 
-	/** Above t=0.98 (raw 198) the shape is flat-clipped to exactly delkaIntervalu, same as at t=1. */
+	/** Above t=0.98 (raw 198) the shape is flat-clipped to exactly paletteRangeLength, same as at t=1. */
 	@Test
 	public void testClipsFlatAboveTheNinetyEightPercentile()
 	{

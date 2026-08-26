@@ -29,70 +29,84 @@ package bdv.tools.brightness.presetfunc;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 /**
  * Test cases for behavior every {@link PresetFunc} implementation shares
- * (constructor validation, {@code getMin}/{@code getMax}/{@code getDelkaIntervalu},
- * and the {@code shape(0) == 0}/{@code shape(1) == 1} endpoint guarantee),
- * checked generically across all eight implementations rather than repeating
- * it in each one's own test class -- their individual test classes instead
- * focus on what is actually distinctive about each: its shape in between.
+ * (constructor validation, {@code getMin}/{@code getMax}/{@code getPaletteRangeLength},
+ * and the endpoint guarantee), checked generically across all of them rather
+ * than repeating it in each one's own test class -- their individual test
+ * classes instead focus on what is actually distinctive about each: its shape
+ * in between.
  */
 public class AbstractPresetFuncTest
 {
-	/** One constructor reference per implementation, so the endpoint/getter tests below run against all eight without repeating them by hand. */
-	private static final List< Function< float[], PresetFunc > > ALL_CONSTRUCTORS = Arrays.asList(
-			args -> new LinearPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
-			args -> new PercentileStretchPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
-			args -> new LogarithmicPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
-			args -> new ExponentialPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
-			args -> new SigmoidPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
-			args -> new AlphaSigmoidPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
-			args -> new TanPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
-			args -> new AtanPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
-			args -> new CustomInterpPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ) );
+	/** Mirrors every concrete {@link PresetFunc} constructor, so a test can build any of them from one fixture. */
+	@FunctionalInterface
+	private interface PresetFuncFactory
+	{
+		PresetFunc create( float min, float max, int paletteRangeLength );
+	}
+
+	/** One constructor reference per implementation, so the tests below run against all of them without repeating themselves by hand. */
+	private static final List< PresetFuncFactory > ALL_CONSTRUCTORS = Arrays.asList(
+			LinearPresetFunc::new,
+			PercentileStretchPresetFunc::new,
+			LogPresetFunc::new,
+			ExpPresetFunc::new,
+			SigmoidPresetFunc::new,
+			AlphaSigmoidPresetFunc::new,
+			TanPresetFunc::new,
+			AtanPresetFunc::new,
+			CustomInterpPresetFunc::new );
+
+	/** The shared fixture: raw [100, 200] onto palette values [0, 10]. */
+	private static PresetFunc build( final PresetFuncFactory factory )
+	{
+		return factory.create( 100f, 200f, 10 );
+	}
 
 	@Test
 	public void testGettersReturnConstructorArguments()
 	{
-		for ( final Function< float[], PresetFunc > ctor : ALL_CONSTRUCTORS )
+		for ( final PresetFuncFactory factory : ALL_CONSTRUCTORS )
 		{
-			final PresetFunc f = ctor.apply( new float[] { 100f, 200f, 10f } );
+			final PresetFunc f = build( factory );
 			Assert.assertEquals( f.getClass().getSimpleName(), 100f, f.getMin(), 0f );
 			Assert.assertEquals( f.getClass().getSimpleName(), 200f, f.getMax(), 0f );
-			Assert.assertEquals( f.getClass().getSimpleName(), 10f, f.getDelkaIntervalu(), 0f );
+			Assert.assertEquals( f.getClass().getSimpleName(), 10, f.getPaletteRangeLength() );
 		}
 	}
 
 	/**
-	 * Every shape is normalized so its two ends land exactly on palette value
-	 * {@code 0} and {@code getDelkaIntervalu()} -- this is what lets a
-	 * {@code ContinuousPaletteWrapper} later rely on any {@link PresetFunc}
-	 * feeding a continuous color scheme's full domain, regardless of which
-	 * shape was chosen.
+	 * Each shape's two ends land exactly on palette value {@code 0} and
+	 * {@code getPaletteRangeLength()} -- this is what lets a
+	 * {@code ContinuousPaletteWrapper} rely on a {@link PresetFunc} feeding a
+	 * continuous color scheme's full domain, regardless of which shape was
+	 * chosen. {@link CustomInterpPresetFunc} only guarantees this for its
+	 * default knots (which is what {@link #build} produces); see its own test
+	 * class for why a user-defined curve is deliberately exempt.
 	 */
 	@Test
-	public void testEveryShapeReachesExactlyZeroAndDelkaIntervaluAtTheEnds()
+	public void testEveryShapeReachesExactlyZeroAndPaletteRangeLengthAtTheEnds()
 	{
-		for ( final Function< float[], PresetFunc > ctor : ALL_CONSTRUCTORS )
+		for ( final PresetFuncFactory factory : ALL_CONSTRUCTORS )
 		{
-			final PresetFunc f = ctor.apply( new float[] { 100f, 200f, 10f } );
+			final PresetFunc f = build( factory );
 			Assert.assertEquals( f.getClass().getSimpleName(), 0f, f.getPaletteValueForRaw( 100f ), 1e-4f );
 			Assert.assertEquals( f.getClass().getSimpleName(), 10f, f.getPaletteValueForRaw( 200f ), 1e-4f );
 		}
 	}
 
-	/** Values outside [min, max] are not an error: they clamp to the nearest end, same as {@code IColorScheme} clamps an out-of-domain palette value. */
+	/** Values outside [min, max] are not an error: they clamp to the nearest end, same as {@code ColorScheme} clamps an out-of-domain palette value. */
 	@Test
 	public void testOutOfRangeRawValuesClampToTheNearestEnd()
 	{
-		for ( final Function< float[], PresetFunc > ctor : ALL_CONSTRUCTORS )
+		for ( final PresetFuncFactory factory : ALL_CONSTRUCTORS )
 		{
-			final PresetFunc f = ctor.apply( new float[] { 100f, 200f, 10f } );
+			final PresetFunc f = build( factory );
 			Assert.assertEquals( f.getClass().getSimpleName(), 0f, f.getPaletteValueForRaw( 0f ), 1e-4f );
 			Assert.assertEquals( f.getClass().getSimpleName(), 0f, f.getPaletteValueForRaw( -1000f ), 1e-4f );
 			Assert.assertEquals( f.getClass().getSimpleName(), 10f, f.getPaletteValueForRaw( 1000f ), 1e-4f );
@@ -100,34 +114,41 @@ public class AbstractPresetFuncTest
 		}
 	}
 
+	/** Every implementation rejects an empty or inverted raw range, not just the one spot-checked below. */
 	@Test
 	public void testConstructorRejectsMaxNotGreaterThanMin()
 	{
-		for ( final float[] badRange : new float[][] { { 5f, 5f, 10f }, { 5f, 4f, 10f } } )
+		for ( final PresetFuncFactory factory : ALL_CONSTRUCTORS )
 		{
-			try
+			for ( final float[] badRange : new float[][] { { 5f, 5f }, { 5f, 4f }, { 5f, Float.NaN } } )
 			{
-				new LinearPresetFunc( badRange[ 0 ], badRange[ 1 ], badRange[ 2 ] );
-				Assert.fail( "expected IllegalArgumentException for min=" + badRange[ 0 ] + ", max=" + badRange[ 1 ] );
-			}
-			catch ( final IllegalArgumentException expected )
-			{
+				try
+				{
+					factory.create( badRange[ 0 ], badRange[ 1 ], 10 );
+					Assert.fail( "expected IllegalArgumentException for min=" + badRange[ 0 ] + ", max=" + badRange[ 1 ] );
+				}
+				catch ( final IllegalArgumentException expected )
+				{
+				}
 			}
 		}
 	}
 
 	@Test
-	public void testConstructorRejectsNonPositiveDelkaIntervalu()
+	public void testConstructorRejectsNonPositivePaletteRangeLength()
 	{
-		for ( final float bad : new float[] { 0f, -1f, Float.NaN } )
+		for ( final PresetFuncFactory factory : ALL_CONSTRUCTORS )
 		{
-			try
+			for ( final int bad : new int[] { 0, -1 } )
 			{
-				new LinearPresetFunc( 0f, 1f, bad );
-				Assert.fail( "expected IllegalArgumentException for delkaIntervalu=" + bad );
-			}
-			catch ( final IllegalArgumentException expected )
-			{
+				try
+				{
+					factory.create( 0f, 1f, bad );
+					Assert.fail( "expected IllegalArgumentException for paletteRangeLength=" + bad );
+				}
+				catch ( final IllegalArgumentException expected )
+				{
+				}
 			}
 		}
 	}

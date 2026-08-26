@@ -37,9 +37,9 @@ public class AlphaSigmoidPresetFunc extends AbstractPresetFunc
 {
 	private static final double ALPHA = 0.5;
 
-	public AlphaSigmoidPresetFunc( final float min, final float max, final float delkaIntervalu )
+	public AlphaSigmoidPresetFunc( final float min, final float max, final int paletteRangeLength )
 	{
-		super( min, max, delkaIntervalu );
+		super( min, max, paletteRangeLength );
 	}
 
 	@Override

@@ -40,10 +40,10 @@ import org.junit.Test;
  */
 public class AlphaSigmoidPresetFuncTest
 {
-	/** min=100, max=200, delkaIntervalu=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
 	private static AlphaSigmoidPresetFunc scaled()
 	{
-		return new AlphaSigmoidPresetFunc( 100f, 200f, 10f );
+		return new AlphaSigmoidPresetFunc( 100f, 200f, 10 );
 	}
 
 	@Test
@@ -72,7 +72,7 @@ public class AlphaSigmoidPresetFuncTest
 	public void testRisesFasterNearTheEdgesThanLinear()
 	{
 		final AlphaSigmoidPresetFunc alphaSigmoid = scaled();
-		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10f );
+		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10 );
 
 		Assert.assertTrue( alphaSigmoid.getPaletteValueForRaw( 145f ) > linear.getPaletteValueForRaw( 145f ) );
 		Assert.assertTrue( alphaSigmoid.getPaletteValueForRaw( 155f ) < linear.getPaletteValueForRaw( 155f ) );

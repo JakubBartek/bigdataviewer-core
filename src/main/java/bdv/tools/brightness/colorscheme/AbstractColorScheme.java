@@ -34,11 +34,11 @@ import net.imglib2.type.numeric.ARGBType;
  * Shared color-stop storage and RGB/RGBA mechanics for
  * {@link DiscreteColorScheme} and {@link ContinuousColorScheme}: the two only
  * differ in how a palette value resolves to a stop (or a blend of two) --
- * see {@link #colorAt(float)} -- and in {@link IColorScheme#getDelkaIntervalu()}.
+ * see {@link #colorAt(float)} -- and in {@link ColorScheme#getPaletteRangeLength()}.
  * Package-private: an implementation detail, not part of the public API in
- * {@link IColorScheme}.
+ * {@link ColorScheme}.
  */
-abstract class AbstractColorScheme implements IColorScheme
+abstract class AbstractColorScheme implements ColorScheme
 {
 	/** Color stops, packed ARGB (see {@link ARGBType#rgba(int, int, int, int)}); always at least 2. */
 	final int[] stops;
@@ -90,7 +90,7 @@ abstract class AbstractColorScheme implements IColorScheme
 	/**
 	 * The packed ARGB color at {@code paletteValue}. {@code paletteValue} is
 	 * not assumed to already be inside this scheme's domain -- implementations
-	 * clamp it themselves, so a value outside {@code [0, getDelkaIntervalu()]}
+	 * clamp it themselves, so a value outside {@code [0, getPaletteRangeLength()]}
 	 * (or half-open equivalent) resolves to its nearest edge stop rather than
 	 * throwing or reading out of bounds.
 	 */

@@ -31,36 +31,36 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Test cases for {@link LogarithmicPresetFunc}. Endpoint and out-of-range
+ * Test cases for {@link LogPresetFunc}. Endpoint and out-of-range
  * behavior shared by every {@link PresetFunc} is covered generically by
  * {@link AbstractPresetFuncTest}; this only checks the shape distinctive to
  * this class. Expected values computed independently from the exact same
  * formula {@code MappingPreset#LOG} uses ({@code k = 20}), not derived from
  * this implementation.
  */
-public class LogarithmicPresetFuncTest
+public class LogPresetFuncTest
 {
-	/** min=100, max=200, delkaIntervalu=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
-	private static LogarithmicPresetFunc scaled()
+	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	private static LogPresetFunc scaled()
 	{
-		return new LogarithmicPresetFunc( 100f, 200f, 10f );
+		return new LogPresetFunc( 100f, 200f, 10 );
 	}
 
 	@Test
 	public void testShapeAtRepresentativeValues()
 	{
-		final LogarithmicPresetFunc f = scaled();
+		final LogPresetFunc f = scaled();
 		Assert.assertEquals( 5.88519f, f.getPaletteValueForRaw( 125f ), 1e-3f );
 		Assert.assertEquals( 7.87610f, f.getPaletteValueForRaw( 150f ), 1e-3f );
 		Assert.assertEquals( 9.10681f, f.getPaletteValueForRaw( 175f ), 1e-3f );
 	}
 
-	/** Rises quickly near the low end: past the midpoint it must already be well past half of delkaIntervalu, unlike a linear ramp. */
+	/** Rises quickly near the low end: past the midpoint it must already be well past half of paletteRangeLength, unlike a linear ramp. */
 	@Test
 	public void testRisesFasterThanLinearNearTheLowEnd()
 	{
-		final LogarithmicPresetFunc log = scaled();
-		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10f );
+		final LogPresetFunc log = scaled();
+		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10 );
 
 		Assert.assertTrue( log.getPaletteValueForRaw( 110f ) > linear.getPaletteValueForRaw( 110f ) );
 	}
@@ -69,7 +69,7 @@ public class LogarithmicPresetFuncTest
 	@Test
 	public void testFlattensOutNearTheHighEnd()
 	{
-		final LogarithmicPresetFunc f = scaled();
+		final LogPresetFunc f = scaled();
 		final float gainFirstQuarter = f.getPaletteValueForRaw( 125f ) - f.getPaletteValueForRaw( 100f );
 		final float gainLastQuarter = f.getPaletteValueForRaw( 200f ) - f.getPaletteValueForRaw( 175f );
 		Assert.assertTrue( gainLastQuarter < gainFirstQuarter );

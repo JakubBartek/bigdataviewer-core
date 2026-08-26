@@ -52,11 +52,11 @@ public class DiscreteColorSchemeTest
 	}
 
 	@Test
-	public void testDelkaIntervaluEqualsStopCount()
+	public void testPaletteRangeLengthEqualsStopCount()
 	{
-		Assert.assertEquals( 3, threeStops().getDelkaIntervalu() );
-		Assert.assertEquals( 2, new DiscreteColorScheme( new int[] { RED, GREEN } ).getDelkaIntervalu() );
-		Assert.assertEquals( 10, new DiscreteColorScheme( new int[ 10 ] ).getDelkaIntervalu() );
+		Assert.assertEquals( 3, threeStops().getPaletteRangeLength() );
+		Assert.assertEquals( 2, new DiscreteColorScheme( new int[] { RED, GREEN } ).getPaletteRangeLength() );
+		Assert.assertEquals( 10, new DiscreteColorScheme( new int[ 10 ] ).getPaletteRangeLength() );
 	}
 
 	@Test
@@ -148,7 +148,7 @@ public class DiscreteColorSchemeTest
 
 		final DiscreteColorScheme scheme = new DiscreteColorScheme( tab10 );
 
-		Assert.assertEquals( tab10.getLength(), scheme.getDelkaIntervalu() );
+		Assert.assertEquals( tab10.getLength(), scheme.getPaletteRangeLength() );
 		for ( int i = 0; i < tab10.getLength(); i++ )
 		{
 			final int expected = ARGBType.rgba(

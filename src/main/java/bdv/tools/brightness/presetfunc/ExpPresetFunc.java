@@ -30,16 +30,16 @@ package bdv.tools.brightness.presetfunc;
 /**
  * Stays low through most of the range, then rises quickly near the high end
  * -- boosts detail in bright raw values at the expense of dark ones (the
- * mirror image of {@link LogarithmicPresetFunc}). Same shape and steepness
+ * mirror image of {@link LogPresetFunc}). Same shape and steepness
  * ({@code k = 4}) as {@code MappingPreset#EXP}.
  */
-public class ExponentialPresetFunc extends AbstractPresetFunc
+public class ExpPresetFunc extends AbstractPresetFunc
 {
 	private static final double K = 4.0;
 
-	public ExponentialPresetFunc( final float min, final float max, final float delkaIntervalu )
+	public ExpPresetFunc( final float min, final float max, final int paletteRangeLength )
 	{
-		super( min, max, delkaIntervalu );
+		super( min, max, paletteRangeLength );
 	}
 
 	@Override

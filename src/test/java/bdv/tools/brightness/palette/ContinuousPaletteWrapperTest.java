@@ -32,9 +32,9 @@ import org.junit.Test;
 
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.presetfunc.CustomInterpPresetFunc;
-import bdv.tools.brightness.presetfunc.ExponentialPresetFunc;
+import bdv.tools.brightness.presetfunc.ExpPresetFunc;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
-import bdv.tools.brightness.presetfunc.LogarithmicPresetFunc;
+import bdv.tools.brightness.presetfunc.LogPresetFunc;
 import bdv.tools.brightness.presetfunc.PresetFunc;
 import bdv.tools.brightness.presetfunc.SigmoidPresetFunc;
 import net.imglib2.type.numeric.ARGBType;
@@ -59,20 +59,20 @@ public class ContinuousPaletteWrapperTest
 	/** raw in [100, 200] maps onto palette values [0, 2], matching {@link #threeStops()}'s domain exactly. */
 	private static LinearPresetFunc linear()
 	{
-		return new LinearPresetFunc( 100f, 200f, 2f );
+		return new LinearPresetFunc( 100f, 200f, 2 );
 	}
 
 	// -- construction --------------------------------------------------------
 
 	@Test
-	public void testConstructorRejectsMismatchedDelkaIntervalu()
+	public void testConstructorRejectsMismatchedPaletteRangeLength()
 	{
-		// threeStops() has delkaIntervalu 2, this preset function has 3 -- they must agree.
-		final PresetFunc mismatched = new LinearPresetFunc( 100f, 200f, 3f );
+		// threeStops() has paletteRangeLength 2, this preset function has 3 -- they must agree.
+		final PresetFunc mismatched = new LinearPresetFunc( 100f, 200f, 3 );
 		try
 		{
 			new ContinuousPaletteWrapper( threeStops(), mismatched );
-			Assert.fail( "expected IllegalArgumentException for mismatched getDelkaIntervalu()" );
+			Assert.fail( "expected IllegalArgumentException for mismatched getPaletteRangeLength()" );
 		}
 		catch ( final IllegalArgumentException expected )
 		{
@@ -189,7 +189,7 @@ public class ContinuousPaletteWrapperTest
 		// opaque, matching ContinuousColorScheme#getRGB (not #getRGBA).
 		final int translucentRed = ARGBType.rgba( 255, 0, 0, 100 );
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { translucentRed, GREEN } );
-		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 1f ) );
+		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 1 ) );
 
 		Assert.assertEquals( 255, ARGBType.alpha( wrapper.getRGBForRaw( 0f ) ) );
 	}
@@ -200,7 +200,7 @@ public class ContinuousPaletteWrapperTest
 	{
 		final int translucentRed = ARGBType.rgba( 255, 0, 0, 100 );
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { translucentRed, GREEN } );
-		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 1f ) );
+		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 1 ) );
 
 		Assert.assertEquals( 100, ARGBType.alpha( wrapper.getRGBAForRaw( 0f ) ) );
 		// Boundary handling applies to the RGBA path identically.
@@ -231,14 +231,14 @@ public class ContinuousPaletteWrapperTest
 	@Test
 	public void testWorksWithEveryPresetFuncImplementationUniformly()
 	{
-		final CustomInterpPresetFunc custom = new CustomInterpPresetFunc( 100f, 200f, 2f );
+		final CustomInterpPresetFunc custom = new CustomInterpPresetFunc( 100f, 200f, 2 );
 		custom.setKnots( new double[] { 0.0, 0.5, 1.0 }, new double[] { 0.0, 0.9, 1.0 } );
 
 		final PresetFunc[] presetFuncs = {
-				new LinearPresetFunc( 100f, 200f, 2f ),
-				new SigmoidPresetFunc( 100f, 200f, 2f ),
-				new LogarithmicPresetFunc( 100f, 200f, 2f ),
-				new ExponentialPresetFunc( 100f, 200f, 2f ),
+				new LinearPresetFunc( 100f, 200f, 2 ),
+				new SigmoidPresetFunc( 100f, 200f, 2 ),
+				new LogPresetFunc( 100f, 200f, 2 ),
+				new ExpPresetFunc( 100f, 200f, 2 ),
 				custom };
 
 		for ( final PresetFunc presetFunc : presetFuncs )
@@ -262,8 +262,8 @@ public class ContinuousPaletteWrapperTest
 	@Test
 	public void testDifferentPresetFuncsProduceDifferentColorsForTheSameRawValue()
 	{
-		final ContinuousPaletteWrapper linearWrapper = new ContinuousPaletteWrapper( threeStops(), new LinearPresetFunc( 100f, 200f, 2f ) );
-		final ContinuousPaletteWrapper logWrapper = new ContinuousPaletteWrapper( threeStops(), new LogarithmicPresetFunc( 100f, 200f, 2f ) );
+		final ContinuousPaletteWrapper linearWrapper = new ContinuousPaletteWrapper( threeStops(), new LinearPresetFunc( 100f, 200f, 2 ) );
+		final ContinuousPaletteWrapper logWrapper = new ContinuousPaletteWrapper( threeStops(), new LogPresetFunc( 100f, 200f, 2 ) );
 
 		Assert.assertNotEquals( linearWrapper.getRGBForRaw( 120f ), logWrapper.getRGBForRaw( 120f ) );
 	}
@@ -409,7 +409,7 @@ public class ContinuousPaletteWrapperTest
 		wrapper.setColorScheme( reversed );
 		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 150f ) ); // middle stop either way
 
-		final PresetFunc shifted = new LinearPresetFunc( 0f, 100f, 2f );
+		final PresetFunc shifted = new LinearPresetFunc( 0f, 100f, 2 );
 		wrapper.setPresetFunc( shifted );
 		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 50f ) ); // new domain's midpoint
 
@@ -420,10 +420,10 @@ public class ContinuousPaletteWrapperTest
 	}
 
 	@Test
-	public void testSetColorSchemeRejectsMismatchedDelkaIntervalu()
+	public void testSetColorSchemeRejectsMismatchedPaletteRangeLength()
 	{
 		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( threeStops(), linear() );
-		final ContinuousColorScheme twoStops = new ContinuousColorScheme( new int[] { RED, GREEN } ); // delkaIntervalu 1, not 2
+		final ContinuousColorScheme twoStops = new ContinuousColorScheme( new int[] { RED, GREEN } ); // paletteRangeLength 1, not 2
 		try
 		{
 			wrapper.setColorScheme( twoStops );
@@ -437,10 +437,10 @@ public class ContinuousPaletteWrapperTest
 	}
 
 	@Test
-	public void testSetPresetFuncRejectsMismatchedDelkaIntervalu()
+	public void testSetPresetFuncRejectsMismatchedPaletteRangeLength()
 	{
 		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( threeStops(), linear() );
-		final PresetFunc mismatched = new LinearPresetFunc( 100f, 200f, 5f );
+		final PresetFunc mismatched = new LinearPresetFunc( 100f, 200f, 5 );
 		try
 		{
 			wrapper.setPresetFunc( mismatched );

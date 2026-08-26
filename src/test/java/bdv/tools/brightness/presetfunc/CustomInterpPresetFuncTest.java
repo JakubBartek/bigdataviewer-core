@@ -39,10 +39,10 @@ import org.junit.Test;
  */
 public class CustomInterpPresetFuncTest
 {
-	/** min=100, max=200, delkaIntervalu=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
 	private static CustomInterpPresetFunc scaled()
 	{
-		return new CustomInterpPresetFunc( 100f, 200f, 10f );
+		return new CustomInterpPresetFunc( 100f, 200f, 10 );
 	}
 
 	@Test
@@ -85,7 +85,7 @@ public class CustomInterpPresetFuncTest
 
 	/**
 	 * Knots that don't reach t=0 or t=1 are taken at face value, not stretched
-	 * to hit palette value 0/delkaIntervalu: the outermost knot's value simply
+	 * to hit palette value 0/paletteRangeLength: the outermost knot's value simply
 	 * extends flat to the edge of the domain. Unlike the fixed shapes, a
 	 * user-defined curve is not rescaled to pin its endpoints -- doing so
 	 * would silently rewrite what the user asked for (see

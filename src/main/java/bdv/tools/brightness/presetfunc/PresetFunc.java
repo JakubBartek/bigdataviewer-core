@@ -31,16 +31,16 @@ package bdv.tools.brightness.presetfunc;
  * Converts a raw image value into a palette value -- nothing else. Owns the
  * raw-value range it is defined over ({@link #getMin()}/{@link #getMax()})
  * and the length of the palette-value range it maps into
- * ({@link #getDelkaIntervalu()}, same meaning as
- * {@code IColorScheme#getDelkaIntervalu()}: a {@code paletteValue} this
- * produces is meant to land in {@code [0, getDelkaIntervalu()]}, ready to
+ * ({@link #getPaletteRangeLength()}, same meaning as
+ * {@code ColorScheme#getPaletteRangeLength()}: a {@code paletteValue} this
+ * produces is meant to land in {@code [0, getPaletteRangeLength()]}, ready to
  * feed a continuous color scheme with that same domain length).
  * <p>
  * Implementations must not know anything about RGB, RGBA, color schemes,
  * palettes, or boundary conditions -- turning a palette value into a color is
- * a separate concern ({@code IColorScheme}), and deciding what to do with a
+ * a separate concern ({@code ColorScheme}), and deciding what to do with a
  * raw value outside {@code [getMin(), getMax()]} is another
- * ({@code ContinuousPaletteWrapper}, not yet implemented). This interface
+ * ({@code ContinuousPaletteWrapper}). This interface
  * only ever computes {@code paletteValue = f(rawValue)}; {@code getMin()}/
  * {@code getMax()} are exposed so a caller can make that boundary decision
  * without this class needing to know it is being made.
@@ -56,13 +56,18 @@ public interface PresetFunc
 
 	/**
 	 * Raw value this function's domain ends at. Maps to palette value
-	 * {@link #getDelkaIntervalu()} for every implementation here except
+	 * {@link #getPaletteRangeLength()} for every implementation here except
 	 * {@link CustomInterpPresetFunc}, whose shape is user-defined.
 	 */
 	float getMax();
 
-	/** Length of the palette-value range {@link #getPaletteValueForRaw(float)} maps into; see the class javadoc. */
-	float getDelkaIntervalu();
+	/**
+	 * Length of the palette-value range {@link #getPaletteValueForRaw(float)}
+	 * maps into; see the class javadoc. An {@code int}, like
+	 * {@code ColorScheme#getPaletteRangeLength()}, because it has to equal the
+	 * color scheme's -- which is a stop count, and so always whole.
+	 */
+	int getPaletteRangeLength();
 
 	/**
 	 * {@code paletteValue = f(rawValue)}. {@code rawValue} is not assumed to

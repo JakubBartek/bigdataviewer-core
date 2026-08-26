@@ -39,7 +39,7 @@ import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
  * falls outside the scheme's domain on either side ({@link #getLeftBoundaryCondition()}/
  * {@link #getRightBoundaryCondition()}).
  * <p>
- * Responsibility split (see {@code IColorScheme}'s own javadoc for the other
+ * Responsibility split (see {@code ColorScheme}'s own javadoc for the other
  * half): {@link DiscreteColorScheme} only ever turns a palette value into a
  * color; this class only ever turns a raw value into a palette value (plus
  * boundary handling) and then delegates. {@code min}, {@code stepSize} and
@@ -59,7 +59,7 @@ public class DiscretePaletteWrapper extends AbstractPaletteWrapper
 	 * @param min                    raw value that maps to palette value {@code 0}.
 	 * @param stepSize               raw-value width of one palette step; must be strictly positive.
 	 * @param leftBoundaryCondition  applied when {@code (rawValue - min) / stepSize < 0}.
-	 * @param rightBoundaryCondition applied when {@code (rawValue - min) / stepSize >= colorScheme.getDelkaIntervalu()}.
+	 * @param rightBoundaryCondition applied when {@code (rawValue - min) / stepSize >= colorScheme.getPaletteRangeLength()}.
 	 * @throws IllegalArgumentException if {@code stepSize} is not strictly positive.
 	 */
 	public DiscretePaletteWrapper( final DiscreteColorScheme colorScheme, final float min, final float stepSize,
@@ -82,7 +82,7 @@ public class DiscretePaletteWrapper extends AbstractPaletteWrapper
 	}
 
 	@Override
-	DiscreteColorScheme colorScheme()
+	public DiscreteColorScheme getColorScheme()
 	{
 		return colorScheme;
 	}
@@ -98,7 +98,7 @@ public class DiscretePaletteWrapper extends AbstractPaletteWrapper
 	@Override
 	float rawDomainMax()
 	{
-		return min + colorScheme.getDelkaIntervalu() * stepSize;
+		return min + colorScheme.getPaletteRangeLength() * stepSize;
 	}
 
 	/** The discrete domain is half-open ({@code [0, N)}), so {@link #rawDomainMax()} itself is already outside it. */
@@ -112,11 +112,6 @@ public class DiscretePaletteWrapper extends AbstractPaletteWrapper
 	float toPaletteValue( final float rawValue )
 	{
 		return ( rawValue - min ) / stepSize;
-	}
-
-	public DiscreteColorScheme getColorScheme()
-	{
-		return colorScheme;
 	}
 
 	public void setColorScheme( final DiscreteColorScheme colorScheme )

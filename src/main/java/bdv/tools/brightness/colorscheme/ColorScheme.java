@@ -30,20 +30,21 @@ package bdv.tools.brightness.colorscheme;
 /**
  * Converts a palette value into a color -- nothing else. A "palette value" is
  * a position already expressed in this scheme's own domain (see
- * {@link #getDelkaIntervalu()}), e.g. "the 2.5th color stop"; it is not a raw
+ * {@link #getPaletteRangeLength()}), e.g. "the 2.5th color stop"; it is not a raw
  * image value.
  * <p>
  * Implementations must not know about raw image values, a raw value's
  * min/max, step size, boundary conditions, or any value-transformation
  * function -- turning a raw pixel value into a palette value is a separate
- * concern (upcoming: a palette wrapper / preset function), kept out of this
+ * concern ({@code bdv.tools.brightness.palette}'s palette wrappers, and the
+ * {@code bdv.tools.brightness.presetfunc} transforms they use), kept out of this
  * interface so a color scheme can be built, tested and swapped independently
  * of how it ends up being fed.
  *
  * @see DiscreteColorScheme
  * @see ContinuousColorScheme
  */
-public interface IColorScheme
+public interface ColorScheme
 {
 	/**
 	 * The color at {@code paletteValue}, packed as ARGB (see
@@ -53,7 +54,7 @@ public interface IColorScheme
 	 * instead.
 	 * <p>
 	 * {@code paletteValue} outside this scheme's domain (see
-	 * {@link #getDelkaIntervalu()}) is not an error: the nearest edge stop's
+	 * {@link #getPaletteRangeLength()}) is not an error: the nearest edge stop's
 	 * color is returned instead of throwing.
 	 */
 	int getRGB( float paletteValue );
@@ -67,8 +68,8 @@ public interface IColorScheme
 	/**
 	 * The length of this scheme's valid palette-value domain, which always
 	 * starts at {@code 0}. How the far end is included differs by
-	 * implementation -- see {@link DiscreteColorScheme#getDelkaIntervalu()}
-	 * and {@link ContinuousColorScheme#getDelkaIntervalu()}.
+	 * implementation -- see {@link DiscreteColorScheme#getPaletteRangeLength()}
+	 * and {@link ContinuousColorScheme#getPaletteRangeLength()}.
 	 */
-	int getDelkaIntervalu();
+	int getPaletteRangeLength();
 }

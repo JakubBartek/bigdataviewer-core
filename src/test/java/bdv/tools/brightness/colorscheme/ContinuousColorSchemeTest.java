@@ -52,11 +52,11 @@ public class ContinuousColorSchemeTest
 	}
 
 	@Test
-	public void testDelkaIntervaluEqualsStopCountMinusOne()
+	public void testPaletteRangeLengthEqualsStopCountMinusOne()
 	{
-		Assert.assertEquals( 2, threeStops().getDelkaIntervalu() );
-		Assert.assertEquals( 1, new ContinuousColorScheme( new int[] { RED, GREEN } ).getDelkaIntervalu() );
-		Assert.assertEquals( 9, new ContinuousColorScheme( new int[ 10 ] ).getDelkaIntervalu() );
+		Assert.assertEquals( 2, threeStops().getPaletteRangeLength() );
+		Assert.assertEquals( 1, new ContinuousColorScheme( new int[] { RED, GREEN } ).getPaletteRangeLength() );
+		Assert.assertEquals( 9, new ContinuousColorScheme( new int[ 10 ] ).getPaletteRangeLength() );
 	}
 
 	@Test
@@ -156,7 +156,7 @@ public class ContinuousColorSchemeTest
 
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( viridis );
 
-		Assert.assertEquals( viridis.getLength() - 1, scheme.getDelkaIntervalu() );
+		Assert.assertEquals( viridis.getLength() - 1, scheme.getPaletteRangeLength() );
 
 		// Exact stops must reproduce the source table exactly, at both ends
 		// and in the middle.

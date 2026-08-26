@@ -35,7 +35,7 @@ import net.imglib2.display.ColorTable;
  * colors between stops are smoothly blended rather than each stop standing on
  * its own.
  * <p>
- * {@link #getDelkaIntervalu()} is {@code N - 1}: {@code N} stops have only
+ * {@link #getPaletteRangeLength()} is {@code N - 1}: {@code N} stops have only
  * {@code N - 1} gaps between them. The valid palette-value domain is the
  * closed interval {@code [0, N - 1]} -- e.g. for {@code N = 3}: {@code 0} is
  * stop {@code 0}, {@code 2.0} is stop {@code 2} (the last one), and
@@ -58,7 +58,7 @@ public class ContinuousColorScheme extends AbstractColorScheme
 	}
 
 	@Override
-	public int getDelkaIntervalu()
+	public int getPaletteRangeLength()
 	{
 		return stops.length - 1;
 	}
