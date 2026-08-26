@@ -53,7 +53,8 @@ public class AbstractPresetFuncTest
 			args -> new SigmoidPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
 			args -> new AlphaSigmoidPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
 			args -> new TanPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
-			args -> new AtanPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ) );
+			args -> new AtanPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ),
+			args -> new CustomInterpPresetFunc( args[ 0 ], args[ 1 ], args[ 2 ] ) );
 
 	@Test
 	public void testGettersReturnConstructorArguments()
