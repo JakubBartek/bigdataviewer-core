@@ -191,7 +191,7 @@ public class DiscretePaletteWrapper
 		switch ( condition )
 		{
 			case CYCLE:
-				return floorMod( paletteValue, colorScheme.getDelkaIntervalu() );
+				return FloatMath.floorMod( paletteValue, colorScheme.getDelkaIntervalu() );
 			case SPECIAL:
 				return isLeft ? leftSpecialValue : rightSpecialValue;
 			case CLAMP:
@@ -201,23 +201,6 @@ public class DiscretePaletteWrapper
 				// through unchanged is CLAMP's actual behavior.
 				return paletteValue;
 		}
-	}
-
-	/**
-	 * Floating-point equivalent of {@link Math#floorMod(int, int)} (which has
-	 * no float overload): wraps {@code value} into {@code [0, modulus)}.
-	 * Unlike Java's {@code %} operator, which returns a <em>negative</em>
-	 * result for a negative {@code value} (e.g. {@code -0.5 % 3 == -0.5}, still
-	 * outside the domain it was supposed to wrap into) -- the same
-	 * "remainder, then add the modulus back if still negative" idiom already
-	 * used for cyclic wrapping in {@code MappingModel#cyclicOffset}.
-	 */
-	private static float floorMod( final float value, final float modulus )
-	{
-		float m = value % modulus;
-		if ( m < 0 )
-			m += modulus;
-		return m;
 	}
 
 	private static void requirePositiveStepSize( final float stepSize )
