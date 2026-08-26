@@ -51,14 +51,22 @@ import java.util.Objects;
  * last knot's {@code t}, the value stays flat at that knot's value (unlike
  * {@code Curve#evaluate}, which extrapolates the first segment's slope below
  * its first point -- a needless asymmetry not worth reproducing here).
- * Whatever the first and last knot actually evaluate to, the {@link #shape(double)}
- * template method (see {@link AbstractPresetFunc#normalized(double, java.util.function.DoubleUnaryOperator)})
- * rescales the result so {@code t = 0} and {@code t = 1} land on exactly
- * {@code 0} and {@code 1} regardless -- the same universal
- * "{@link #getMin()} maps to palette value {@code 0}, {@link #getMax()} maps
- * to {@link #getDelkaIntervalu()}" guarantee every other {@link PresetFunc}
- * makes, so knots don't strictly need to start at {@code t = 0} or end at
- * {@code t = 1} themselves.
+ * <p>
+ * Unlike the fixed shapes in this package, the knot values are used
+ * <em>as given</em>, not rescaled to pin {@code t = 0}/{@code t = 1} onto
+ * exactly {@code 0}/{@code 1}. Those shapes are monotonically increasing by
+ * construction, so
+ * {@link AbstractPresetFunc#normalized(double, java.util.function.DoubleUnaryOperator)}
+ * only ever pins their endpoints; applied to an arbitrary user-defined curve
+ * it would instead silently rewrite the user's intent -- a deliberately
+ * decreasing curve would come back increasing, and a deliberately flat one
+ * would divide by zero. So a {@code CustomInterpPresetFunc} may map
+ * {@link #getMin()}/{@link #getMax()} to something other than {@code 0}/
+ * {@link #getDelkaIntervalu()} (whatever its outermost knots say), and may be
+ * decreasing or flat; every other {@link PresetFunc} still guarantees the
+ * exact endpoints. Knot values are constrained to {@code [0, 1]} instead, so
+ * a palette value this produces still lands in
+ * {@code [0, getDelkaIntervalu()]}.
  * <p>
  * This flat/clamped extrapolation is a property of the shape between {@code
  * t = 0} and {@code t = 1} -- it has nothing to do with, and does not
@@ -83,10 +91,14 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 	/**
 	 * Replace the control points defining this shape.
 	 *
-	 * @param ts     each knot's position, as a domain fraction; must be strictly ascending.
-	 * @param values each knot's value, as a palette-value fraction; same length as {@code ts}.
+	 * @param ts     each knot's position, as a domain fraction in {@code [0, 1]}; must be
+	 *               strictly ascending.
+	 * @param values each knot's value, as a palette-value fraction in {@code [0, 1]}; same
+	 *               length as {@code ts}. Need not be ascending -- a decreasing run is a
+	 *               legitimate (inverted) curve, see the class javadoc.
 	 * @throws IllegalArgumentException if there are fewer than 2 knots, the two arrays have
-	 *                                  different lengths, or {@code ts} is not strictly ascending.
+	 *                                  different lengths, {@code ts} is not strictly ascending,
+	 *                                  or any entry falls outside {@code [0, 1]}.
 	 */
 	public void setKnots( final double[] ts, final double[] values )
 	{
@@ -96,6 +108,14 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 			throw new IllegalArgumentException( "ts and values must have the same length, got " + ts.length + " and " + values.length );
 		if ( ts.length < 2 )
 			throw new IllegalArgumentException( "at least 2 knots are required, got " + ts.length );
+		for ( int i = 0; i < ts.length; i++ )
+		{
+			// Written as !(0 <= x <= 1) rather than (x < 0 || x > 1) so NaN is rejected too.
+			if ( !( ts[ i ] >= 0.0 && ts[ i ] <= 1.0 ) )
+				throw new IllegalArgumentException( "knot t must be in [0, 1], got " + ts[ i ] + " at index " + i );
+			if ( !( values[ i ] >= 0.0 && values[ i ] <= 1.0 ) )
+				throw new IllegalArgumentException( "knot value must be in [0, 1], got " + values[ i ] + " at index " + i );
+		}
 		for ( int i = 1; i < ts.length; i++ )
 			if ( !( ts[ i ] > ts[ i - 1 ] ) )
 				throw new IllegalArgumentException( "ts must be strictly ascending, got " + ts[ i - 1 ] + " at index " + ( i - 1 ) + " followed by " + ts[ i ] );
@@ -119,10 +139,11 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 		return knotValues.clone();
 	}
 
+	/** The knot values as given -- deliberately not {@code normalized(...)}; see the class javadoc. */
 	@Override
 	double shape( final double t )
 	{
-		return normalized( t, this::interpolate );
+		return interpolate( t );
 	}
 
 	private double interpolate( final double t )

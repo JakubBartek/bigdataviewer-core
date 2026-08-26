@@ -31,8 +31,12 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
+import bdv.tools.brightness.presetfunc.CustomInterpPresetFunc;
+import bdv.tools.brightness.presetfunc.ExponentialPresetFunc;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
+import bdv.tools.brightness.presetfunc.LogarithmicPresetFunc;
 import bdv.tools.brightness.presetfunc.PresetFunc;
+import bdv.tools.brightness.presetfunc.SigmoidPresetFunc;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
@@ -188,6 +192,80 @@ public class ContinuousPaletteWrapperTest
 		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 1f ) );
 
 		Assert.assertEquals( 255, ARGBType.alpha( wrapper.getRGBForRaw( 0f ) ) );
+	}
+
+	/** The RGBA path carries the stop's own alpha through the same pipeline. */
+	@Test
+	public void testGetRGBAForRawPreservesTheStopsAlpha()
+	{
+		final int translucentRed = ARGBType.rgba( 255, 0, 0, 100 );
+		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { translucentRed, GREEN } );
+		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 1f ) );
+
+		Assert.assertEquals( 100, ARGBType.alpha( wrapper.getRGBAForRaw( 0f ) ) );
+		// Boundary handling applies to the RGBA path identically.
+		Assert.assertEquals( 100, ARGBType.alpha( wrapper.getRGBAForRaw( -5f ) ) );
+	}
+
+	/** getPaletteValueForRaw is the same boundary-aware conversion getRGBForRaw uses, exposed on its own. */
+	@Test
+	public void testGetPaletteValueForRawMatchesWhatGetRGBForRawLooksUp()
+	{
+		final ContinuousColorScheme scheme = threeStops();
+		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, linear() );
+
+		for ( final float raw : new float[] { 50f, 100f, 125f, 150f, 200f, 250f } )
+			Assert.assertEquals( scheme.getRGB( wrapper.getPaletteValueForRaw( raw ) ), wrapper.getRGBForRaw( raw ) );
+	}
+
+	// -- independence from the particular PresetFunc -------------------------
+
+	/**
+	 * The wrapper must not care which transformation it was handed: swapping
+	 * the preset function changes the resulting colors without any change to
+	 * the wrapper, and the answer always matches
+	 * {@code colorScheme.getRGB(presetFunc.getPaletteValueForRaw(raw))} --
+	 * i.e. the wrapper only ever composes the two, never second-guesses which
+	 * one it has.
+	 */
+	@Test
+	public void testWorksWithEveryPresetFuncImplementationUniformly()
+	{
+		final CustomInterpPresetFunc custom = new CustomInterpPresetFunc( 100f, 200f, 2f );
+		custom.setKnots( new double[] { 0.0, 0.5, 1.0 }, new double[] { 0.0, 0.9, 1.0 } );
+
+		final PresetFunc[] presetFuncs = {
+				new LinearPresetFunc( 100f, 200f, 2f ),
+				new SigmoidPresetFunc( 100f, 200f, 2f ),
+				new LogarithmicPresetFunc( 100f, 200f, 2f ),
+				new ExponentialPresetFunc( 100f, 200f, 2f ),
+				custom };
+
+		for ( final PresetFunc presetFunc : presetFuncs )
+		{
+			final ContinuousColorScheme scheme = threeStops();
+			final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, presetFunc );
+			final String name = presetFunc.getClass().getSimpleName();
+
+			for ( final float raw : new float[] { 100f, 120f, 150f, 180f, 200f } )
+				Assert.assertEquals( name + " at raw=" + raw,
+						scheme.getRGB( presetFunc.getPaletteValueForRaw( raw ) ), wrapper.getRGBForRaw( raw ) );
+
+			// Whatever the shape, the domain edges still resolve through the
+			// same code path, and out-of-range values still clamp.
+			Assert.assertEquals( name, wrapper.getRGBForRaw( 100f ), wrapper.getRGBForRaw( -1000f ) );
+			Assert.assertEquals( name, wrapper.getRGBForRaw( 200f ), wrapper.getRGBForRaw( 1000f ) );
+		}
+	}
+
+	/** A non-linear preset function must actually change the result, or the test above would be vacuous. */
+	@Test
+	public void testDifferentPresetFuncsProduceDifferentColorsForTheSameRawValue()
+	{
+		final ContinuousPaletteWrapper linearWrapper = new ContinuousPaletteWrapper( threeStops(), new LinearPresetFunc( 100f, 200f, 2f ) );
+		final ContinuousPaletteWrapper logWrapper = new ContinuousPaletteWrapper( threeStops(), new LogarithmicPresetFunc( 100f, 200f, 2f ) );
+
+		Assert.assertNotEquals( linearWrapper.getRGBForRaw( 120f ), logWrapper.getRGBForRaw( 120f ) );
 	}
 
 	// -- CYCLE -----------------------------------------------------------

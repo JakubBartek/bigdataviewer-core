@@ -47,10 +47,18 @@ package bdv.tools.brightness.presetfunc;
  */
 public interface PresetFunc
 {
-	/** Raw value this function's domain starts at (maps to palette value {@code 0}). */
+	/**
+	 * Raw value this function's domain starts at. Maps to palette value
+	 * {@code 0} for every implementation here except
+	 * {@link CustomInterpPresetFunc}, whose shape is user-defined.
+	 */
 	float getMin();
 
-	/** Raw value this function's domain ends at (maps to palette value {@link #getDelkaIntervalu()}). */
+	/**
+	 * Raw value this function's domain ends at. Maps to palette value
+	 * {@link #getDelkaIntervalu()} for every implementation here except
+	 * {@link CustomInterpPresetFunc}, whose shape is user-defined.
+	 */
 	float getMax();
 
 	/** Length of the palette-value range {@link #getPaletteValueForRaw(float)} maps into; see the class javadoc. */

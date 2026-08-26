@@ -31,9 +31,9 @@ import java.util.function.DoubleUnaryOperator;
 
 /**
  * Shared range storage and rescaling mechanics for every {@link PresetFunc}:
- * a concrete subclass only implements {@link #shape(float)}, a normalized
- * curve shape over {@code [0, 1] -> [0, 1]} (with {@code shape(0) == 0} and
- * {@code shape(1) == 1}, exactly the family of shapes
+ * a concrete subclass only implements {@link #shape(double)}, a normalized
+ * curve shape over {@code [0, 1] -> [0, 1]} (for the fixed shapes, with
+ * {@code shape(0) == 0} and {@code shape(1) == 1}, exactly the family of shapes
  * {@code bdv.tools.brightness.MappingPreset} already defines, deliberately
  * mirrored here with the same constants for the same curve shapes -- see
  * each subclass); this class handles normalizing a raw value into that
@@ -98,9 +98,13 @@ abstract class AbstractPresetFunc implements PresetFunc
 
 	/**
 	 * The normalized curve shape, {@code t} in {@code [0, 1]}, returning a
-	 * value in {@code [0, 1]} with {@code shape(0) == 0} and
-	 * {@code shape(1) == 1}. {@code t} is already clamped into {@code [0, 1]}
+	 * value in {@code [0, 1]}. {@code t} is already clamped into {@code [0, 1]}
 	 * by {@link #getPaletteValueForRaw(float)} before this is called.
+	 * <p>
+	 * The fixed shapes additionally guarantee {@code shape(0) == 0} and
+	 * {@code shape(1) == 1} (several of them via {@link #normalized(double, DoubleUnaryOperator)});
+	 * {@link CustomInterpPresetFunc} deliberately does not, since its shape is
+	 * whatever the user's knots say -- see its javadoc.
 	 */
 	abstract double shape( double t );
 

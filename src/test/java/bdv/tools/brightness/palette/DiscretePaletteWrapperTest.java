@@ -236,6 +236,53 @@ public class DiscretePaletteWrapperTest
 		Assert.assertEquals( 255, ARGBType.alpha( wrapper.getRGBForRaw( 0f ) ) );
 	}
 
+	/** The RGBA path carries the stop's own alpha through the same pipeline. */
+	@Test
+	public void testGetRGBAForRawPreservesTheStopsAlpha()
+	{
+		final int translucentRed = ARGBType.rgba( 255, 0, 0, 100 );
+		final DiscreteColorScheme scheme = new DiscreteColorScheme( new int[] { translucentRed, GREEN } );
+		final DiscretePaletteWrapper wrapper = new DiscretePaletteWrapper( scheme, 0f, 1f );
+
+		Assert.assertEquals( 100, ARGBType.alpha( wrapper.getRGBAForRaw( 0f ) ) );
+		// Boundary handling applies to the RGBA path identically.
+		Assert.assertEquals( 100, ARGBType.alpha( wrapper.getRGBAForRaw( -5f ) ) );
+	}
+
+	/** getPaletteValueForRaw is the same boundary-aware conversion getRGBForRaw uses, exposed on its own. */
+	@Test
+	public void testGetPaletteValueForRawMatchesWhatGetRGBForRawLooksUp()
+	{
+		final DiscreteColorScheme scheme = threeStops();
+		final DiscretePaletteWrapper wrapper = new DiscretePaletteWrapper( scheme, 10f, 5f );
+
+		for ( final float raw : new float[] { -100f, 9f, 10f, 12f, 17f, 24f, 25f, 1000f } )
+			Assert.assertEquals( scheme.getRGB( wrapper.getPaletteValueForRaw( raw ) ), wrapper.getRGBForRaw( raw ) );
+
+		// (rawValue - min) / stepSize, spot-checked directly.
+		Assert.assertEquals( 0f, wrapper.getPaletteValueForRaw( 10f ), 1e-5f );
+		Assert.assertEquals( 1.4f, wrapper.getPaletteValueForRaw( 17f ), 1e-5f );
+	}
+
+	/**
+	 * CYCLE must wrap in units of the palette domain regardless of stepSize --
+	 * i.e. the raw-value period is {@code N * stepSize}, not {@code N}.
+	 */
+	@Test
+	public void testCycleRespectsStepSize()
+	{
+		// 3 stops, stepSize 5, min 10 -> raw domain [10, 25), period 15.
+		final DiscretePaletteWrapper wrapper = new DiscretePaletteWrapper( threeStops(), 10f, 5f,
+				BoundaryCondition.CYCLE, BoundaryCondition.CYCLE );
+
+		// raw=25 is exactly one period above min -> wraps to raw=10 -> stop 0.
+		Assert.assertEquals( RED, wrapper.getRGBForRaw( 25f ) );
+		// raw=32 -> wraps to raw=17 -> paletteValue 1.4 -> stop 1.
+		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 32f ) );
+		// raw=5 is 5 below min -> wraps to raw=20 -> paletteValue 2 -> stop 2.
+		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 5f ) );
+	}
+
 	// -- CYCLE -----------------------------------------------------------
 
 	/**
