@@ -45,21 +45,13 @@ import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
  * boundary handling) and then delegates. {@code min}, {@code stepSize} and
  * the boundary conditions live here, never in the color scheme.
  */
-public class DiscretePaletteWrapper
+public class DiscretePaletteWrapper extends AbstractPaletteWrapper
 {
 	private DiscreteColorScheme colorScheme;
 
 	private float min;
 
 	private float stepSize;
-
-	private BoundaryCondition leftBoundaryCondition;
-
-	private BoundaryCondition rightBoundaryCondition;
-
-	private float leftSpecialValue;
-
-	private float rightSpecialValue;
 
 	/**
 	 * @param colorScheme            the palette this wrapper feeds; {@code paletteValue -> color} lives
@@ -73,13 +65,12 @@ public class DiscretePaletteWrapper
 	public DiscretePaletteWrapper( final DiscreteColorScheme colorScheme, final float min, final float stepSize,
 	                               final BoundaryCondition leftBoundaryCondition, final BoundaryCondition rightBoundaryCondition )
 	{
+		super( leftBoundaryCondition, rightBoundaryCondition );
 		requirePositiveStepSize( stepSize );
 
 		this.colorScheme = Objects.requireNonNull( colorScheme, "colorScheme" );
 		this.min = min;
 		this.stepSize = stepSize;
-		this.leftBoundaryCondition = Objects.requireNonNull( leftBoundaryCondition, "leftBoundaryCondition" );
-		this.rightBoundaryCondition = Objects.requireNonNull( rightBoundaryCondition, "rightBoundaryCondition" );
 	}
 
 	/**
@@ -88,6 +79,39 @@ public class DiscretePaletteWrapper
 	public DiscretePaletteWrapper( final DiscreteColorScheme colorScheme, final float min, final float stepSize )
 	{
 		this( colorScheme, min, stepSize, BoundaryCondition.CLAMP, BoundaryCondition.CLAMP );
+	}
+
+	@Override
+	DiscreteColorScheme colorScheme()
+	{
+		return colorScheme;
+	}
+
+	/** Palette value {@code 0} sits at {@link #getMin()}. */
+	@Override
+	float rawDomainMin()
+	{
+		return min;
+	}
+
+	/** One step past the last stop's slot: {@code min + N * stepSize}, i.e. the raw value whose palette value is exactly {@code N}. */
+	@Override
+	float rawDomainMax()
+	{
+		return min + colorScheme.getDelkaIntervalu() * stepSize;
+	}
+
+	/** The discrete domain is half-open ({@code [0, N)}), so {@link #rawDomainMax()} itself is already outside it. */
+	@Override
+	boolean isAboveDomain( final float rawValue )
+	{
+		return rawValue >= rawDomainMax();
+	}
+
+	@Override
+	float toPaletteValue( final float rawValue )
+	{
+		return ( rawValue - min ) / stepSize;
 	}
 
 	public DiscreteColorScheme getColorScheme()
@@ -120,87 +144,6 @@ public class DiscretePaletteWrapper
 	{
 		requirePositiveStepSize( stepSize );
 		this.stepSize = stepSize;
-	}
-
-	public BoundaryCondition getLeftBoundaryCondition()
-	{
-		return leftBoundaryCondition;
-	}
-
-	public void setLeftBoundaryCondition( final BoundaryCondition leftBoundaryCondition )
-	{
-		this.leftBoundaryCondition = Objects.requireNonNull( leftBoundaryCondition, "leftBoundaryCondition" );
-	}
-
-	public BoundaryCondition getRightBoundaryCondition()
-	{
-		return rightBoundaryCondition;
-	}
-
-	public void setRightBoundaryCondition( final BoundaryCondition rightBoundaryCondition )
-	{
-		this.rightBoundaryCondition = Objects.requireNonNull( rightBoundaryCondition, "rightBoundaryCondition" );
-	}
-
-	/** The palette value substituted for a raw value that hit the left boundary, when {@link #getLeftBoundaryCondition()} is {@link BoundaryCondition#SPECIAL}; otherwise unused. */
-	public float getLeftSpecialValue()
-	{
-		return leftSpecialValue;
-	}
-
-	public void setLeftSpecialValue( final float leftSpecialValue )
-	{
-		this.leftSpecialValue = leftSpecialValue;
-	}
-
-	/** The palette value substituted for a raw value that hit the right boundary, when {@link #getRightBoundaryCondition()} is {@link BoundaryCondition#SPECIAL}; otherwise unused. */
-	public float getRightSpecialValue()
-	{
-		return rightSpecialValue;
-	}
-
-	public void setRightSpecialValue( final float rightSpecialValue )
-	{
-		this.rightSpecialValue = rightSpecialValue;
-	}
-
-	/**
-	 * The color for a raw image value: converts it to a palette value
-	 * ({@code (rawValue - min) / stepSize}), applies the left/right boundary
-	 * condition if it falls outside {@code [0, colorScheme.getDelkaIntervalu())},
-	 * then looks up the (possibly boundary-adjusted) palette value in
-	 * {@link #getColorScheme()}.
-	 */
-	public int getRGBForRaw( final float rawValue )
-	{
-		final float paletteValue = ( rawValue - min ) / stepSize;
-
-		final float boundedPaletteValue;
-		if ( paletteValue < 0 )
-			boundedPaletteValue = apply( leftBoundaryCondition, paletteValue, true );
-		else if ( paletteValue >= colorScheme.getDelkaIntervalu() )
-			boundedPaletteValue = apply( rightBoundaryCondition, paletteValue, false );
-		else
-			boundedPaletteValue = paletteValue;
-
-		return colorScheme.getRGB( boundedPaletteValue );
-	}
-
-	private float apply( final BoundaryCondition condition, final float paletteValue, final boolean isLeft )
-	{
-		switch ( condition )
-		{
-			case CYCLE:
-				return FloatMath.floorMod( paletteValue, colorScheme.getDelkaIntervalu() );
-			case SPECIAL:
-				return isLeft ? leftSpecialValue : rightSpecialValue;
-			case CLAMP:
-			default:
-				// The color scheme's own getRGB already clamps an out-of-domain
-				// palette value to its nearest edge color, so passing the value
-				// through unchanged is CLAMP's actual behavior.
-				return paletteValue;
-		}
 	}
 
 	private static void requirePositiveStepSize( final float stepSize )

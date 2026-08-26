@@ -84,19 +84,85 @@ public class CustomInterpPresetFuncTest
 	}
 
 	/**
-	 * Knots that don't reach t=0 or t=1 themselves still satisfy the
-	 * universal PresetFunc contract (min -> palette value 0, max -> palette
-	 * value delkaIntervalu) -- the {@code normalized} rescaling every shape
-	 * goes through takes care of it regardless of where the knots start/end.
+	 * Knots that don't reach t=0 or t=1 are taken at face value, not stretched
+	 * to hit palette value 0/delkaIntervalu: the outermost knot's value simply
+	 * extends flat to the edge of the domain. Unlike the fixed shapes, a
+	 * user-defined curve is not rescaled to pin its endpoints -- doing so
+	 * would silently rewrite what the user asked for (see
+	 * {@link #testInvertedKnotsStayInverted()} and
+	 * {@link #testFlatKnotsStayFlat()} for the cases where that actively
+	 * broke).
 	 */
 	@Test
-	public void testKnotsNotSpanningTheFullDomainStillReachExactEndpoints()
+	public void testKnotsNotSpanningTheFullDomainAreNotStretchedToTheEdges()
 	{
 		final CustomInterpPresetFunc f = scaled();
 		f.setKnots( new double[] { 0.2, 0.8 }, new double[] { 0.3, 0.7 } );
 
-		Assert.assertEquals( 0f, f.getPaletteValueForRaw( 100f ), 1e-4f );
-		Assert.assertEquals( 10f, f.getPaletteValueForRaw( 200f ), 1e-4f );
+		Assert.assertEquals( 3f, f.getPaletteValueForRaw( 100f ), 1e-4f );
+		Assert.assertEquals( 7f, f.getPaletteValueForRaw( 200f ), 1e-4f );
+	}
+
+	/**
+	 * A deliberately decreasing curve must stay decreasing. Rescaling the
+	 * shape onto {@code [0, 1]} the way the fixed shapes do would divide by a
+	 * negative span and hand back an <em>increasing</em> curve -- the exact
+	 * opposite of what was configured.
+	 */
+	@Test
+	public void testInvertedKnotsStayInverted()
+	{
+		final CustomInterpPresetFunc f = scaled();
+		f.setKnots( new double[] { 0.0, 1.0 }, new double[] { 1.0, 0.0 } );
+
+		Assert.assertEquals( 10f, f.getPaletteValueForRaw( 100f ), 1e-4f );
+		Assert.assertEquals( 7.5f, f.getPaletteValueForRaw( 125f ), 1e-4f );
+		Assert.assertEquals( 5f, f.getPaletteValueForRaw( 150f ), 1e-4f );
+		Assert.assertEquals( 2.5f, f.getPaletteValueForRaw( 175f ), 1e-4f );
+		Assert.assertEquals( 0f, f.getPaletteValueForRaw( 200f ), 1e-4f );
+	}
+
+	/**
+	 * A completely flat curve must stay flat. Rescaling would divide by a zero
+	 * span here, turning every single lookup into NaN.
+	 */
+	@Test
+	public void testFlatKnotsStayFlat()
+	{
+		final CustomInterpPresetFunc f = scaled();
+		f.setKnots( new double[] { 0.0, 1.0 }, new double[] { 0.5, 0.5 } );
+
+		for ( final float raw : new float[] { 100f, 125f, 150f, 175f, 200f } )
+		{
+			final float paletteValue = f.getPaletteValueForRaw( raw );
+			Assert.assertFalse( "NaN at raw=" + raw, Float.isNaN( paletteValue ) );
+			Assert.assertEquals( 5f, paletteValue, 1e-4f );
+		}
+	}
+
+	@Test
+	public void testSetKnotsRejectsValuesOutsideTheUnitRange()
+	{
+		final CustomInterpPresetFunc f = scaled();
+		for ( final double bad : new double[] { -0.1, 1.1, Double.NaN, Double.POSITIVE_INFINITY } )
+		{
+			try
+			{
+				f.setKnots( new double[] { 0.0, 1.0 }, new double[] { 0.0, bad } );
+				Assert.fail( "expected IllegalArgumentException for knot value " + bad );
+			}
+			catch ( final IllegalArgumentException expected )
+			{
+			}
+			try
+			{
+				f.setKnots( new double[] { 0.0, bad }, new double[] { 0.0, 1.0 } );
+				Assert.fail( "expected IllegalArgumentException for knot t " + bad );
+			}
+			catch ( final IllegalArgumentException expected )
+			{
+			}
+		}
 	}
 
 	/** Beyond the outermost knots, the shape stays flat rather than extrapolating a slope. */

@@ -28,10 +28,15 @@
 package bdv.tools.brightness.palette;
 
 /**
- * What a {@link DiscretePaletteWrapper} (one day also a continuous
- * equivalent) does when a raw value's palette value falls outside its color
- * scheme's domain, independently for the left ({@code paletteValue < 0}) and
- * right ({@code paletteValue >= scheme.getDelkaIntervalu()}) side.
+ * What a {@link DiscretePaletteWrapper} or {@link ContinuousPaletteWrapper}
+ * does when a raw value falls outside its domain, independently for the left
+ * and right side.
+ * <p>
+ * Where that domain ends differs by wrapper -- the discrete one's is half-open
+ * ({@code [min, min + N * stepSize)}), the continuous one's closed
+ * ({@code [presetFunc.getMin(), presetFunc.getMax()]}) -- but the choice of
+ * what to do on crossing it is the same either way, which is why this enum is
+ * shared. See {@code AbstractPaletteWrapper}.
  * <p>
  * Deliberately owned by the wrapper, not the color scheme it wraps: a color
  * scheme already has its own fixed edge behavior for an out-of-domain value
@@ -42,27 +47,28 @@ package bdv.tools.brightness.palette;
 public enum BoundaryCondition
 {
 	/**
-	 * Pass the palette value through unchanged. The color scheme's own
-	 * {@code getRGB}/{@code getRGBA} already clamp an out-of-domain palette
-	 * value to its nearest edge color, so this is that clamping, simply left
-	 * to happen rather than pre-empted here.
+	 * Convert the raw value as usual and pass the result through unchanged.
+	 * A color scheme's own {@code getRGB}/{@code getRGBA} (and a
+	 * {@code PresetFunc}'s own conversion) already clamp an out-of-domain
+	 * value to its nearest edge, so this is that clamping, simply left to
+	 * happen rather than pre-empted here.
 	 */
 	CLAMP,
 
 	/**
-	 * Wrap the palette value around to the opposite side of the domain (e.g.
-	 * one step below {@code 0} resolves to the last valid palette value),
+	 * Wrap the raw value around to the opposite side of the domain (e.g. one
+	 * step below the domain's start resolves to its last valid value),
 	 * instead of collapsing onto a single edge color -- for data that is
 	 * itself cyclic (e.g. hue, or a phase angle).
 	 */
 	CYCLE,
 
 	/**
-	 * Use a fixed, user-supplied palette value instead of the one that was
-	 * actually computed -- e.g. to always show a dedicated background color
-	 * for out-of-range raw values, distinct from either edge of the palette.
-	 * See {@link DiscretePaletteWrapper#getLeftSpecialValue()}/
-	 * {@link DiscretePaletteWrapper#getRightSpecialValue()}.
+	 * Use a fixed, user-supplied palette value instead of the one that would
+	 * actually have been computed -- e.g. to always show a dedicated
+	 * background color for out-of-range raw values, distinct from either edge
+	 * of the palette. See {@code AbstractPaletteWrapper#getLeftSpecialValue()}/
+	 * {@code AbstractPaletteWrapper#getRightSpecialValue()}.
 	 */
 	SPECIAL
 }

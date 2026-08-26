@@ -53,19 +53,11 @@ import bdv.tools.brightness.presetfunc.PresetFunc;
  * boundary conditions live here, never in the color scheme or the preset
  * function.
  */
-public class ContinuousPaletteWrapper
+public class ContinuousPaletteWrapper extends AbstractPaletteWrapper
 {
 	private ContinuousColorScheme colorScheme;
 
 	private PresetFunc presetFunc;
-
-	private BoundaryCondition leftBoundaryCondition;
-
-	private BoundaryCondition rightBoundaryCondition;
-
-	private float leftSpecialValue;
-
-	private float rightSpecialValue;
 
 	/**
 	 * @param colorScheme            the palette this wrapper feeds; {@code paletteValue -> color} lives
@@ -83,11 +75,10 @@ public class ContinuousPaletteWrapper
 	public ContinuousPaletteWrapper( final ContinuousColorScheme colorScheme, final PresetFunc presetFunc,
 	                                  final BoundaryCondition leftBoundaryCondition, final BoundaryCondition rightBoundaryCondition )
 	{
+		super( leftBoundaryCondition, rightBoundaryCondition );
 		this.colorScheme = Objects.requireNonNull( colorScheme, "colorScheme" );
 		this.presetFunc = Objects.requireNonNull( presetFunc, "presetFunc" );
 		requireMatchingDelkaIntervalu( colorScheme, presetFunc );
-		this.leftBoundaryCondition = Objects.requireNonNull( leftBoundaryCondition, "leftBoundaryCondition" );
-		this.rightBoundaryCondition = Objects.requireNonNull( rightBoundaryCondition, "rightBoundaryCondition" );
 	}
 
 	/**
@@ -96,6 +87,37 @@ public class ContinuousPaletteWrapper
 	public ContinuousPaletteWrapper( final ContinuousColorScheme colorScheme, final PresetFunc presetFunc )
 	{
 		this( colorScheme, presetFunc, BoundaryCondition.CLAMP, BoundaryCondition.CLAMP );
+	}
+
+	@Override
+	ContinuousColorScheme colorScheme()
+	{
+		return colorScheme;
+	}
+
+	@Override
+	float rawDomainMin()
+	{
+		return presetFunc.getMin();
+	}
+
+	@Override
+	float rawDomainMax()
+	{
+		return presetFunc.getMax();
+	}
+
+	/** The continuous domain is closed ({@code [0, delkaIntervalu]}), so {@link #rawDomainMax()} itself is still inside it. */
+	@Override
+	boolean isAboveDomain( final float rawValue )
+	{
+		return rawValue > rawDomainMax();
+	}
+
+	@Override
+	float toPaletteValue( final float rawValue )
+	{
+		return presetFunc.getPaletteValueForRaw( rawValue );
 	}
 
 	public ContinuousColorScheme getColorScheme()
@@ -122,87 +144,6 @@ public class ContinuousPaletteWrapper
 		Objects.requireNonNull( presetFunc, "presetFunc" );
 		requireMatchingDelkaIntervalu( colorScheme, presetFunc );
 		this.presetFunc = presetFunc;
-	}
-
-	public BoundaryCondition getLeftBoundaryCondition()
-	{
-		return leftBoundaryCondition;
-	}
-
-	public void setLeftBoundaryCondition( final BoundaryCondition leftBoundaryCondition )
-	{
-		this.leftBoundaryCondition = Objects.requireNonNull( leftBoundaryCondition, "leftBoundaryCondition" );
-	}
-
-	public BoundaryCondition getRightBoundaryCondition()
-	{
-		return rightBoundaryCondition;
-	}
-
-	public void setRightBoundaryCondition( final BoundaryCondition rightBoundaryCondition )
-	{
-		this.rightBoundaryCondition = Objects.requireNonNull( rightBoundaryCondition, "rightBoundaryCondition" );
-	}
-
-	/** The palette value substituted for a raw value that hit the left boundary, when {@link #getLeftBoundaryCondition()} is {@link BoundaryCondition#SPECIAL}; otherwise unused. */
-	public float getLeftSpecialValue()
-	{
-		return leftSpecialValue;
-	}
-
-	public void setLeftSpecialValue( final float leftSpecialValue )
-	{
-		this.leftSpecialValue = leftSpecialValue;
-	}
-
-	/** The palette value substituted for a raw value that hit the right boundary, when {@link #getRightBoundaryCondition()} is {@link BoundaryCondition#SPECIAL}; otherwise unused. */
-	public float getRightSpecialValue()
-	{
-		return rightSpecialValue;
-	}
-
-	public void setRightSpecialValue( final float rightSpecialValue )
-	{
-		this.rightSpecialValue = rightSpecialValue;
-	}
-
-	/**
-	 * The color for a raw image value: applies the left/right boundary
-	 * condition if {@code rawValue} falls outside
-	 * {@code [presetFunc.getMin(), presetFunc.getMax()]}, otherwise converts it
-	 * straight to a palette value via {@link #getPresetFunc()}, then looks up
-	 * the result in {@link #getColorScheme()}.
-	 */
-	public int getRGBForRaw( final float rawValue )
-	{
-		final float paletteValue;
-		if ( rawValue < presetFunc.getMin() )
-			paletteValue = apply( leftBoundaryCondition, rawValue, true );
-		else if ( rawValue > presetFunc.getMax() )
-			paletteValue = apply( rightBoundaryCondition, rawValue, false );
-		else
-			paletteValue = presetFunc.getPaletteValueForRaw( rawValue );
-
-		return colorScheme.getRGB( paletteValue );
-	}
-
-	private float apply( final BoundaryCondition condition, final float rawValue, final boolean isLeft )
-	{
-		switch ( condition )
-		{
-			case CYCLE:
-				final float span = presetFunc.getMax() - presetFunc.getMin();
-				final float cycledRawValue = presetFunc.getMin() + FloatMath.floorMod( rawValue - presetFunc.getMin(), span );
-				return presetFunc.getPaletteValueForRaw( cycledRawValue );
-			case SPECIAL:
-				return isLeft ? leftSpecialValue : rightSpecialValue;
-			case CLAMP:
-			default:
-				// PresetFunc#getPaletteValueForRaw already clamps an out-of-domain
-				// raw value to its nearest end, so simply calling it is CLAMP's
-				// actual behavior.
-				return presetFunc.getPaletteValueForRaw( rawValue );
-		}
 	}
 
 	private static void requireMatchingDelkaIntervalu( final ContinuousColorScheme colorScheme, final PresetFunc presetFunc )
