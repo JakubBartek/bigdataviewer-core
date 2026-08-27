@@ -141,6 +141,21 @@ public class DiscretePaletteWrapper extends AbstractPaletteWrapper
 		this.stepSize = stepSize;
 	}
 
+	/**
+	 * Sets {@link #getMin()} to {@code min} and picks the {@link #getStepSize()}
+	 * that fits all {@code N} palette stops across {@code [min, max]}:
+	 * {@code (max - min) / N}. So {@code min} lands on the first stop and
+	 * {@code max} on the far edge of the last one.
+	 */
+	@Override
+	public void setRawDomain( final double min, final double max )
+	{
+		if ( !( max > min ) )
+			throw new IllegalArgumentException( "max must be strictly greater than min, got min=" + min + ", max=" + max );
+		this.min = ( float ) min;
+		this.stepSize = ( float ) ( ( max - min ) / colorScheme.getPaletteRangeLength() );
+	}
+
 	private static void requirePositiveStepSize( final float stepSize )
 	{
 		if ( !( stepSize > 0 ) ) // written this way, not stepSize <= 0, so NaN is rejected too

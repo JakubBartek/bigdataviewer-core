@@ -64,11 +64,14 @@ public enum BoundaryCondition
 	CYCLE,
 
 	/**
-	 * Use a fixed, user-supplied palette value instead of the one that would
-	 * actually have been computed -- e.g. to always show a dedicated
-	 * background color for out-of-range raw values, distinct from either edge
-	 * of the palette. See {@code AbstractPaletteWrapper#getLeftSpecialValue()}/
-	 * {@code AbstractPaletteWrapper#getRightSpecialValue()}.
+	 * Use a fixed, user-supplied color instead of looking one up in the
+	 * palette at all -- e.g. a dedicated background color for out-of-range raw
+	 * values, distinct from either edge of the palette. Being a real color
+	 * (packed ARGB) rather than a palette value, it can be a hue not in the
+	 * palette or, via its alpha, transparent -- which is how a "background"
+	 * out-of-range value is made to render as nothing. See
+	 * {@code AbstractPaletteWrapper#getLeftSpecialColor()}/
+	 * {@code AbstractPaletteWrapper#getRightSpecialColor()}.
 	 */
 	SPECIAL
 }

@@ -52,15 +52,18 @@ import bdv.tools.brightness.colorscheme.ColorScheme;
  * the same way {@code AbstractColorScheme} and {@code AbstractPresetFunc} sit
  * behind theirs.
  */
-abstract class AbstractPaletteWrapper
+abstract class AbstractPaletteWrapper implements PaletteWrapper
 {
+	/** Default {@link BoundaryCondition#SPECIAL} color: fully transparent, so an out-of-range value renders as "nothing there" (a background) until a color is chosen. */
+	public static final int DEFAULT_SPECIAL_COLOR = 0x00000000;
+
 	private BoundaryCondition leftBoundaryCondition;
 
 	private BoundaryCondition rightBoundaryCondition;
 
-	private float leftSpecialValue;
+	private int leftSpecialColor = DEFAULT_SPECIAL_COLOR;
 
-	private float rightSpecialValue;
+	private int rightSpecialColor = DEFAULT_SPECIAL_COLOR;
 
 	AbstractPaletteWrapper( final BoundaryCondition leftBoundaryCondition, final BoundaryCondition rightBoundaryCondition )
 	{
@@ -121,26 +124,33 @@ abstract class AbstractPaletteWrapper
 		this.rightBoundaryCondition = Objects.requireNonNull( rightBoundaryCondition, "rightBoundaryCondition" );
 	}
 
-	/** The palette value substituted for a raw value that hit the left boundary, when {@link #getLeftBoundaryCondition()} is {@link BoundaryCondition#SPECIAL}; otherwise unused. */
-	public float getLeftSpecialValue()
+	/**
+	 * The packed-ARGB color a raw value that hits the left boundary resolves
+	 * to, when {@link #getLeftBoundaryCondition()} is
+	 * {@link BoundaryCondition#SPECIAL}; otherwise unused. Unlike a palette
+	 * value, this is a color in its own right, so it can be anything -- a hue
+	 * outside the palette, or (via its alpha) transparent, which is how a
+	 * "background" out-of-range value is rendered (see {@link #DEFAULT_SPECIAL_COLOR}).
+	 */
+	public int getLeftSpecialColor()
 	{
-		return leftSpecialValue;
+		return leftSpecialColor;
 	}
 
-	public void setLeftSpecialValue( final float leftSpecialValue )
+	public void setLeftSpecialColor( final int leftSpecialColor )
 	{
-		this.leftSpecialValue = leftSpecialValue;
+		this.leftSpecialColor = leftSpecialColor;
 	}
 
-	/** The palette value substituted for a raw value that hit the right boundary, when {@link #getRightBoundaryCondition()} is {@link BoundaryCondition#SPECIAL}; otherwise unused. */
-	public float getRightSpecialValue()
+	/** As {@link #getLeftSpecialColor()}, for a raw value that hits the right boundary. */
+	public int getRightSpecialColor()
 	{
-		return rightSpecialValue;
+		return rightSpecialColor;
 	}
 
-	public void setRightSpecialValue( final float rightSpecialValue )
+	public void setRightSpecialColor( final int rightSpecialColor )
 	{
-		this.rightSpecialValue = rightSpecialValue;
+		this.rightSpecialColor = rightSpecialColor;
 	}
 
 	// -- mapping -------------------------------------------------------------
@@ -149,50 +159,69 @@ abstract class AbstractPaletteWrapper
 	 * The palette value for a raw image value: applies the left/right boundary
 	 * condition if {@code rawValue} falls outside this wrapper's domain,
 	 * otherwise converts it directly.
+	 * <p>
+	 * {@link BoundaryCondition#SPECIAL} is a color-level override with no
+	 * palette-value counterpart (its color need not be in the palette at all),
+	 * so here it behaves like {@link BoundaryCondition#CLAMP}; the special
+	 * color itself is only observable through {@link #getRGBForRaw(float)}/
+	 * {@link #getRGBAForRaw(float)}.
 	 */
 	public final float getPaletteValueForRaw( final float rawValue )
 	{
-		if ( rawValue < rawDomainMin() )
-			return applyBoundary( leftBoundaryCondition, rawValue, leftSpecialValue );
-		if ( isAboveDomain( rawValue ) )
-			return applyBoundary( rightBoundaryCondition, rawValue, rightSpecialValue );
+		final BoundaryCondition hit = boundaryHit( rawValue );
+		if ( hit == BoundaryCondition.CYCLE )
+			return toPaletteValue( cycled( rawValue ) );
+		// CLAMP, SPECIAL, or in-domain: convert straight through. Both a color
+		// scheme and a PresetFunc already clamp an out-of-domain input to their
+		// nearest edge, so this is CLAMP's actual behavior.
 		return toPaletteValue( rawValue );
 	}
 
 	/**
-	 * The color for a raw image value: {@link #getPaletteValueForRaw(float)},
-	 * looked up in {@link #getColorScheme()} with alpha forced fully opaque.
+	 * The color for a raw image value, fully opaque: the {@link BoundaryCondition#SPECIAL}
+	 * color (forced opaque) if the value hit a SPECIAL boundary, otherwise
+	 * {@link #getPaletteValueForRaw(float)} looked up in {@link #getColorScheme()}.
 	 */
 	public final int getRGBForRaw( final float rawValue )
 	{
+		final Integer special = specialColorForRaw( rawValue );
+		if ( special != null )
+			return special | 0xff000000;
 		return getColorScheme().getRGB( getPaletteValueForRaw( rawValue ) );
 	}
 
 	/**
-	 * Like {@link #getRGBForRaw(float)}, but carrying the color stop's own
-	 * alpha component instead of forcing full opacity -- see
-	 * {@link ColorScheme#getRGBA(float)}.
+	 * Like {@link #getRGBForRaw(float)}, but carrying alpha instead of forcing
+	 * full opacity -- both the color stop's own alpha and, crucially, a
+	 * transparent {@link BoundaryCondition#SPECIAL} color (see
+	 * {@link ColorScheme#getRGBA(float)}).
 	 */
 	public final int getRGBAForRaw( final float rawValue )
 	{
+		final Integer special = specialColorForRaw( rawValue );
+		if ( special != null )
+			return special;
 		return getColorScheme().getRGBA( getPaletteValueForRaw( rawValue ) );
 	}
 
-	private float applyBoundary( final BoundaryCondition condition, final float rawValue, final float specialValue )
+	/** Which boundary {@code rawValue} hits and with what condition, or {@code null} if it is inside the domain. */
+	private BoundaryCondition boundaryHit( final float rawValue )
 	{
-		switch ( condition )
-		{
-			case CYCLE:
-				return toPaletteValue( cycled( rawValue ) );
-			case SPECIAL:
-				return specialValue;
-			case CLAMP:
-			default:
-				// Both a color scheme and a PresetFunc already clamp an
-				// out-of-domain input to their nearest edge, so passing the
-				// value straight through is CLAMP's actual behavior.
-				return toPaletteValue( rawValue );
-		}
+		if ( rawValue < rawDomainMin() )
+			return leftBoundaryCondition;
+		if ( isAboveDomain( rawValue ) )
+			return rightBoundaryCondition;
+		return null;
+	}
+
+	/** The SPECIAL color for {@code rawValue} if it hit a SPECIAL boundary, else {@code null} (so the palette-value path is used instead). */
+	private Integer specialColorForRaw( final float rawValue )
+	{
+		if ( rawValue < rawDomainMin() && leftBoundaryCondition == BoundaryCondition.SPECIAL )
+			return leftSpecialColor;
+		if ( isAboveDomain( rawValue ) && rightBoundaryCondition == BoundaryCondition.SPECIAL )
+			return rightSpecialColor;
+		return null;
 	}
 
 	/**

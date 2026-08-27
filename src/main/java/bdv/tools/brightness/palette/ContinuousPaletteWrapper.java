@@ -141,6 +141,15 @@ public class ContinuousPaletteWrapper extends AbstractPaletteWrapper
 		this.presetFunc = presetFunc;
 	}
 
+	/** Re-ranges the {@link #getPresetFunc()} over {@code [min, max]}, keeping its shape and palette-range length (see {@link PresetFunc#withRange(float, float)}). */
+	@Override
+	public void setRawDomain( final double min, final double max )
+	{
+		if ( !( max > min ) )
+			throw new IllegalArgumentException( "max must be strictly greater than min, got min=" + min + ", max=" + max );
+		this.presetFunc = presetFunc.withRange( ( float ) min, ( float ) max );
+	}
+
 	private static void requireMatchingPaletteRangeLength( final ContinuousColorScheme colorScheme, final PresetFunc presetFunc )
 	{
 		if ( colorScheme.getPaletteRangeLength() != presetFunc.getPaletteRangeLength() )

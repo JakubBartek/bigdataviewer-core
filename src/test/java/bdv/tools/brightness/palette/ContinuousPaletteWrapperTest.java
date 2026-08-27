@@ -149,6 +149,41 @@ public class ContinuousPaletteWrapperTest
 	}
 
 	/**
+	 * setRawDomain re-ranges the preset function, keeping its shape and palette
+	 * range length: the new min/max now map to the palette ends, and the
+	 * midpoint to the middle stop -- the same result the equivalent linear()
+	 * over the new range would give.
+	 */
+	@Test
+	public void testSetRawDomainReRangesThePresetFunc()
+	{
+		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( threeStops(), linear() );
+		wrapper.setRawDomain( 300.0, 500.0 );
+
+		Assert.assertEquals( 300f, wrapper.getPresetFunc().getMin(), 0f );
+		Assert.assertEquals( 500f, wrapper.getPresetFunc().getMax(), 0f );
+		Assert.assertEquals( 2, wrapper.getPresetFunc().getPaletteRangeLength() );
+
+		Assert.assertEquals( RED, wrapper.getRGBForRaw( 300f ) );
+		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 400f ) );
+		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 500f ) );
+	}
+
+	@Test
+	public void testSetRawDomainRejectsMaxNotGreaterThanMin()
+	{
+		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( threeStops(), linear() );
+		try
+		{
+			wrapper.setRawDomain( 5.0, 5.0 );
+			Assert.fail( "expected IllegalArgumentException" );
+		}
+		catch ( final IllegalArgumentException expected )
+		{
+		}
+	}
+
+	/**
 	 * A raw value inside the range that lands between two stops must produce
 	 * exactly what the color scheme itself would produce for the
 	 * corresponding palette value -- proof that the wrapper is composing
@@ -317,65 +352,53 @@ public class ContinuousPaletteWrapperTest
 
 	// -- SPECIAL -----------------------------------------------------------
 
+	/** A translucent grey, to prove the special color is used verbatim (alpha and all), not looked up in the palette. */
+	private static final int SPECIAL = ARGBType.rgba( 128, 128, 128, 64 );
+
 	/**
-	 * SPECIAL substitutes a fixed, user-chosen palette value (not a raw
-	 * color) for an out-of-domain raw value -- it still goes through the
-	 * color scheme's own lookup, same as every other case.
+	 * SPECIAL substitutes a fixed, user-chosen color -- not a palette lookup --
+	 * for an out-of-domain raw value. getRGBForRaw forces it opaque (per its
+	 * contract); getRGBAForRaw carries its real alpha.
 	 */
 	@Test
-	public void testSpecialUsesTheConfiguredPaletteValueOnTheLeft()
+	public void testSpecialUsesTheConfiguredColorOnTheLeft()
 	{
 		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( threeStops(), linear(),
 				BoundaryCondition.SPECIAL, BoundaryCondition.CLAMP );
-		wrapper.setLeftSpecialValue( 2f ); // stop 2 (blue), not the natural left edge (stop 0)
+		wrapper.setLeftSpecialColor( SPECIAL );
 
-		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 50f ) );
-		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( -1000f ) );
-		// Inside the domain is unaffected by the special value.
+		Assert.assertEquals( SPECIAL | 0xff000000, wrapper.getRGBForRaw( 50f ) );
+		Assert.assertEquals( SPECIAL, wrapper.getRGBAForRaw( -1000f ) );
+		// Inside the domain is unaffected by the special color.
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( 100f ) );
 	}
 
 	@Test
-	public void testSpecialUsesTheConfiguredPaletteValueOnTheRight()
+	public void testSpecialUsesTheConfiguredColorOnTheRight()
 	{
 		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( threeStops(), linear(),
 				BoundaryCondition.CLAMP, BoundaryCondition.SPECIAL );
-		wrapper.setRightSpecialValue( 0f ); // stop 0 (red), not the natural right edge (stop 2)
+		wrapper.setRightSpecialColor( SPECIAL );
 
-		Assert.assertEquals( RED, wrapper.getRGBForRaw( 250f ) );
-		Assert.assertEquals( RED, wrapper.getRGBForRaw( 1000f ) );
-		// Inside the domain is unaffected by the special value.
+		Assert.assertEquals( SPECIAL, wrapper.getRGBAForRaw( 250f ) );
+		Assert.assertEquals( SPECIAL, wrapper.getRGBAForRaw( 1000f ) );
+		// Inside the domain is unaffected by the special color.
 		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 200f ) );
 	}
 
 	/**
-	 * The default special value (never set) is 0 -- same as Java's default
-	 * float field value -- so it must resolve to stop 0 without needing to be
-	 * configured first.
+	 * The default special color (never set) is transparent -- the "background"
+	 * default -- so an out-of-range value renders as nothing through the
+	 * alpha-carrying path without needing to be configured first.
 	 */
 	@Test
-	public void testSpecialDefaultsToPaletteValueZero()
+	public void testSpecialDefaultsToTransparent()
 	{
 		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( threeStops(), linear(),
 				BoundaryCondition.SPECIAL, BoundaryCondition.SPECIAL );
 
-		Assert.assertEquals( RED, wrapper.getRGBForRaw( 50f ) );
-		Assert.assertEquals( RED, wrapper.getRGBForRaw( 250f ) );
-	}
-
-	/**
-	 * A left/right special value that is itself outside the color scheme's
-	 * domain is not an error: it just clamps like any other out-of-domain
-	 * palette value passed to the color scheme.
-	 */
-	@Test
-	public void testOutOfDomainSpecialValueStillClampsInTheColorScheme()
-	{
-		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( threeStops(), linear(),
-				BoundaryCondition.SPECIAL, BoundaryCondition.CLAMP );
-		wrapper.setLeftSpecialValue( 999f );
-
-		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 50f ) );
+		Assert.assertEquals( 0, ARGBType.alpha( wrapper.getRGBAForRaw( 50f ) ) );
+		Assert.assertEquals( 0, ARGBType.alpha( wrapper.getRGBAForRaw( 250f ) ) );
 	}
 
 	// -- palette values exactly at the boundary -----------------------------
