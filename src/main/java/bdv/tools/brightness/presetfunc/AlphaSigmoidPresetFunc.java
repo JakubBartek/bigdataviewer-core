@@ -51,4 +51,10 @@ public class AlphaSigmoidPresetFunc extends AbstractPresetFunc
 			return 0;
 		return tp / ( tp + tq );
 	}
+
+	@Override
+	public AlphaSigmoidPresetFunc withRange( final float min, final float max )
+	{
+		return new AlphaSigmoidPresetFunc( min, max, getPaletteRangeLength() );
+	}
 }

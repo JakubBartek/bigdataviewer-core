@@ -47,4 +47,10 @@ public class TanPresetFunc extends AbstractPresetFunc
 	{
 		return normalized( t, x -> Math.tan( K * ( x - 0.5 ) ) );
 	}
+
+	@Override
+	public TanPresetFunc withRange( final float min, final float max )
+	{
+		return new TanPresetFunc( min, max, getPaletteRangeLength() );
+	}
 }

@@ -53,4 +53,10 @@ public class PercentileStretchPresetFunc extends AbstractPresetFunc
 			return 1;
 		return ( t - LO ) / ( HI - LO );
 	}
+
+	@Override
+	public PercentileStretchPresetFunc withRange( final float min, final float max )
+	{
+		return new PercentileStretchPresetFunc( min, max, getPaletteRangeLength() );
+	}
 }

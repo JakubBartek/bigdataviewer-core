@@ -152,4 +152,44 @@ public class AbstractPresetFuncTest
 			}
 		}
 	}
+
+	/**
+	 * {@link PresetFunc#withRange(float, float)} keeps the shape and palette
+	 * range but moves the endpoints: at the new min/max the palette value is
+	 * the same 0/rangeLength as at the old ones, and a proportionally-placed
+	 * raw value maps to the same palette value as before -- i.e. the shape was
+	 * stretched, not distorted. Checked across all implementations.
+	 */
+	@Test
+	public void testWithRangeStretchesTheSameShapeOntoTheNewEndpoints()
+	{
+		for ( final PresetFuncFactory factory : ALL_CONSTRUCTORS )
+		{
+			final PresetFunc original = build( factory ); // raw [100, 200] -> [0, 10]
+			final PresetFunc reranged = original.withRange( 300f, 500f );
+			final String name = factory.getClass().getSimpleName();
+
+			Assert.assertEquals( name, 300f, reranged.getMin(), 0f );
+			Assert.assertEquals( name, 500f, reranged.getMax(), 0f );
+			Assert.assertEquals( name, original.getPaletteRangeLength(), reranged.getPaletteRangeLength() );
+
+			// The 25%/50%/75% points of each range must produce the same palette value.
+			Assert.assertEquals( name, original.getPaletteValueForRaw( 125f ), reranged.getPaletteValueForRaw( 350f ), 1e-4f );
+			Assert.assertEquals( name, original.getPaletteValueForRaw( 150f ), reranged.getPaletteValueForRaw( 400f ), 1e-4f );
+			Assert.assertEquals( name, original.getPaletteValueForRaw( 175f ), reranged.getPaletteValueForRaw( 450f ), 1e-4f );
+		}
+	}
+
+	/** {@code withRange} keeps the shape independent of the endpoints, so re-ranging must not mutate the original. */
+	@Test
+	public void testWithRangeDoesNotMutateTheOriginal()
+	{
+		for ( final PresetFuncFactory factory : ALL_CONSTRUCTORS )
+		{
+			final PresetFunc original = build( factory );
+			original.withRange( 300f, 500f );
+			Assert.assertEquals( factory.getClass().getSimpleName(), 100f, original.getMin(), 0f );
+			Assert.assertEquals( factory.getClass().getSimpleName(), 200f, original.getMax(), 0f );
+		}
+	}
 }

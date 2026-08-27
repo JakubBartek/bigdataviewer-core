@@ -47,4 +47,10 @@ public class AtanPresetFunc extends AbstractPresetFunc
 	{
 		return normalized( t, x -> Math.atan( K * ( x - 0.5 ) ) );
 	}
+
+	@Override
+	public AtanPresetFunc withRange( final float min, final float max )
+	{
+		return new AtanPresetFunc( min, max, getPaletteRangeLength() );
+	}
 }

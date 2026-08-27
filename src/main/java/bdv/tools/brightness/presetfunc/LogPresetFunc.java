@@ -46,4 +46,10 @@ public class LogPresetFunc extends AbstractPresetFunc
 	{
 		return Math.log1p( K * t ) / Math.log1p( K );
 	}
+
+	@Override
+	public LogPresetFunc withRange( final float min, final float max )
+	{
+		return new LogPresetFunc( min, max, getPaletteRangeLength() );
+	}
 }

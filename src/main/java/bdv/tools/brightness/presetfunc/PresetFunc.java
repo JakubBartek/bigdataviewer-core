@@ -78,4 +78,14 @@ public interface PresetFunc
 	 * itself beforehand (see the class javadoc).
 	 */
 	float getPaletteValueForRaw( float rawValue );
+
+	/**
+	 * A copy of this function with the same shape and
+	 * {@link #getPaletteRangeLength()} but a different input range -- i.e. the
+	 * same transformation stretched over a new {@code [min, max]}. This is how
+	 * a changing display range (a brightness/contrast adjustment) is applied
+	 * without disturbing which shape the user chose. {@code PresetFunc} is
+	 * otherwise immutable, so this returns a new instance rather than mutating.
+	 */
+	PresetFunc withRange( float min, float max );
 }

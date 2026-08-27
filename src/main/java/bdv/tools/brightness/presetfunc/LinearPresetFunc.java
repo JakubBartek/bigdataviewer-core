@@ -40,4 +40,10 @@ public class LinearPresetFunc extends AbstractPresetFunc
 	{
 		return t;
 	}
+
+	@Override
+	public LinearPresetFunc withRange( final float min, final float max )
+	{
+		return new LinearPresetFunc( min, max, getPaletteRangeLength() );
+	}
 }

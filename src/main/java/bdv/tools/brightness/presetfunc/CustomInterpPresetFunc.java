@@ -139,6 +139,15 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 		return knotValues.clone();
 	}
 
+	/** As {@link PresetFunc#withRange(float, float)}, carrying this function's current knots over unchanged (they are domain fractions, so independent of the raw range). */
+	@Override
+	public CustomInterpPresetFunc withRange( final float min, final float max )
+	{
+		final CustomInterpPresetFunc copy = new CustomInterpPresetFunc( min, max, getPaletteRangeLength() );
+		copy.setKnots( knotTs, knotValues );
+		return copy;
+	}
+
 	/** The knot values as given -- deliberately not {@code normalized(...)}; see the class javadoc. */
 	@Override
 	double shape( final double t )

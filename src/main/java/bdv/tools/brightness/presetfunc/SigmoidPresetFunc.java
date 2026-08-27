@@ -45,4 +45,10 @@ public class SigmoidPresetFunc extends AbstractPresetFunc
 	{
 		return normalized( t, x -> 1.0 / ( 1.0 + Math.exp( -K * ( x - 0.5 ) ) ) );
 	}
+
+	@Override
+	public SigmoidPresetFunc withRange( final float min, final float max )
+	{
+		return new SigmoidPresetFunc( min, max, getPaletteRangeLength() );
+	}
 }

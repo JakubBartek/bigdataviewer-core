@@ -191,6 +191,21 @@ public class CustomInterpPresetFuncTest
 		Assert.assertArrayEquals( new double[] { 0.0, 0.9, 1.0 }, f.getKnotValues(), 1e-9 );
 	}
 
+	/** withRange must carry the custom knots over -- they are domain fractions, so a proportional raw value maps identically before and after re-ranging. */
+	@Test
+	public void testWithRangeCarriesKnotsOver()
+	{
+		final CustomInterpPresetFunc f = scaled();
+		f.setKnots( new double[] { 0.0, 0.5, 1.0 }, new double[] { 0.0, 0.8, 1.0 } );
+
+		final CustomInterpPresetFunc reranged = f.withRange( 300f, 500f );
+
+		Assert.assertArrayEquals( f.getKnotTs(), reranged.getKnotTs(), 1e-9 );
+		Assert.assertArrayEquals( f.getKnotValues(), reranged.getKnotValues(), 1e-9 );
+		// t=0.5 of the new range (raw 400) hits the interior knot, same 8.0 as raw 150 did.
+		Assert.assertEquals( 8.0f, reranged.getPaletteValueForRaw( 400f ), 1e-4f );
+	}
+
 	/** Mutating an array returned by the getters must not affect the function's actual state. */
 	@Test
 	public void testKnotGettersReturnDefensiveCopies()

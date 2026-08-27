@@ -47,4 +47,10 @@ public class ExpPresetFunc extends AbstractPresetFunc
 	{
 		return ( Math.exp( K * t ) - 1.0 ) / ( Math.exp( K ) - 1.0 );
 	}
+
+	@Override
+	public ExpPresetFunc withRange( final float min, final float max )
+	{
+		return new ExpPresetFunc( min, max, getPaletteRangeLength() );
+	}
 }
