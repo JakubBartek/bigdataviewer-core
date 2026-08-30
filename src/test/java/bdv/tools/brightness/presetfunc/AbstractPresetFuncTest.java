@@ -27,6 +27,7 @@
  */
 package bdv.tools.brightness.presetfunc;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -50,8 +51,17 @@ public class AbstractPresetFuncTest
 		PresetFunc create( float min, float max, int paletteRangeLength );
 	}
 
-	/** One constructor reference per implementation, so the tests below run against all of them without repeating themselves by hand. */
-	private static final List< PresetFuncFactory > ALL_CONSTRUCTORS = Arrays.asList(
+	/**
+	 * The shapes whose {@link PresetFunc#withRange(float, float)} stretches
+	 * them onto the new endpoints -- every implementation except
+	 * {@link StepPresetFunc}, whose step size is a quantity in raw units and so
+	 * deliberately survives a range change unscaled (see
+	 * {@link StepPresetFuncTest}). Only
+	 * {@link #testWithRangeStretchesTheSameShapeOntoTheNewEndpoints} needs to
+	 * make that distinction; every other test here runs against
+	 * {@link #ALL_CONSTRUCTORS}.
+	 */
+	private static final List< PresetFuncFactory > RANGE_STRETCHING_CONSTRUCTORS = Arrays.asList(
 			LinearPresetFunc::new,
 			PercentileStretchPresetFunc::new,
 			LogPresetFunc::new,
@@ -61,6 +71,23 @@ public class AbstractPresetFuncTest
 			TanPresetFunc::new,
 			AtanPresetFunc::new,
 			CustomInterpPresetFunc::new );
+
+	/**
+	 * One constructor reference per implementation, so the tests below run
+	 * against all of them without repeating themselves by hand.
+	 * {@link StepPresetFunc} takes a step size as well; built at its default
+	 * one it is a plain single pass over the palette, so it shares every
+	 * contract checked here.
+	 */
+	private static final List< PresetFuncFactory > ALL_CONSTRUCTORS = concat( RANGE_STRETCHING_CONSTRUCTORS,
+			( min, max, n ) -> new StepPresetFunc( min, max, n, StepPresetFunc.defaultStepSize( min, max, n ) ) );
+
+	private static List< PresetFuncFactory > concat( final List< PresetFuncFactory > factories, final PresetFuncFactory extra )
+	{
+		final List< PresetFuncFactory > all = new ArrayList<>( factories );
+		all.add( extra );
+		return all;
+	}
 
 	/** The shared fixture: raw [100, 200] onto palette values [0, 10]. */
 	private static PresetFunc build( final PresetFuncFactory factory )
@@ -158,12 +185,14 @@ public class AbstractPresetFuncTest
 	 * range but moves the endpoints: at the new min/max the palette value is
 	 * the same 0/rangeLength as at the old ones, and a proportionally-placed
 	 * raw value maps to the same palette value as before -- i.e. the shape was
-	 * stretched, not distorted. Checked across all implementations.
+	 * stretched, not distorted. Checked across every implementation that makes
+	 * this promise; see {@link #RANGE_STRETCHING_CONSTRUCTORS} for the one that
+	 * deliberately does not.
 	 */
 	@Test
 	public void testWithRangeStretchesTheSameShapeOntoTheNewEndpoints()
 	{
-		for ( final PresetFuncFactory factory : ALL_CONSTRUCTORS )
+		for ( final PresetFuncFactory factory : RANGE_STRETCHING_CONSTRUCTORS )
 		{
 			final PresetFunc original = build( factory ); // raw [100, 200] -> [0, 10]
 			final PresetFunc reranged = original.withRange( 300f, 500f );

@@ -31,13 +31,15 @@ package bdv.tools.brightness;
 import org.junit.Assert;
 import org.junit.Test;
 
+import bdv.tools.brightness.palette.BoundaryCondition;
+
 /**
  * Test cases for {@link LutEditorMapping}, the LUT editor's editable mapping state.
- * It is now a pure configuration holder (the raw-value-to-color mapping itself
- * lives in the new color-mapping architecture, reached via
+ * It is a pure configuration holder (the raw-value-to-color mapping itself
+ * lives in the color-mapping architecture, reached via
  * {@link PaletteWrapperBuilder}); these cover the state it owns -- curve,
- * presets, range mode, discrete flag and background -- and its copy/equality
- * helpers.
+ * presets, per-end boundary conditions and their colors, the discrete flag and
+ * its step size -- and its copy/equality helpers.
  */
 public class LutEditorMappingTest
 {
@@ -108,34 +110,42 @@ public class LutEditorMappingTest
 	@Test
 	public void testCopyFromCopiesStateAndDoesNotAlias()
 	{
-		// Not discrete: setDiscrete(true) forces the curve back to LINEAR (see
-		// testSetDiscreteForcesLinearCurve), which would fight the SIGMOID
-		// preset set up below -- discrete's own copy behavior is covered by
-		// testHasSameStateDetectsEachField instead.
+		// Deliberately left continuous: setDiscrete(true) forces the curve back
+		// to LINEAR (see testSetDiscreteForcesLinearCurve), which would fight
+		// the SIGMOID preset set up below -- the discrete flag's own copy
+		// behavior is covered by testHasSameStateDetectsEachField instead.
 		final LutEditorMapping source = new LutEditorMapping();
 		source.applyPreset( PresetShape.SIGMOID );
-		source.setCyclic( true );
-		source.setTreatMinAsBackground( true );
-		source.setBackgroundColor( 0xffaabbcc );
+		source.setLeftBoundaryCondition( BoundaryCondition.SPECIAL );
+		source.setRightBoundaryCondition( BoundaryCondition.CYCLE );
+		source.setLeftSpecialColor( 0xffaabbcc );
+		source.setRightSpecialColor( 0xff112233 );
+		source.setStepSize( 4.0 );
 
 		final LutEditorMapping copy = new LutEditorMapping();
 		copy.copyFrom( source );
 
 		Assert.assertTrue( source.hasSameState( copy ) );
 		Assert.assertEquals( source.getPreset(), copy.getPreset() );
-		Assert.assertEquals( source.isCyclic(), copy.isCyclic() );
-		Assert.assertEquals( source.isTreatMinAsBackground(), copy.isTreatMinAsBackground() );
-		Assert.assertEquals( source.getBackgroundColor(), copy.getBackgroundColor() );
+		Assert.assertEquals( source.getLeftBoundaryCondition(), copy.getLeftBoundaryCondition() );
+		Assert.assertEquals( source.getRightBoundaryCondition(), copy.getRightBoundaryCondition() );
+		Assert.assertEquals( source.getLeftSpecialColor(), copy.getLeftSpecialColor() );
+		Assert.assertEquals( source.getRightSpecialColor(), copy.getRightSpecialColor() );
+		Assert.assertEquals( source.getStepSize(), copy.getStepSize(), 0.0 );
 
 		// Mutating the source afterwards must not affect the copy.
 		source.applyPreset( PresetShape.LINEAR );
-		source.setCyclic( false );
-		source.setTreatMinAsBackground( false );
-		source.setBackgroundColor( 0xff000000 );
+		source.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
+		source.setRightBoundaryCondition( BoundaryCondition.CLAMP );
+		source.setLeftSpecialColor( LutEditorMapping.DEFAULT_SPECIAL_COLOR );
+		source.setRightSpecialColor( LutEditorMapping.DEFAULT_SPECIAL_COLOR );
+		source.setStepSize( LutEditorMapping.AUTO_STEP_SIZE );
 		Assert.assertEquals( PresetShape.SIGMOID, copy.getPreset() );
-		Assert.assertTrue( copy.isCyclic() );
-		Assert.assertTrue( copy.isTreatMinAsBackground() );
-		Assert.assertEquals( 0xffaabbcc, copy.getBackgroundColor() );
+		Assert.assertEquals( BoundaryCondition.SPECIAL, copy.getLeftBoundaryCondition() );
+		Assert.assertEquals( BoundaryCondition.CYCLE, copy.getRightBoundaryCondition() );
+		Assert.assertEquals( 0xffaabbcc, copy.getLeftSpecialColor() );
+		Assert.assertEquals( 0xff112233, copy.getRightSpecialColor() );
+		Assert.assertEquals( 4.0, copy.getStepSize(), 0.0 );
 		Assert.assertFalse( source.hasSameState( copy ) );
 	}
 
@@ -146,9 +156,29 @@ public class LutEditorMappingTest
 		final LutEditorMapping b = new LutEditorMapping();
 		Assert.assertTrue( a.hasSameState( b ) );
 
-		b.setCyclic( true );
+		b.setLeftBoundaryCondition( BoundaryCondition.CYCLE );
 		Assert.assertFalse( a.hasSameState( b ) );
-		b.setCyclic( false );
+		b.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
+		Assert.assertTrue( a.hasSameState( b ) );
+
+		b.setRightBoundaryCondition( BoundaryCondition.SPECIAL );
+		Assert.assertFalse( a.hasSameState( b ) );
+		b.setRightBoundaryCondition( BoundaryCondition.CLAMP );
+		Assert.assertTrue( a.hasSameState( b ) );
+
+		b.setLeftSpecialColor( 0xff123456 );
+		Assert.assertFalse( a.hasSameState( b ) );
+		b.setLeftSpecialColor( LutEditorMapping.DEFAULT_SPECIAL_COLOR );
+		Assert.assertTrue( a.hasSameState( b ) );
+
+		b.setRightSpecialColor( 0xff123456 );
+		Assert.assertFalse( a.hasSameState( b ) );
+		b.setRightSpecialColor( LutEditorMapping.DEFAULT_SPECIAL_COLOR );
+		Assert.assertTrue( a.hasSameState( b ) );
+
+		b.setStepSize( 7.5 );
+		Assert.assertFalse( a.hasSameState( b ) );
+		b.setStepSize( LutEditorMapping.AUTO_STEP_SIZE );
 		Assert.assertTrue( a.hasSameState( b ) );
 
 		b.setDiscrete( true );
@@ -197,11 +227,34 @@ public class LutEditorMappingTest
 		final int[] count = { 0 };
 		model.addChangeListener( () -> count[ 0 ]++ );
 
-		model.setCyclic( true );
+		model.setLeftBoundaryCondition( BoundaryCondition.CYCLE );
 		model.setDiscrete( true );
 		model.applyPreset( PresetShape.LOG );
 		model.notifyCurveEdited();
 
 		Assert.assertEquals( 4, count[ 0 ] );
+	}
+
+	/**
+	 * A step size is a positive count of raw values, so anything else means
+	 * "no explicit choice" -- the model normalizes it to
+	 * {@link LutEditorMapping#AUTO_STEP_SIZE} rather than storing a value
+	 * {@link PaletteWrapperBuilder} would have to reject later.
+	 */
+	@Test
+	public void testNonPositiveStepSizeBecomesAuto()
+	{
+		final LutEditorMapping model = new LutEditorMapping();
+		Assert.assertEquals( LutEditorMapping.AUTO_STEP_SIZE, model.getStepSize(), 0.0 );
+
+		model.setStepSize( 2.5 );
+		Assert.assertEquals( 2.5, model.getStepSize(), 0.0 );
+
+		model.setStepSize( -1.0 );
+		Assert.assertEquals( LutEditorMapping.AUTO_STEP_SIZE, model.getStepSize(), 0.0 );
+
+		model.setStepSize( 2.5 );
+		model.setStepSize( 0.0 );
+		Assert.assertEquals( LutEditorMapping.AUTO_STEP_SIZE, model.getStepSize(), 0.0 );
 	}
 }

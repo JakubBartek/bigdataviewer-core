@@ -32,10 +32,11 @@ import java.util.Arrays;
 import bdv.tools.brightness.colorscheme.ColorScheme;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
-import bdv.tools.brightness.palette.BoundaryCondition;
 import bdv.tools.brightness.palette.PaletteWrapper;
 import bdv.tools.brightness.palette.PresetPaletteWrapper;
 import bdv.tools.brightness.presetfunc.CustomInterpPresetFunc;
+import bdv.tools.brightness.presetfunc.PresetFunc;
+import bdv.tools.brightness.presetfunc.StepPresetFunc;
 import net.imglib2.display.ColorTable;
 
 /**
@@ -46,24 +47,25 @@ import net.imglib2.display.ColorTable;
  * (so it can be unit-tested) and the {@code palette} package (so that package
  * stays free of any dependency on the editor's model).
  * <p>
- * The mapping {@link Curve} always carries over as a {@link CustomInterpPresetFunc}
- * (so presets, hand-dragged points and inversion are all preserved), and the
- * mapping's {@link LutEditorMapping#isDiscrete()} flag only picks the color scheme
- * it feeds -- which is the discrete-vs-continuous distinction at the heart of
- * the new design:
+ * The mapping's {@link LutEditorMapping#isDiscrete()} flag picks both halves of
+ * the pipeline at once, which is the discrete-vs-continuous distinction at the
+ * heart of the design:
  * <ul>
- * <li>continuous (a gradient palette, e.g. viridis) uses a
- * {@link ContinuousColorScheme}: the curve's value is interpolated between
- * stops into a smooth gradient.</li>
- * <li>discrete (a categorical palette, e.g. tab10, or a label image) uses a
- * {@link DiscreteColorScheme}: the very same curve value is floored to a single
- * stop, so each raw value shows one distinct color.</li>
+ * <li>continuous (a gradient palette, e.g. viridis): a
+ * {@link ContinuousColorScheme} fed by the editor's {@link Curve} carried over
+ * as a {@link CustomInterpPresetFunc}, so presets, hand-dragged points and
+ * inversion are all preserved. The curve's value is interpolated between stops
+ * into a smooth gradient.</li>
+ * <li>discrete (a categorical palette, e.g. tab10, or a label image): a
+ * {@link DiscreteColorScheme} fed by a {@link StepPresetFunc} built from the
+ * mapping's {@link LutEditorMapping#getStepSize() step size}, so one color
+ * covers that many raw values and the palette repeats across the range. The
+ * curve is not consulted at all -- flooring to a stop is what makes a shape
+ * pointless here.</li>
  * </ul>
- * Either way, a cyclic range becomes {@link BoundaryCondition#CYCLE}
- * (otherwise {@link BoundaryCondition#CLAMP}), and a treat-min-as-background
- * color becomes a left {@link BoundaryCondition#SPECIAL} with that color.
- * Features the new model has no equivalent for (the cyclic period) are not
- * represented, so the result is close but not identical to the old converter's.
+ * The two {@link bdv.tools.brightness.palette.BoundaryCondition}s and their
+ * colors are passed through verbatim: the editor edits exactly the render
+ * model's own boundary vocabulary, so there is nothing to translate.
  */
 public final class PaletteWrapperBuilder
 {
@@ -74,33 +76,44 @@ public final class PaletteWrapperBuilder
 	/** Build the {@link PaletteWrapper} equivalent of {@code palette} + {@code mapping} over the display range {@code [min, max]}; see the class javadoc. */
 	public static PaletteWrapper build( final ColorTable palette, final LutEditorMapping mapping, final double min, final double max )
 	{
-		// The only discrete-vs-continuous difference is the color scheme: a
-		// discrete scheme floors the curve's value to a stop, a continuous one
-		// interpolates it. The rest of the pipeline is identical.
 		final ColorScheme scheme = mapping.isDiscrete()
 				? new DiscreteColorScheme( palette )
 				: new ContinuousColorScheme( palette );
 
-		final double hi = max > min ? max : min + 1; // CustomInterpPresetFunc requires max > min
-		final CustomInterpPresetFunc curve = new CustomInterpPresetFunc( ( float ) min, ( float ) hi, scheme.getPaletteRangeLength() );
+		final float lo = ( float ) min;
+		final float hi = ( float ) ( max > min ? max : min + 1 ); // both preset functions require max > min
+		final PresetFunc presetFunc = mapping.isDiscrete()
+				? stepFunc( mapping, scheme, lo, hi )
+				: curveFunc( mapping, scheme, lo, hi );
+
+		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, presetFunc,
+				mapping.getLeftBoundaryCondition(), mapping.getRightBoundaryCondition() );
+		wrapper.setLeftSpecialColor( mapping.getLeftSpecialColor() );
+		wrapper.setRightSpecialColor( mapping.getRightSpecialColor() );
+		return wrapper;
+	}
+
+	/**
+	 * The discrete palette's shape: one color per
+	 * {@link LutEditorMapping#getStepSize()} raw values, resolving
+	 * {@link LutEditorMapping#AUTO_STEP_SIZE} against the range and stop count
+	 * the model deliberately does not know about.
+	 */
+	private static PresetFunc stepFunc( final LutEditorMapping mapping, final ColorScheme scheme, final float lo, final float hi )
+	{
+		final int paletteRangeLength = scheme.getPaletteRangeLength();
+		final double chosen = mapping.getStepSize();
+		final double stepSize = chosen > 0.0 ? chosen : StepPresetFunc.defaultStepSize( lo, hi, paletteRangeLength );
+		return new StepPresetFunc( lo, hi, paletteRangeLength, stepSize );
+	}
+
+	/** The continuous palette's shape: the editor's curve, knot for knot. */
+	private static PresetFunc curveFunc( final LutEditorMapping mapping, final ColorScheme scheme, final float lo, final float hi )
+	{
+		final CustomInterpPresetFunc curve = new CustomInterpPresetFunc( lo, hi, scheme.getPaletteRangeLength() );
 		final Knots knots = sanitizedKnots( mapping );
 		curve.setKnots( knots.ts, knots.values );
-
-		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, curve );
-		final BoundaryCondition boundary = mapping.isCyclic() ? BoundaryCondition.CYCLE : BoundaryCondition.CLAMP;
-		wrapper.setRightBoundaryCondition( boundary );
-		if ( mapping.isTreatMinAsBackground() )
-		{
-			// Below-range values render as the background color; the new model's
-			// closest equivalent to treat-min-as-background.
-			wrapper.setLeftBoundaryCondition( BoundaryCondition.SPECIAL );
-			wrapper.setLeftSpecialColor( mapping.getBackgroundColor() );
-		}
-		else
-		{
-			wrapper.setLeftBoundaryCondition( boundary );
-		}
-		return wrapper;
+		return curve;
 	}
 
 	/** The knot arrays {@link CustomInterpPresetFunc#setKnots} needs; see {@link #sanitizedKnots}. */

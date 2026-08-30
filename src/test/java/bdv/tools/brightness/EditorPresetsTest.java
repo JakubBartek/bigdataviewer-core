@@ -28,6 +28,9 @@
  */
 package bdv.tools.brightness;
 
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
 
@@ -37,6 +40,8 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+
+import bdv.tools.brightness.palette.BoundaryCondition;
 
 /**
  * Test cases for {@link EditorPresets}. Each test points
@@ -63,7 +68,8 @@ public class EditorPresetsTest
 
 	private static EditorPreset sample( final String name )
 	{
-		return new EditorPreset( name, "tab10", true, true, 0xff112233,
+		return new EditorPreset( name, "tab10", BoundaryCondition.SPECIAL, BoundaryCondition.CYCLE,
+				0xff112233, 0xff445566, 2.5,
 				new double[] { 0.0, 0.5, 1.0 }, new int[] { 0, 100, 255 } );
 	}
 
@@ -83,9 +89,9 @@ public class EditorPresetsTest
 
 		Assert.assertNotNull( preset );
 		Assert.assertEquals( "tab10", preset.getPaletteName() );
-		Assert.assertTrue( preset.isCyclic() );
-		Assert.assertTrue( preset.isTreatMinAsBackground() );
-		Assert.assertEquals( 0xff000000, preset.getBackgroundColor() );
+		Assert.assertEquals( BoundaryCondition.SPECIAL, preset.getLeftBoundaryCondition() );
+		Assert.assertEquals( BoundaryCondition.CYCLE, preset.getRightBoundaryCondition() );
+		Assert.assertEquals( 0xff000000, preset.getLeftSpecialColor() );
 		Assert.assertArrayEquals( new double[] { 0.0, 1.0 }, preset.getCurveXs(), 1e-9 );
 		Assert.assertArrayEquals( new int[] { 0, 255 }, preset.getCurveYs() );
 	}
@@ -107,11 +113,76 @@ public class EditorPresetsTest
 		Assert.assertNotNull( loaded );
 		Assert.assertEquals( saved.getName(), loaded.getName() );
 		Assert.assertEquals( saved.getPaletteName(), loaded.getPaletteName() );
-		Assert.assertEquals( saved.isCyclic(), loaded.isCyclic() );
-		Assert.assertEquals( saved.isTreatMinAsBackground(), loaded.isTreatMinAsBackground() );
-		Assert.assertEquals( saved.getBackgroundColor(), loaded.getBackgroundColor() );
+		Assert.assertEquals( saved.getLeftBoundaryCondition(), loaded.getLeftBoundaryCondition() );
+		Assert.assertEquals( saved.getRightBoundaryCondition(), loaded.getRightBoundaryCondition() );
+		Assert.assertEquals( saved.getLeftSpecialColor(), loaded.getLeftSpecialColor() );
+		Assert.assertEquals( saved.getRightSpecialColor(), loaded.getRightSpecialColor() );
+		Assert.assertEquals( saved.getStepSize(), loaded.getStepSize(), 0.0 );
 		Assert.assertArrayEquals( saved.getCurveXs(), loaded.getCurveXs(), 1e-9 );
 		Assert.assertArrayEquals( saved.getCurveYs(), loaded.getCurveYs() );
+	}
+
+	/**
+	 * A preset saved before per-end boundary conditions existed carries
+	 * {@code cyclic}/{@code treatMinAsBackground}/{@code backgroundColor}
+	 * instead. Those must still load -- a user's saved settings outlive the
+	 * format -- with treat-min-as-background becoming a left
+	 * {@link BoundaryCondition#SPECIAL} (what it always meant) and cyclic
+	 * becoming {@link BoundaryCondition#CYCLE} on the end it did not claim.
+	 */
+	@Test
+	public void testLegacyPresetMigratesToBoundaryConditions() throws Exception
+	{
+		writeUserPreset( "Legacy", "{"
+				+ "\"name\":\"Legacy\",\"paletteName\":\"tab10\","
+				+ "\"cyclic\":true,\"treatMinAsBackground\":true,\"backgroundColor\":-16777216,"
+				+ "\"curveXs\":[0.0,1.0],\"curveYs\":[0,255]}" );
+
+		final EditorPreset loaded = EditorPresets.load( "Legacy" );
+
+		Assert.assertNotNull( loaded );
+		Assert.assertEquals( BoundaryCondition.SPECIAL, loaded.getLeftBoundaryCondition() );
+		Assert.assertEquals( BoundaryCondition.CYCLE, loaded.getRightBoundaryCondition() );
+		Assert.assertEquals( 0xff000000, loaded.getLeftSpecialColor() );
+		// The legacy format had no above-range color or step size at all.
+		Assert.assertEquals( LutEditorMapping.DEFAULT_SPECIAL_COLOR, loaded.getRightSpecialColor() );
+		Assert.assertEquals( LutEditorMapping.AUTO_STEP_SIZE, loaded.getStepSize(), 0.0 );
+	}
+
+	/** A legacy preset that was neither cyclic nor background-flagged is plain clamping at both ends. */
+	@Test
+	public void testLegacyNonCyclicPresetMigratesToClamp() throws Exception
+	{
+		writeUserPreset( "LegacyPlain", "{"
+				+ "\"name\":\"LegacyPlain\",\"paletteName\":\"viridis\","
+				+ "\"cyclic\":false,\"treatMinAsBackground\":false,\"backgroundColor\":-16777216,"
+				+ "\"curveXs\":[0.0,1.0],\"curveYs\":[0,255]}" );
+
+		final EditorPreset loaded = EditorPresets.load( "LegacyPlain" );
+
+		Assert.assertEquals( BoundaryCondition.CLAMP, loaded.getLeftBoundaryCondition() );
+		Assert.assertEquals( BoundaryCondition.CLAMP, loaded.getRightBoundaryCondition() );
+	}
+
+	/** Saving must not write the legacy keys back out; they are a read-only compatibility path. */
+	@Test
+	public void testSavedPresetDoesNotWriteLegacyKeys() throws Exception
+	{
+		EditorPresets.save( sample( "My Setting" ) );
+
+		final String json = new String( Files.readAllBytes(
+				new File( tmp.getRoot(), "My Setting.json" ).toPath() ), StandardCharsets.UTF_8 );
+
+		Assert.assertFalse( json, json.contains( "cyclic" ) );
+		Assert.assertFalse( json, json.contains( "treatMinAsBackground" ) );
+		Assert.assertFalse( json, json.contains( "backgroundColor" ) );
+		Assert.assertTrue( json, json.contains( "leftBoundaryCondition" ) );
+	}
+
+	/** Write a raw preset file straight into the (redirected) user directory, bypassing {@link EditorPresets#save} so an older format can be simulated. */
+	private void writeUserPreset( final String name, final String json ) throws Exception
+	{
+		Files.write( new File( tmp.getRoot(), name + ".json" ).toPath(), json.getBytes( StandardCharsets.UTF_8 ) );
 	}
 
 	@Test
@@ -143,7 +214,7 @@ public class EditorPresetsTest
 
 		Assert.assertTrue( EditorPresets.isUserDefined( "Labels (Cyclic, tab10)" ) );
 		final EditorPreset loaded = EditorPresets.load( "Labels (Cyclic, tab10)" );
-		Assert.assertEquals( 0xff112233, loaded.getBackgroundColor() );
+		Assert.assertEquals( 0xff112233, loaded.getLeftSpecialColor() );
 		Assert.assertArrayEquals( new int[] { 0, 100, 255 }, loaded.getCurveYs() );
 	}
 

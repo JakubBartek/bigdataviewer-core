@@ -28,6 +28,7 @@
 package bdv.tools.brightness;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -37,7 +38,6 @@ import java.awt.Frame;
 import java.awt.Graphics;
 import java.awt.GridLayout;
 import java.awt.Insets;
-import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
@@ -50,11 +50,9 @@ import java.util.WeakHashMap;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
-import javax.swing.ButtonGroup;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JColorChooser;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
@@ -63,7 +61,6 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
@@ -72,7 +69,9 @@ import javax.swing.border.EmptyBorder;
 import bdv.tools.brightness.colorscheme.ColorScheme;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
+import bdv.tools.brightness.palette.BoundaryCondition;
 import bdv.tools.brightness.palette.PaletteWrapper;
+import bdv.tools.brightness.presetfunc.StepPresetFunc;
 import bdv.viewer.ConverterSetups;
 import bdv.viewer.SourceAndConverter;
 import bdv.viewer.ViewerState;
@@ -111,12 +110,24 @@ public class LutEditorDialog extends JDialog
 	private final GradientPreviewPanel panelPaletteSwatch;
 	private final MappingCurvePanel panelMappingCurve;
 
-	private final JRadioButton radioFit;
-	private final JRadioButton radioCyclic;
-	private final JCheckBox checkTreatMinAsBackground;
-	private final JButton buttonBackgroundColor;
+	private final JComboBox< BoundaryCondition > comboLeftBoundary;
+	private final JComboBox< BoundaryCondition > comboRightBoundary;
+	private final JButton buttonLeftSpecialColor;
+	private final JButton buttonRightSpecialColor;
+
+	/**
+	 * The shape controls, swapped by {@link #SHAPE_CARD_CONTINUOUS}/
+	 * {@link #SHAPE_CARD_DISCRETE}: a continuous palette is shaped by a preset
+	 * curve, a discrete one by a step size -- see {@link LutEditorMapping}.
+	 */
+	private final JPanel panelShape;
+	private final CardLayout layoutShape = new CardLayout();
+	private static final String SHAPE_CARD_CONTINUOUS = "continuous";
+	private static final String SHAPE_CARD_DISCRETE = "discrete";
+
 	private final JComboBox< PresetShape > comboMappingPreset;
 	private final JButton buttonInvertCurve;
+	private final JTextField fieldStepSize;
 
 	/**
 	 * The palette and mapping currently being edited. Edits are pushed live
@@ -182,6 +193,9 @@ public class LutEditorDialog extends JDialog
 	/** Guards against control listeners (including the live-push one) firing while we are programmatically syncing them. */
 	private boolean loadingControls = false;
 
+	/** The text {@link #updateStepSizeField()} last put in {@link #fieldStepSize}; see {@link #commitStepSizeField()} for why it is remembered. */
+	private String lastShownStepSize = "";
+
 	public LutEditorDialog( final Frame owner, final ConverterSetups converterSetups, final ViewerState viewerState, final Runnable repaintAction )
 	{
 		super( owner, "LUT Editor", false );
@@ -199,24 +213,26 @@ public class LutEditorDialog extends JDialog
 		panelPaletteSwatch.setPreferredSize( new Dimension( 200, 16 ) );
 		panelPaletteSwatch.setMaximumSize( new Dimension( Integer.MAX_VALUE, 16 ) );
 
-		radioFit = new JRadioButton( "Fit" );
-		radioCyclic = new JRadioButton( "Cyclic" );
-		radioFit.setSelected( true );
-		checkTreatMinAsBackground = new JCheckBox();
-		buttonBackgroundColor = createBackgroundColorButton();
+		comboLeftBoundary = createBoundaryCombo();
+		comboRightBoundary = createBoundaryCombo();
+		buttonLeftSpecialColor = createSpecialColorButton( "Color for values below the range" );
+		buttonRightSpecialColor = createSpecialColorButton( "Color for values above the range" );
 		comboMappingPreset = new JComboBox<>( PresetShape.values() );
 		buttonInvertCurve = new JButton( "Invert" );
 		buttonInvertCurve.setFocusable( false );
+		fieldStepSize = new JTextField();
+		panelShape = new JPanel( layoutShape );
 
 		panelMappingCurve = new MappingCurvePanel( mappingModel );
 		panelMappingCurve.setRangeChangeListener( ( min, max ) ->
 		{
 			editedRangeMin = min;
 			editedRangeMax = max;
-			updateTreatMinAsBackgroundText();
+			// An automatic step size is derived from the range, so the field
+			// showing it has to follow the range to keep telling the truth.
+			updateStepSizeField();
 			pushLiveEdits();
 		} );
-		updateTreatMinAsBackgroundText();
 
 		labelStatus = new JLabel( "" );
 
@@ -397,17 +413,61 @@ public class LutEditorDialog extends JDialog
 		return combo;
 	}
 
-	/** The small swatch button that opens the background color chooser. */
-	private static JButton createBackgroundColorButton()
+	/**
+	 * A per-end boundary-condition chooser: what happens to raw values past
+	 * that end of the input range. Offers the render model's own
+	 * {@link BoundaryCondition}s directly -- the editor no longer translates
+	 * them into a range mode plus a background checkbox -- just relabeled for
+	 * the UI (see {@link #boundaryLabel}).
+	 */
+	private static JComboBox< BoundaryCondition > createBoundaryCombo()
+	{
+		final JComboBox< BoundaryCondition > combo = new JComboBox<>( BoundaryCondition.values() );
+		combo.setRenderer( new DefaultListCellRenderer()
+		{
+			@Override
+			public Component getListCellRendererComponent( final JList< ? > list, final Object value,
+					final int index, final boolean isSelected, final boolean cellHasFocus )
+			{
+				super.getListCellRendererComponent( list, value, index, isSelected, cellHasFocus );
+				if ( value instanceof BoundaryCondition )
+					setText( boundaryLabel( ( BoundaryCondition ) value ) );
+				return this;
+			}
+		} );
+		return combo;
+	}
+
+	/** How a {@link BoundaryCondition} is named in this UI; see the enum itself for what each one actually does. */
+	private static String boundaryLabel( final BoundaryCondition condition )
+	{
+		switch ( condition )
+		{
+			case CLAMP:
+				return "Clamp";
+			case CYCLE:
+				return "Cycle";
+			case SPECIAL:
+				return "Fixed color";
+			default:
+				return condition.name();
+		}
+	}
+
+	/**
+	 * The small swatch button that opens one end's fixed-color chooser. Starts
+	 * disabled: it is only meaningful while that end is set to
+	 * {@link BoundaryCondition#SPECIAL}.
+	 */
+	private static JButton createSpecialColorButton( final String toolTip )
 	{
 		final JButton button = new JButton();
-		button.setToolTipText( "Background color" );
+		button.setToolTipText( toolTip );
 		final Dimension size = new Dimension( 20, 20 );
 		button.setPreferredSize( size );
 		button.setMinimumSize( size );
 		button.setMaximumSize( size );
-		button.setBackground( new Color( 0xff000000, false ) );
-		// Only meaningful once checkTreatMinAsBackground is checked.
+		button.setBackground( new Color( LutEditorMapping.DEFAULT_SPECIAL_COLOR, false ) );
 		button.setEnabled( false );
 		return button;
 	}
@@ -438,29 +498,24 @@ public class LutEditorDialog extends JDialog
 		panelData.setAlignmentX( Component.LEFT_ALIGNMENT );
 		panelData.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelData.getPreferredSize().height ) );
 
-		final ButtonGroup groupRangeMode = new ButtonGroup();
-		groupRangeMode.add( radioFit );
-		groupRangeMode.add( radioCyclic );
-
-		final JPanel panelRangeMode = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
-		panelRangeMode.add( new JLabel( "Range mode:" ) );
-		panelRangeMode.add( Box.createHorizontalStrut( 8 ) );
-		panelRangeMode.add( radioFit );
-		panelRangeMode.add( Box.createHorizontalStrut( 4 ) );
-		panelRangeMode.add( radioCyclic );
-		panelRangeMode.add( Box.createHorizontalStrut( 8 ) );
-		panelRangeMode.add( checkTreatMinAsBackground );
-		panelRangeMode.add( Box.createHorizontalStrut( 4 ) );
-		panelRangeMode.add( buttonBackgroundColor );
-		panelRangeMode.setAlignmentX( Component.LEFT_ALIGNMENT );
+		// One card or the other, never both: which one is showing follows the
+		// palette's own kind (see #updateShapeControls). A CardLayout rather
+		// than swapping visibility so the panel keeps the taller card's height
+		// either way, and the dialog does not resize as the palette changes.
+		panelShape.add( labeledRow( "Mapping preset:", comboMappingPreset, buttonInvertCurve ), SHAPE_CARD_CONTINUOUS );
+		panelShape.add( labeledRow( "Step size:", fieldStepSize ), SHAPE_CARD_DISCRETE );
+		panelShape.setAlignmentX( Component.LEFT_ALIGNMENT );
+		panelShape.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelShape.getPreferredSize().height ) );
 
 		final JPanel panelMapping = new JPanel();
 		panelMapping.setLayout( new BoxLayout( panelMapping, BoxLayout.PAGE_AXIS ) );
 		panelMapping.setBorder( BorderFactory.createTitledBorder( "Mapping" ) );
 		panelMapping.add( Box.createVerticalStrut( 4 ) );
-		panelMapping.add( panelRangeMode );
+		panelMapping.add( labeledRow( "Below range:", comboLeftBoundary, buttonLeftSpecialColor ) );
 		panelMapping.add( Box.createVerticalStrut( 4 ) );
-		panelMapping.add( labeledRow( "Mapping preset:", comboMappingPreset, buttonInvertCurve ) );
+		panelMapping.add( labeledRow( "Above range:", comboRightBoundary, buttonRightSpecialColor ) );
+		panelMapping.add( Box.createVerticalStrut( 4 ) );
+		panelMapping.add( panelShape );
 		panelMapping.setAlignmentX( Component.LEFT_ALIGNMENT );
 		panelMapping.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelMapping.getPreferredSize().height ) );
 
@@ -557,41 +612,43 @@ public class LutEditorDialog extends JDialog
 			// typically read (each raw value holds the color of the control
 			// point at or before it).
 			mappingModel.setDiscrete( !ColorTableLut.isInterpolated( ct ) );
-			updateMappingPresetComboState();
+			updateShapeControls();
 		} );
 
-		final ActionListener listenerRangeMode = e ->
+		comboLeftBoundary.addActionListener( e ->
 		{
 			if ( loadingControls )
 				return;
-			mappingModel.setCyclic( radioCyclic.isSelected() );
-		};
-		radioFit.addActionListener( listenerRangeMode );
-		radioCyclic.addActionListener( listenerRangeMode );
+			mappingModel.setLeftBoundaryCondition( ( BoundaryCondition ) comboLeftBoundary.getSelectedItem() );
+			updateSpecialColorButtonStates();
+		} );
 
-		checkTreatMinAsBackground.addActionListener( e ->
+		comboRightBoundary.addActionListener( e ->
 		{
-			buttonBackgroundColor.setEnabled( checkTreatMinAsBackground.isSelected() );
 			if ( loadingControls )
 				return;
-			mappingModel.setTreatMinAsBackground( checkTreatMinAsBackground.isSelected() );
+			mappingModel.setRightBoundaryCondition( ( BoundaryCondition ) comboRightBoundary.getSelectedItem() );
+			updateSpecialColorButtonStates();
 		} );
 
-		buttonBackgroundColor.addActionListener( e ->
-		{
-			final Color chosen = JColorChooser.showDialog( this, "Background Color", buttonBackgroundColor.getBackground() );
-			if ( chosen == null )
-				return;
-			final int argb = 0xff000000 | ( chosen.getRGB() & 0xffffff );
-			buttonBackgroundColor.setBackground( new Color( argb, false ) );
-			mappingModel.setBackgroundColor( argb );
-		} );
+		buttonLeftSpecialColor.addActionListener( e -> chooseSpecialColor( true ) );
+		buttonRightSpecialColor.addActionListener( e -> chooseSpecialColor( false ) );
 
 		comboMappingPreset.addActionListener( e ->
 		{
 			if ( loadingControls )
 				return;
 			mappingModel.applyPreset( ( PresetShape ) comboMappingPreset.getSelectedItem() );
+		} );
+
+		fieldStepSize.addActionListener( e -> commitStepSizeField() );
+		fieldStepSize.addFocusListener( new FocusAdapter()
+		{
+			@Override
+			public void focusLost( final FocusEvent e )
+			{
+				commitStepSizeField();
+			}
 		} );
 
 		buttonInvertCurve.addActionListener( e -> mappingModel.invertCurve() );
@@ -729,11 +786,12 @@ public class LutEditorDialog extends JDialog
 		snapshotBaseline();
 	}
 
-	/** A neutral mapping (linear, fit, interpolated) -- the editor's starting point for a source with no remembered state. */
+	/** A neutral mapping (linear, both ends clamped, interpolated) -- the editor's starting point for a source with no remembered state. */
 	private static LutEditorMapping defaultMapping()
 	{
 		final LutEditorMapping defaults = new LutEditorMapping();
-		defaults.setCyclic( false );
+		defaults.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
+		defaults.setRightBoundaryCondition( BoundaryCondition.CLAMP );
 		defaults.setDiscrete( false );
 		defaults.applyPreset( PresetShape.LINEAR );
 		return defaults;
@@ -762,14 +820,13 @@ public class LutEditorDialog extends JDialog
 			comboPalette.setSelectedItem( paletteName );
 
 			mappingModel.copyFrom( mapping );
-			updateTreatMinAsBackgroundText();
 
-			radioFit.setSelected( !mappingModel.isCyclic() );
-			radioCyclic.setSelected( mappingModel.isCyclic() );
-			checkTreatMinAsBackground.setSelected( mappingModel.isTreatMinAsBackground() );
-			buttonBackgroundColor.setBackground( new Color( mappingModel.getBackgroundColor(), false ) );
-			buttonBackgroundColor.setEnabled( mappingModel.isTreatMinAsBackground() );
-			updateMappingPresetComboState();
+			comboLeftBoundary.setSelectedItem( mappingModel.getLeftBoundaryCondition() );
+			comboRightBoundary.setSelectedItem( mappingModel.getRightBoundaryCondition() );
+			buttonLeftSpecialColor.setBackground( new Color( mappingModel.getLeftSpecialColor(), false ) );
+			buttonRightSpecialColor.setBackground( new Color( mappingModel.getRightSpecialColor(), false ) );
+			updateSpecialColorButtonStates();
+			updateShapeControls();
 		}
 		finally
 		{
@@ -778,15 +835,96 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Sync {@link #comboMappingPreset} to {@link #mappingModel}: selected item,
-	 * and enabled only for a continuous palette -- a discrete one always uses
-	 * {@link PresetShape#LINEAR} (see {@link LutEditorMapping#setDiscrete(boolean)}),
-	 * so the choice isn't offered.
+	 * Sync the shape controls to {@link #mappingModel}: which card is showing
+	 * -- a continuous palette is shaped by a preset curve, a discrete one by a
+	 * step size (see {@link LutEditorMapping}) -- and that card's own value.
 	 */
-	private void updateMappingPresetComboState()
+	private void updateShapeControls()
 	{
+		layoutShape.show( panelShape, mappingModel.isDiscrete() ? SHAPE_CARD_DISCRETE : SHAPE_CARD_CONTINUOUS );
 		comboMappingPreset.setSelectedItem( mappingModel.getPreset() );
-		comboMappingPreset.setEnabled( !mappingModel.isDiscrete() );
+		updateStepSizeField();
+	}
+
+	/**
+	 * A boundary's color swatch is only live while that end is set to
+	 * {@link BoundaryCondition#SPECIAL}; under the other conditions the color
+	 * comes from the palette, so there is nothing to pick.
+	 */
+	private void updateSpecialColorButtonStates()
+	{
+		buttonLeftSpecialColor.setEnabled( mappingModel.getLeftBoundaryCondition() == BoundaryCondition.SPECIAL );
+		buttonRightSpecialColor.setEnabled( mappingModel.getRightBoundaryCondition() == BoundaryCondition.SPECIAL );
+	}
+
+	/**
+	 * Ask for one end's {@link BoundaryCondition#SPECIAL} color and store it.
+	 * Forced opaque, as the old background color always was: {@link JColorChooser}
+	 * has no alpha channel to offer here.
+	 */
+	private void chooseSpecialColor( final boolean left )
+	{
+		final JButton button = left ? buttonLeftSpecialColor : buttonRightSpecialColor;
+		final Color chosen = JColorChooser.showDialog( this,
+				left ? "Color Below Range" : "Color Above Range", button.getBackground() );
+		if ( chosen == null )
+			return;
+		final int argb = 0xff000000 | ( chosen.getRGB() & 0xffffff );
+		button.setBackground( new Color( argb, false ) );
+		if ( left )
+			mappingModel.setLeftSpecialColor( argb );
+		else
+			mappingModel.setRightSpecialColor( argb );
+	}
+
+	/**
+	 * Show the step size actually in effect -- the chosen one, or whatever
+	 * {@link PaletteWrapperBuilder} resolves {@link LutEditorMapping#AUTO_STEP_SIZE}
+	 * to for the current palette and range. Showing the resolved number rather
+	 * than an empty field means the user always starts editing from the value
+	 * they are actually looking at.
+	 */
+	private void updateStepSizeField()
+	{
+		lastShownStepSize = formatValue( effectiveStepSize() );
+		fieldStepSize.setText( lastShownStepSize );
+	}
+
+	/** The step size {@link #mappingModel} currently maps through; see {@link #updateStepSizeField()}. */
+	private double effectiveStepSize()
+	{
+		final double chosen = mappingModel.getStepSize();
+		if ( chosen > 0.0 )
+			return chosen;
+		final float lo = ( float ) editedRangeMin;
+		final float hi = ( float ) ( editedRangeMax > editedRangeMin ? editedRangeMax : editedRangeMin + 1 );
+		return StepPresetFunc.defaultStepSize( lo, hi, new DiscreteColorScheme( currentPalette ).getPaletteRangeLength() );
+	}
+
+	/**
+	 * Take a hand-typed step size, keeping the last good value if it does not
+	 * parse or is not positive. Text we put there ourselves is ignored: the
+	 * field shows the <em>resolved</em> value of an automatic step size, so
+	 * committing it back on a mere focus traversal would silently pin it down
+	 * as an explicit choice -- and leave the editor looking dirty.
+	 */
+	private void commitStepSizeField()
+	{
+		if ( loadingControls )
+			return;
+		final String text = fieldStepSize.getText().trim();
+		if ( text.equals( lastShownStepSize ) )
+			return;
+		try
+		{
+			final double v = Double.parseDouble( text );
+			if ( v > 0.0 )
+				mappingModel.setStepSize( v );
+		}
+		catch ( final NumberFormatException ignored )
+		{
+		}
+		updateStepSizeField();
 	}
 
 	/** Snapshot the editor's current state as the new {@link #baselinePalette} etc. to revert unapplied edits back to. */
@@ -816,14 +954,17 @@ public class LutEditorDialog extends JDialog
 		}
 
 		final LutEditorMapping presetMapping = new LutEditorMapping();
-		presetMapping.setCyclic( preset.isCyclic() );
-		presetMapping.setTreatMinAsBackground( preset.isTreatMinAsBackground() );
-		presetMapping.setBackgroundColor( preset.getBackgroundColor() );
+		presetMapping.setLeftBoundaryCondition( preset.getLeftBoundaryCondition() );
+		presetMapping.setRightBoundaryCondition( preset.getRightBoundaryCondition() );
+		presetMapping.setLeftSpecialColor( preset.getLeftSpecialColor() );
+		presetMapping.setRightSpecialColor( preset.getRightSpecialColor() );
 		presetMapping.setDiscrete( !ColorTableLut.isInterpolated( palette ) );
-		// A discrete palette always keeps setDiscrete's forced linear curve
-		// (see LutEditorMapping#setDiscrete); only a continuous one restores
-		// whatever curve the saved preset carries.
-		if ( !presetMapping.isDiscrete() )
+		// Only the half of the saved shape the palette can actually use: a
+		// discrete palette maps through the step size and ignores the curve,
+		// a continuous one the other way round (see LutEditorMapping).
+		if ( presetMapping.isDiscrete() )
+			presetMapping.setStepSize( preset.getStepSize() );
+		else
 			presetMapping.getCurve().setPoints( preset.getCurveXs(), preset.getCurveYs() );
 
 		loadIntoEditor( palette, preset.getPaletteName(), presetMapping, editedRangeMin, editedRangeMax );
@@ -874,8 +1015,10 @@ public class LutEditorDialog extends JDialog
 
 		try
 		{
-			EditorPresets.save( new EditorPreset( name, currentPaletteName, mappingModel.isCyclic(),
-					mappingModel.isTreatMinAsBackground(), mappingModel.getBackgroundColor(),
+			EditorPresets.save( new EditorPreset( name, currentPaletteName,
+					mappingModel.getLeftBoundaryCondition(), mappingModel.getRightBoundaryCondition(),
+					mappingModel.getLeftSpecialColor(), mappingModel.getRightSpecialColor(),
+					mappingModel.getStepSize(),
 					mappingModel.getCurve().xsArray(), mappingModel.getCurve().ysArray() ) );
 		}
 		catch ( final RuntimeException e )
@@ -989,16 +1132,6 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Keep the checkbox's own label showing the actual min value it would
-	 * reserve for the background color (e.g. "Treat 5 as Bg"), since "min"
-	 * on its own doesn't say what's actually being treated as background.
-	 */
-	private void updateTreatMinAsBackgroundText()
-	{
-		checkTreatMinAsBackground.setText( "Treat " + formatValue( editedRangeMin ) + " as Bg" );
-	}
-
-	/**
 	 * Format a range value the same way {@link MappingCurvePanel} formats
 	 * its min/max fields: as a plain integer when it is (numerically) one,
 	 * otherwise to 2 decimal places.
@@ -1064,22 +1197,26 @@ public class LutEditorDialog extends JDialog
 				"- Color palette selects the LUT colors the mapped value is looked up in.",
 				"",
 				"Mapping:",
-				"- How a mapped value selects a palette color (blended smoothly, or",
-				"  held to the previous palette color) follows the chosen palette's own",
-				"  file: it is not a separate setting here.",
-				"- Range mode controls how input values outside [min, max] are handled:",
-				"  Fit clamps them to the nearest end of the range. Cyclic wraps them",
-				"  around the range instead, so the palette repeats.",
-				"- \"Treat {min} as Bg\" (its label shows the actual min value) forces raw",
-				"  values below the range to a dedicated background color instead of the",
-				"  palette. Click the swatch next to the checkbox to choose that color",
-				"  (defaults to black, and can be transparent); it is not one of the",
-				"  palette's own colors.",
-				"- Mapping preset replaces the curve with a predefined shape (Linear, Percentile",
-				"  Stretch, Log, Exp, Sigmoid, α-Sigmoid, Tan, Atan). The curve can still be",
-				"  adjusted afterwards.",
-				"- Invert flips the current curve vertically (e.g. increasing becomes",
-				"  decreasing), on top of whatever shape/edits it already has.",
+				"- Whether a mapped value blends smoothly between palette colors or snaps",
+				"  to one of them follows the chosen palette's own file: it is not a",
+				"  separate setting here. It does decide which shape control you get,",
+				"  below.",
+				"- \"Below range\" and \"Above range\" each choose what happens to input",
+				"  values past that end of [min, max], independently:",
+				"    Clamp       holds that end's palette color.",
+				"    Cycle       wraps back around the range, so the palette repeats.",
+				"    Fixed color paints one chosen color instead of any palette color --",
+				"                e.g. a dedicated background for a label image's 0. Click",
+				"                the swatch beside the dropdown to pick it.",
+				"- For a smooth (continuous) palette, Mapping preset replaces the curve with",
+				"  a predefined shape (Linear, Percentile Stretch, Log, Exp, Sigmoid,",
+				"  α-Sigmoid, Tan, Atan). The curve can still be adjusted afterwards, and",
+				"  Invert flips it vertically on top of whatever shape/edits it has.",
+				"- For a discrete (categorical) palette, Step size replaces the curve: it is",
+				"  how many input values one color covers. Set it to 1 to give every integer",
+				"  label its own color. Once the palette runs out of colors it starts over,",
+				"  so a small step size repeats the palette across the range. The field",
+				"  starts out showing the step size that spreads the palette exactly once.",
 				"",
 				"Mapping curve:",
 				"- The color bar to the left previews the palette itself; the one below the",

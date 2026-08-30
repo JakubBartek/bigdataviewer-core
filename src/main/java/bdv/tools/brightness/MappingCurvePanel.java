@@ -120,10 +120,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		addMouseListener( this );
 		addMouseMotionListener( this );
 
-		// Toggling "treat min as background" (or changing the range mode)
-		// changes the background swatch's width, which #doLayout uses to place
-		// the min field -- and a plain repaint would not re-run layout.
-		model.addChangeListener( this::revalidate );
+		model.addChangeListener( this::repaint );
 
 		setLayout( null );
 		for ( final JTextField field : new JTextField[] { minField, maxField } )
@@ -350,8 +347,10 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		final PaletteWrapper wrapper = PaletteWrapperBuilder.build( palette, model, rangeMin, rangeMax );
 
 		drawGrid( g2 );
-		drawCurve( g2, wrapper.getColorScheme().getPaletteRangeLength() );
-		if ( editMode )
+		drawCurve( g2, wrapper );
+		// A discrete palette's shape comes from its step size, not the curve
+		// (see LutEditorMapping), so there are no control points to show.
+		if ( editMode && !model.isDiscrete() )
 			drawControlPoints( g2 );
 		drawOutputColorBar( g2, wrapper.getColorScheme() );
 		drawTransformColorBar( g2, wrapper );
@@ -379,20 +378,25 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	}
 
 	/**
-	 * Draws the transfer curve: its normalized shape, input {@code [0, 1]}
-	 * across the plot to output {@code [0, 255]}. For a discrete (categorical)
-	 * palette this is drawn as a staircase, not the curve's own smooth line --
-	 * matching {@link bdv.tools.brightness.colorscheme.DiscreteColorScheme},
-	 * which floors every output to one of {@code paletteRangeLength} stops
-	 * (see {@link #flooredOutput(int, int)}) -- since a smooth line would show
-	 * a transition that never actually happens in the rendered color.
+	 * Draws the transfer function actually being rendered: each pixel column's
+	 * input value put through {@code wrapper}, so the line always agrees with
+	 * the color bar below it. Deliberately read off the wrapper rather than
+	 * {@link #model}'s own {@link Curve}, because the curve is only half the
+	 * story -- a discrete (categorical) palette's shape comes from its step
+	 * size instead (see {@link LutEditorMapping}), and drawing the curve there
+	 * would show a mapping that is not the one in effect.
+	 * <p>
+	 * For a discrete palette the value is additionally floored to its stop
+	 * before being drawn, matching
+	 * {@link bdv.tools.brightness.colorscheme.DiscreteColorScheme}: a smooth
+	 * line would show transitions that never happen in the rendered color.
 	 */
-	private void drawCurve( final Graphics2D g, final int paletteRangeLength )
+	private void drawCurve( final Graphics2D g, final PaletteWrapper wrapper )
 	{
 		g.setColor( CURVE_COLOR );
 		g.setStroke( new BasicStroke( 2 ) );
 
-		final Curve curve = model.getCurve();
+		final int paletteRangeLength = wrapper.getColorScheme().getPaletteRangeLength();
 		final boolean discrete = model.isDiscrete();
 		final int left = plotLeft();
 		final int right = plotRight();
@@ -401,9 +405,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		Integer prevY = null;
 		for ( int px = left; px <= right; px++ )
 		{
-			final double t = ( px - left ) / ( double ) plotWidth();
-			final int output = curve.evaluate( t );
-			final int py = outputToPixelY( discrete ? flooredOutput( output, paletteRangeLength ) : output );
+			final float paletteValue = wrapper.getPaletteValueForRaw( ( float ) pixelXToValue( px ) );
+			final int py = outputToPixelY( paletteValueToOutput( paletteValue, paletteRangeLength, discrete ) );
 			if ( prevX != null )
 				g.drawLine( prevX, prevY, px, py );
 			prevX = px;
@@ -412,18 +415,19 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	}
 
 	/**
-	 * {@code rawOutput} (in {@code [0, 255]}) snapped down to the nearest of
-	 * {@code paletteRangeLength} evenly spaced stops, then back to
-	 * {@code [0, 255]} -- the curve's own output space -- for drawing. Mirrors
-	 * exactly how {@link bdv.tools.brightness.colorscheme.DiscreteColorScheme#colorAt}
-	 * floors a palette value to a stop index (same {@code floor}, same
-	 * clamp to the last stop at the top edge), just expressed in the
-	 * panel's 0-255 output units instead of a palette value.
+	 * A palette value (in {@code [0, paletteRangeLength]}) expressed in the
+	 * graph's own {@code [0, 255]} output units. When {@code discrete}, it is
+	 * first floored to a stop index exactly the way
+	 * {@link bdv.tools.brightness.colorscheme.DiscreteColorScheme#colorAt}
+	 * does (same {@code floor}, same clamp to the last stop at the top edge),
+	 * which is what turns the drawn line into a staircase.
 	 */
-	private static int flooredOutput( final int rawOutput, final int paletteRangeLength )
+	private static int paletteValueToOutput( final float paletteValue, final int paletteRangeLength, final boolean discrete )
 	{
-		final int stopIndex = Math.min( paletteRangeLength - 1, ( int ) ( rawOutput / 255.0 * paletteRangeLength ) );
-		return ( int ) Math.round( stopIndex / ( double ) paletteRangeLength * 255.0 );
+		final double stops = discrete
+				? Math.max( 0, Math.min( paletteRangeLength - 1, ( int ) Math.floor( paletteValue ) ) )
+				: Math.max( 0.0, Math.min( paletteRangeLength, paletteValue ) );
+		return ( int ) Math.round( stops / paletteRangeLength * 255.0 );
 	}
 
 	/** Draws each curve control point at its normalized (x, output) position. */
@@ -542,7 +546,9 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	@Override
 	public void mousePressed( final MouseEvent e )
 	{
-		if ( !editMode )
+		// Inert for a discrete palette: its shape is the step size, not the
+		// curve, so a dragged point would change nothing that renders.
+		if ( !editMode || model.isDiscrete() )
 			return;
 
 		final Curve curve = model.getCurve();
@@ -575,7 +581,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	@Override
 	public void mouseDragged( final MouseEvent e )
 	{
-		if ( editMode && draggedPoint != null && draggedPoint >= 0 )
+		if ( editMode && !model.isDiscrete() && draggedPoint != null && draggedPoint >= 0 )
 		{
 			model.getCurve().setPoint( draggedPoint, pixelYToOutput( e.getY() ) );
 			model.notifyCurveEdited();

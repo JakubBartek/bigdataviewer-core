@@ -30,63 +30,92 @@ package bdv.tools.brightness;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+
+import bdv.tools.brightness.palette.BoundaryCondition;
+import bdv.tools.brightness.presetfunc.StepPresetFunc;
 
 /**
- * The LUT editor's editable mapping state: a transfer {@link Curve} plus how a
- * raw source value should be turned into a color -- fit-vs-cyclic range
- * handling, whether the palette is discrete (categorical) or continuous, and
- * an optional dedicated background color for the minimum.
+ * The LUT editor's editable mapping state: how a raw source value should be
+ * turned into a color -- what happens at each end of the input range, whether
+ * the palette is discrete (categorical) or continuous, and the shape in
+ * between.
+ * <p>
+ * That shape is specified two different ways depending on the palette kind,
+ * because the two ask genuinely different questions:
+ * <ul>
+ * <li><b>continuous</b> (a gradient palette): a transfer {@link Curve},
+ * seeded from a {@link PresetShape} and further draggable -- "what curve
+ * reshapes this gradient".</li>
+ * <li><b>discrete</b> (a categorical palette): a {@link #getStepSize() step
+ * size} in raw units -- "how many raw values does one color cover". A curve
+ * would be meaningless here, since the color scheme floors its value to a
+ * stop anyway.</li>
+ * </ul>
  * <p>
  * This is a pure configuration holder edited by {@link LutEditorDialog} and
- * {@link MappingCurvePanel}; it no longer performs the raw-value-to-color
- * mapping itself. That is done by the new color-mapping architecture: the
- * editor's state is translated into a {@code PaletteWrapper} by
+ * {@link MappingCurvePanel}; it does not perform the raw-value-to-color
+ * mapping itself. That is done by the color-mapping architecture: the editor's
+ * state is translated into a {@code PaletteWrapper} by
  * {@link PaletteWrapperBuilder}, and the wrapper is what actually renders (see
- * {@code PaletteConverter}). The curve is initialized from a
- * {@link PresetShape} but can be further customized by adding/moving/removing
- * its control points.
+ * {@code PaletteConverter}).
  */
 public class LutEditorMapping
 {
+	/**
+	 * {@link #getStepSize()} value meaning "no explicit choice": let
+	 * {@link PaletteWrapperBuilder} use {@link StepPresetFunc#defaultStepSize},
+	 * which spreads the palette exactly once across the input range. Kept as a
+	 * sentinel rather than a resolved number because the range and the palette's
+	 * stop count -- both needed to resolve it -- are deliberately not part of
+	 * this model.
+	 */
+	public static final double AUTO_STEP_SIZE = 0.0;
+
+	/** The default {@link BoundaryCondition#SPECIAL} color at either end: opaque black. */
+	public static final int DEFAULT_SPECIAL_COLOR = 0xff000000;
+
 	private final Curve curve = new Curve();
 
 	/**
-	 * Whether raw values outside {@code [min, max]} wrap around the range (the
-	 * palette repeats) rather than clamping to the nearest end. Picked up by
-	 * {@link PaletteWrapperBuilder} as {@code CYCLE} vs. {@code CLAMP}.
+	 * What happens to raw values below the input range. Passed straight through
+	 * to the rendered wrapper by {@link PaletteWrapperBuilder}:
+	 * {@link BoundaryCondition#CLAMP} holds the first color,
+	 * {@link BoundaryCondition#CYCLE} wraps them back around the range, and
+	 * {@link BoundaryCondition#SPECIAL} paints {@link #getLeftSpecialColor()}
+	 * instead of any palette color at all (how a label image's background value
+	 * is given a dedicated color).
 	 */
-	private boolean cyclic = false;
+	private BoundaryCondition leftBoundaryCondition = BoundaryCondition.CLAMP;
 
-	/**
-	 * When {@code true}, raw source values below the range map to
-	 * {@link #backgroundColor} instead of the palette. Useful for
-	 * label/segmentation images where the min value (e.g. 0) marks background.
-	 */
-	private boolean treatMinAsBackground = false;
+	/** As {@link #leftBoundaryCondition}, for raw values above the input range. */
+	private BoundaryCondition rightBoundaryCondition = BoundaryCondition.CLAMP;
 
-	/**
-	 * The dedicated background color used when {@link #treatMinAsBackground}
-	 * applies, packed as ARGB (see {@link net.imglib2.type.numeric.ARGBType}).
-	 * Defaults to opaque black.
-	 */
-	private int backgroundColor = 0xff000000;
+	/** The color painted below the range when {@link #leftBoundaryCondition} is {@link BoundaryCondition#SPECIAL}, packed as ARGB. */
+	private int leftSpecialColor = DEFAULT_SPECIAL_COLOR;
+
+	/** The color painted above the range when {@link #rightBoundaryCondition} is {@link BoundaryCondition#SPECIAL}, packed as ARGB. */
+	private int rightSpecialColor = DEFAULT_SPECIAL_COLOR;
 
 	/**
 	 * Whether the palette is used as discrete, individually chosen colors
 	 * (a categorical palette like tab10, where the mapped value snaps to a
 	 * stop) rather than a smoothly interpolated gradient. Follows the chosen
 	 * palette's own declared kind; picked up by {@link PaletteWrapperBuilder}
-	 * to choose a discrete vs. continuous color scheme.
-	 * <p>
-	 * A non-linear curve shape (a warped preset, or hand-dragged points) is
-	 * only meaningful for a continuous palette, where it reshapes a gradient;
-	 * for a discrete one the color scheme already floors the curve's value to
-	 * a stop, so a non-linear shape would just make the raw-to-stop mapping
-	 * uneven for no visible benefit. So {@link #setDiscrete(boolean)} always
-	 * resets the curve to {@link PresetShape#LINEAR} when turning this on.
+	 * to choose a discrete vs. continuous color scheme -- and, with it, whether
+	 * {@link #getStepSize()} or {@link #getCurve()} defines the shape (see the
+	 * class javadoc).
 	 */
 	private boolean discrete = false;
 
+	/**
+	 * How many raw values one color stop covers, when {@link #isDiscrete()};
+	 * {@link #AUTO_STEP_SIZE} to let the range and palette decide. Ignored
+	 * entirely for a continuous palette, which uses {@link #getCurve()} instead.
+	 */
+	private double stepSize = AUTO_STEP_SIZE;
+
+	/** The shape {@link #curve} was last seeded from; only meaningful for a continuous palette. */
 	private PresetShape preset;
 
 	private final List< Runnable > changeListeners = new ArrayList<>();
@@ -96,47 +125,63 @@ public class LutEditorMapping
 		applyPreset( PresetShape.LINEAR );
 	}
 
+	/** The transfer curve, defining the shape for a <em>continuous</em> palette only; see the class javadoc. */
 	public Curve getCurve()
 	{
 		return curve;
 	}
 
-	/** Whether out-of-range values wrap (cyclic) rather than clamp (fit); see the field javadoc. */
-	public boolean isCyclic()
+	// -- boundary conditions -------------------------------------------------
+
+	/** What happens to raw values below the input range; see the field javadoc. */
+	public BoundaryCondition getLeftBoundaryCondition()
 	{
-		return cyclic;
+		return leftBoundaryCondition;
 	}
 
-	public void setCyclic( final boolean cyclic )
+	public void setLeftBoundaryCondition( final BoundaryCondition leftBoundaryCondition )
 	{
-		this.cyclic = cyclic;
+		this.leftBoundaryCondition = Objects.requireNonNull( leftBoundaryCondition, "leftBoundaryCondition" );
 		fireChangeListeners();
 	}
 
-	public boolean isTreatMinAsBackground()
+	/** What happens to raw values above the input range; see the field javadoc. */
+	public BoundaryCondition getRightBoundaryCondition()
 	{
-		return treatMinAsBackground;
+		return rightBoundaryCondition;
 	}
 
-	public void setTreatMinAsBackground( final boolean treatMinAsBackground )
+	public void setRightBoundaryCondition( final BoundaryCondition rightBoundaryCondition )
 	{
-		this.treatMinAsBackground = treatMinAsBackground;
+		this.rightBoundaryCondition = Objects.requireNonNull( rightBoundaryCondition, "rightBoundaryCondition" );
 		fireChangeListeners();
 	}
 
-	/**
-	 * The dedicated background color, packed as ARGB.
-	 */
-	public int getBackgroundColor()
+	/** The below-range {@link BoundaryCondition#SPECIAL} color, packed as ARGB. */
+	public int getLeftSpecialColor()
 	{
-		return backgroundColor;
+		return leftSpecialColor;
 	}
 
-	public void setBackgroundColor( final int backgroundColor )
+	public void setLeftSpecialColor( final int leftSpecialColor )
 	{
-		this.backgroundColor = backgroundColor;
+		this.leftSpecialColor = leftSpecialColor;
 		fireChangeListeners();
 	}
+
+	/** The above-range {@link BoundaryCondition#SPECIAL} color, packed as ARGB. */
+	public int getRightSpecialColor()
+	{
+		return rightSpecialColor;
+	}
+
+	public void setRightSpecialColor( final int rightSpecialColor )
+	{
+		this.rightSpecialColor = rightSpecialColor;
+		fireChangeListeners();
+	}
+
+	// -- discrete vs continuous ----------------------------------------------
 
 	/** Whether the palette is used as discrete (categorical) colors rather than a smooth gradient; see the field javadoc. */
 	public boolean isDiscrete()
@@ -145,9 +190,11 @@ public class LutEditorMapping
 	}
 
 	/**
-	 * @param discrete see the field javadoc. Turning this on resets the curve
-	 *                 to {@link PresetShape#LINEAR}, discarding whatever shape
-	 *                 it had -- see the field javadoc for why.
+	 * @param discrete see the field javadoc. Turning this on resets the curve to
+	 *                 {@link PresetShape#LINEAR}: the curve is not what defines a
+	 *                 discrete palette's mapping ({@link #getStepSize()} is), so
+	 *                 leaving a warped shape behind would only mislead if the
+	 *                 palette later went back to continuous.
 	 */
 	public void setDiscrete( final boolean discrete )
 	{
@@ -157,6 +204,28 @@ public class LutEditorMapping
 		else
 			fireChangeListeners();
 	}
+
+	/**
+	 * How many raw values one color stop covers for a discrete palette, or
+	 * {@link #AUTO_STEP_SIZE} if none was chosen; see the field javadoc.
+	 */
+	public double getStepSize()
+	{
+		return stepSize;
+	}
+
+	/**
+	 * @param stepSize raw values per color stop; {@link #AUTO_STEP_SIZE} (or any
+	 *                 non-positive value) to go back to letting the range and
+	 *                 palette decide.
+	 */
+	public void setStepSize( final double stepSize )
+	{
+		this.stepSize = stepSize > 0.0 ? stepSize : AUTO_STEP_SIZE;
+		fireChangeListeners();
+	}
+
+	// -- curve ---------------------------------------------------------------
 
 	public PresetShape getPreset()
 	{
@@ -186,33 +255,39 @@ public class LutEditorMapping
 		fireChangeListeners();
 	}
 
+	// -- bulk state ----------------------------------------------------------
+
 	/**
-	 * Copy all mapping state (cyclic, background, discrete flag, preset and
-	 * curve control points) from another model into this one.
+	 * Copy all mapping state (boundary conditions and their colors, discrete
+	 * flag, step size, preset and curve control points) from another model into
+	 * this one.
 	 */
 	public void copyFrom( final LutEditorMapping other )
 	{
-		this.cyclic = other.cyclic;
-		this.treatMinAsBackground = other.treatMinAsBackground;
-		this.backgroundColor = other.backgroundColor;
+		this.leftBoundaryCondition = other.leftBoundaryCondition;
+		this.rightBoundaryCondition = other.rightBoundaryCondition;
+		this.leftSpecialColor = other.leftSpecialColor;
+		this.rightSpecialColor = other.rightSpecialColor;
 		this.discrete = other.discrete;
+		this.stepSize = other.stepSize;
 		this.preset = other.preset;
 		this.curve.setPoints( other.curve.xsArray(), other.curve.ysArray() );
 		fireChangeListeners();
 	}
 
 	/**
-	 * Whether {@code other} represents the same mapping as this one (cyclic,
-	 * background handling, discrete flag, preset and curve shape) -- used to
+	 * Whether {@code other} represents the same mapping as this one -- used to
 	 * detect unapplied edits worth warning about before discarding them, rather
 	 * than a general-purpose {@code equals}.
 	 */
 	public boolean hasSameState( final LutEditorMapping other )
 	{
-		return cyclic == other.cyclic
-				&& treatMinAsBackground == other.treatMinAsBackground
-				&& backgroundColor == other.backgroundColor
+		return leftBoundaryCondition == other.leftBoundaryCondition
+				&& rightBoundaryCondition == other.rightBoundaryCondition
+				&& leftSpecialColor == other.leftSpecialColor
+				&& rightSpecialColor == other.rightSpecialColor
 				&& discrete == other.discrete
+				&& Double.compare( stepSize, other.stepSize ) == 0
 				&& preset == other.preset
 				&& Arrays.equals( curve.xsArray(), other.curve.xsArray() )
 				&& Arrays.equals( curve.ysArray(), other.curve.ysArray() );
