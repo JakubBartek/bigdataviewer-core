@@ -58,12 +58,12 @@ import net.imglib2.display.ColorTable;
  * discovery/parsing computation lives outside the (visual) dialog. The dialog
  * only asks this for names and colors.
  * <p>
- * A LUT resource is a JSON file with a {@code fixes_RGBA} object mapping each
- * color's index (as a string, e.g. {@code "0"}, {@code "1"}, ...) to its
- * {@code [red, green, blue, alpha]} components, all in [0, 1]. The number of
+ * A LUT resource is a JSON file with a {@code fixes_RGBA} array of
+ * {@code [red, green, blue, alpha]} components (all in [0, 1]), one per
+ * color, in order -- a color's index is simply its position in the array, so
+ * colors are always evenly spaced (see {@link ColorTableLut}). The number of
  * colors is arbitrary (not tied to 256); colors between them are obtained by
- * linear interpolation, evenly spaced in index order (see {@link ColorTableLut}).
- * A top-level {@code color_interpolation} boolean declares whether the
+ * linear interpolation. A top-level {@code color_interpolation} boolean declares whether the
  * palette is meant to be smoothly interpolated or used as discrete colors
  * (see {@link ColorTableLut#isInterpolated()}, set on the {@link ColorTable}
  * returned by {@link #load(String)}).
@@ -140,16 +140,11 @@ public final class LutPalettes
 		final JsonObject root = readRoot( name );
 		if ( root == null )
 			return null;
-		final JsonObject colors = root.getAsJsonObject( "fixes_RGBA" );
+		final JsonArray colors = root.getAsJsonArray( "fixes_RGBA" );
 		if ( colors == null )
 			return null;
 
-		final List< Integer > indices = new ArrayList<>();
-		for ( final String key : colors.keySet() )
-			indices.add( Integer.parseInt( key ) );
-		Collections.sort( indices );
-
-		final int n = indices.size();
+		final int n = colors.size();
 		if ( n < 2 )
 			return null;
 
@@ -160,7 +155,7 @@ public final class LutPalettes
 		final double[] alpha = new double[ n ];
 		for ( int i = 0; i < n; i++ )
 		{
-			final JsonArray rgba = colors.getAsJsonArray( Integer.toString( indices.get( i ) ) );
+			final JsonArray rgba = colors.get( i ).getAsJsonArray();
 			positions[ i ] = i / ( double ) ( n - 1 );
 			red[ i ] = rgba.get( 0 ).getAsDouble();
 			green[ i ] = rgba.get( 1 ).getAsDouble();

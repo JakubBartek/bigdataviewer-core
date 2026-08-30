@@ -66,9 +66,9 @@ public class LutPalettesTest
 	}
 
 	/**
-	 * Accent.json's "fixes_RGBA" has 8 entries, keys "0" to "7", each an
-	 * [r, g, b, a] array in [0, 1]. Loading it should preserve the color
-	 * count and the index order (index 0's color first, etc.).
+	 * Accent.json's "fixes_RGBA" has 8 entries, each an [r, g, b, a] array in
+	 * [0, 1]. Loading it should preserve the color count and the array order
+	 * (index 0's color first, etc.).
 	 */
 	@Test
 	public void testLoadParsesFixesRGBA()
