@@ -29,9 +29,8 @@ package bdv.tools.brightness.presetfunc;
 
 /**
  * Clips the outer 2% at each end flat, then rises linearly in between --
- * mirrors clipping a raw histogram's 2nd/98th percentile to full black/white.
- * Same cutoffs ({@code lo = 0.02}, {@code hi = 0.98}) as
- * {@code MappingPreset#PERCENTILE_STRETCH}.
+ * mirrors clipping a raw histogram's 2nd/98th percentile to full black/white,
+ * with cutoffs {@code lo = 0.02}, {@code hi = 0.98}.
  */
 public class PercentileStretchPresetFunc extends AbstractPresetFunc
 {

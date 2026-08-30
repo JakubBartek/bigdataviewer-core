@@ -34,9 +34,8 @@ import org.junit.Test;
  * Test cases for {@link AlphaSigmoidPresetFunc}. Endpoint and out-of-range
  * behavior shared by every {@link PresetFunc} is covered generically by
  * {@link AbstractPresetFuncTest}; this only checks the shape distinctive to
- * this class. Expected values computed independently from the exact same
- * formula {@code MappingPreset#ALPHA_SIGMOID} uses ({@code alpha = 0.5}), not
- * derived from this implementation.
+ * this class. Expected values computed independently from the formula
+ * ({@code alpha = 0.5}), not derived from this implementation.
  */
 public class AlphaSigmoidPresetFuncTest
 {

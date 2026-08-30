@@ -29,7 +29,7 @@ package bdv.tools.brightness.presetfunc;
 
 /**
  * An S-shaped (logistic) curve: slow near the ends, steep through the
- * middle. Same shape and steepness ({@code k = 10}) as {@code MappingPreset#SIGMOID}.
+ * middle, with steepness {@code k = 10}.
  */
 public class SigmoidPresetFunc extends AbstractPresetFunc
 {

@@ -35,9 +35,8 @@ import org.junit.Test;
  * out-of-range behavior shared by every {@link PresetFunc} is covered
  * generically by {@link AbstractPresetFuncTest}; this only checks the shape
  * distinctive to this class. Expected values computed independently from the
- * exact same formula {@code MappingPreset#PERCENTILE_STRETCH} uses (clamp to
- * {@code [0.02, 0.98]} then rescale linearly), not derived from this
- * implementation.
+ * formula (clamp to {@code [0.02, 0.98]} then rescale linearly), not derived
+ * from this implementation.
  */
 public class PercentileStretchPresetFuncTest
 {

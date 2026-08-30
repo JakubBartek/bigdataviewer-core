@@ -27,7 +27,7 @@
  */
 package bdv.tools.brightness.presetfunc;
 
-/** The identity shape: palette value proportional to raw value. Same shape as {@code MappingPreset#LINEAR}. */
+/** The identity shape: palette value proportional to raw value. */
 public class LinearPresetFunc extends AbstractPresetFunc
 {
 	public LinearPresetFunc( final float min, final float max, final int paletteRangeLength )

@@ -32,8 +32,8 @@ import org.junit.Test;
 
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
-import bdv.tools.brightness.palette.ContinuousPaletteWrapper;
-import bdv.tools.brightness.palette.DiscretePaletteWrapper;
+import bdv.tools.brightness.palette.BoundaryCondition;
+import bdv.tools.brightness.palette.PresetPaletteWrapper;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.real.DoubleType;
@@ -66,7 +66,7 @@ public class PaletteConverterTest
 	public void testConvertsThroughAContinuousWrapper()
 	{
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { RED, GREEN, BLUE } );
-		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 2 ) );
+		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 2 ) );
 		final PaletteConverter< DoubleType > converter = new PaletteConverter<>( wrapper, 100, 200 );
 
 		Assert.assertEquals( RED, convert( converter, 100 ) );
@@ -80,7 +80,7 @@ public class PaletteConverterTest
 	{
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { RED, GREEN, BLUE } );
 		// PresetFunc built over a throwaway [0,1] range: the converter's [100,200] must win.
-		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 2 ) );
+		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 2 ) );
 		final PaletteConverter< DoubleType > converter = new PaletteConverter<>( wrapper, 100, 200 );
 
 		Assert.assertEquals( 100f, wrapper.getPresetFunc().getMin(), 0f );
@@ -92,7 +92,7 @@ public class PaletteConverterTest
 	public void testChangingDisplayRangeReRangesTheMapping()
 	{
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { RED, GREEN, BLUE } );
-		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 2 ) );
+		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 2 ) );
 		final PaletteConverter< DoubleType > converter = new PaletteConverter<>( wrapper, 100, 200 );
 
 		// Widen the window: what used to be the midpoint colour now sits at the new centre.
@@ -109,7 +109,7 @@ public class PaletteConverterTest
 	public void testInvertedIntermediateRangeSettlesWithoutThrowing()
 	{
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { RED, GREEN, BLUE } );
-		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 2 ) );
+		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 2 ) );
 		final PaletteConverter< DoubleType > converter = new PaletteConverter<>( wrapper, 100, 200 );
 
 		// New range [500, 900]; setMin(500) transiently makes min(500) > max(200).
@@ -126,8 +126,9 @@ public class PaletteConverterTest
 	public void testConvertsThroughADiscreteWrapper()
 	{
 		final DiscreteColorScheme scheme = new DiscreteColorScheme( new int[] { RED, GREEN, BLUE } );
-		final DiscretePaletteWrapper wrapper = new DiscretePaletteWrapper( scheme, 0f, 1f );
-		// 3 stops across [10, 40] -> stepSize 10.
+		// A discrete scheme floors the (linear) curve's value to a stop; the
+		// converter re-ranges the curve onto [10, 40], so the 3 stops split it.
+		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 3 ) );
 		final PaletteConverter< DoubleType > converter = new PaletteConverter<>( wrapper, 10, 40 );
 
 		Assert.assertEquals( RED, convert( converter, 10 ) );
@@ -138,16 +139,15 @@ public class PaletteConverterTest
 	/**
 	 * The motivating case: a SPECIAL left boundary with a transparent color
 	 * renders below-range values (e.g. a label image's background) fully
-	 * transparent, which the old MappingModel did via treatMinAsBackground +
+	 * transparent, which the old converter did via treat-min-as-background +
 	 * backgroundColor(0x00000000). The alpha must survive convert().
 	 */
 	@Test
 	public void testTransparentBackgroundBelowRangeSurvivesConversion()
 	{
 		final DiscreteColorScheme scheme = new DiscreteColorScheme( new int[] { RED, GREEN, BLUE } );
-		final DiscretePaletteWrapper wrapper = new DiscretePaletteWrapper( scheme, 0f, 1f,
-				bdv.tools.brightness.palette.BoundaryCondition.SPECIAL,
-				bdv.tools.brightness.palette.BoundaryCondition.CLAMP );
+		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 3 ),
+				BoundaryCondition.SPECIAL, BoundaryCondition.CLAMP );
 		// leftSpecialColor defaults to transparent; make the domain start at 10 so raw 5 is "background".
 		final PaletteConverter< DoubleType > converter = new PaletteConverter<>( wrapper, 10, 40 );
 
@@ -161,7 +161,7 @@ public class PaletteConverterTest
 	public void testDoesNotSupportASingleColor()
 	{
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { RED, GREEN } );
-		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 1 ) );
+		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 1 ) );
 		final PaletteConverter< DoubleType > converter = new PaletteConverter<>( wrapper, 0, 1 );
 
 		Assert.assertFalse( converter.supportsColor() );
@@ -171,7 +171,7 @@ public class PaletteConverterTest
 	public void testExposesDisplayRangeAsMinMax()
 	{
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { RED, GREEN } );
-		final ContinuousPaletteWrapper wrapper = new ContinuousPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 1 ) );
+		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, new LinearPresetFunc( 0f, 1f, 1 ) );
 		final PaletteConverter< DoubleType > converter = new PaletteConverter<>( wrapper, 5, 42 );
 
 		Assert.assertEquals( 5.0, converter.getMin(), 0.0 );

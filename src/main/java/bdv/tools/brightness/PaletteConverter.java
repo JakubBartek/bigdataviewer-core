@@ -41,9 +41,9 @@ import net.imglib2.type.numeric.RealType;
  * Renders a real-valued source through the color-mapping architecture in
  * {@code bdv.tools.brightness.palette}: each sample is handed to a
  * {@link PaletteWrapper}, which turns it into a color
- * ({@code rawValue -> boundary handling -> paletteValue -> RGB}). The new-model
- * counterpart of {@link RealLUTConverter}, which does the same job through the
- * older {@code MappingModel}/{@code ColorTable} pair.
+ * ({@code rawValue -> boundary handling -> paletteValue -> RGB}). This is the
+ * render entry point of the new color-mapping architecture; the LUT editor
+ * configures the wrapper it renders through (see {@code PaletteWrapperBuilder}).
  * <p>
  * The converter's {@linkplain #getMin() min}/{@linkplain #getMax() max} are the
  * display range -- the raw window the palette is stretched across, driven by the

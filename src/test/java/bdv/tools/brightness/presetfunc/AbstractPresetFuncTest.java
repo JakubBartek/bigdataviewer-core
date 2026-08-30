@@ -83,7 +83,7 @@ public class AbstractPresetFuncTest
 	/**
 	 * Each shape's two ends land exactly on palette value {@code 0} and
 	 * {@code getPaletteRangeLength()} -- this is what lets a
-	 * {@code ContinuousPaletteWrapper} rely on a {@link PresetFunc} feeding a
+	 * {@code PresetPaletteWrapper} rely on a {@link PresetFunc} feeding a
 	 * continuous color scheme's full domain, regardless of which shape was
 	 * chosen. {@link CustomInterpPresetFunc} only guarantees this for its
 	 * default knots (which is what {@link #build} produces); see its own test

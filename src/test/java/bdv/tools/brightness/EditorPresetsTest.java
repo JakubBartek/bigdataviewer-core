@@ -63,7 +63,7 @@ public class EditorPresetsTest
 
 	private static EditorPreset sample( final String name )
 	{
-		return new EditorPreset( name, "tab10", RangeMode.CYCLIC, true, 0xff112233, 10,
+		return new EditorPreset( name, "tab10", true, true, 0xff112233,
 				new double[] { 0.0, 0.5, 1.0 }, new int[] { 0, 100, 255 } );
 	}
 
@@ -83,10 +83,9 @@ public class EditorPresetsTest
 
 		Assert.assertNotNull( preset );
 		Assert.assertEquals( "tab10", preset.getPaletteName() );
-		Assert.assertEquals( RangeMode.CYCLIC, preset.getRangeMode() );
+		Assert.assertTrue( preset.isCyclic() );
 		Assert.assertTrue( preset.isTreatMinAsBackground() );
 		Assert.assertEquals( 0xff000000, preset.getBackgroundColor() );
-		Assert.assertEquals( 0, preset.getCyclicPeriod(), 1e-9 );
 		Assert.assertArrayEquals( new double[] { 0.0, 1.0 }, preset.getCurveXs(), 1e-9 );
 		Assert.assertArrayEquals( new int[] { 0, 255 }, preset.getCurveYs() );
 	}
@@ -108,10 +107,9 @@ public class EditorPresetsTest
 		Assert.assertNotNull( loaded );
 		Assert.assertEquals( saved.getName(), loaded.getName() );
 		Assert.assertEquals( saved.getPaletteName(), loaded.getPaletteName() );
-		Assert.assertEquals( saved.getRangeMode(), loaded.getRangeMode() );
+		Assert.assertEquals( saved.isCyclic(), loaded.isCyclic() );
 		Assert.assertEquals( saved.isTreatMinAsBackground(), loaded.isTreatMinAsBackground() );
 		Assert.assertEquals( saved.getBackgroundColor(), loaded.getBackgroundColor() );
-		Assert.assertEquals( saved.getCyclicPeriod(), loaded.getCyclicPeriod(), 1e-9 );
 		Assert.assertArrayEquals( saved.getCurveXs(), loaded.getCurveXs(), 1e-9 );
 		Assert.assertArrayEquals( saved.getCurveYs(), loaded.getCurveYs() );
 	}

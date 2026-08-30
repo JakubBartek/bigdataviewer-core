@@ -70,7 +70,7 @@ import java.util.Objects;
  * <p>
  * This flat/clamped extrapolation is a property of the shape between {@code
  * t = 0} and {@code t = 1} -- it has nothing to do with, and does not
- * duplicate, what {@code ContinuousPaletteWrapper}'s {@code BoundaryCondition}
+ * duplicate, what {@code PresetPaletteWrapper}'s {@code BoundaryCondition}
  * (CLAMP/CYCLE/SPECIAL) does for a raw value entirely outside
  * {@code [getMin(), getMax()]}; that decision is made before this class is
  * ever consulted, exactly as for every other {@link PresetFunc}.
@@ -86,6 +86,43 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 	{
 		super( min, max, paletteRangeLength );
 		setKnots( new double[] { 0.0, 1.0 }, new double[] { 0.0, 1.0 } );
+	}
+
+	/**
+	 * A piecewise-linear approximation of {@code shape}, over the same domain
+	 * and {@link #getPaletteRangeLength()}: {@code numKnots} knots evenly spaced
+	 * across {@code [shape.getMin(), shape.getMax()]}, each valued at
+	 * {@code shape.getPaletteValueForRaw(rawValue)}. Meant for seeding an
+	 * editable, draggable curve with one of the fixed shapes (see the class
+	 * javadoc) -- the result starts out tracing {@code shape}, but is a plain
+	 * {@code CustomInterpPresetFunc} afterwards, so its knots can be moved
+	 * independently of it.
+	 *
+	 * @throws IllegalArgumentException if {@code numKnots} is less than 2.
+	 */
+	public static CustomInterpPresetFunc sampled( final PresetFunc shape, final int numKnots )
+	{
+		Objects.requireNonNull( shape, "shape" );
+		if ( numKnots < 2 )
+			throw new IllegalArgumentException( "numKnots must be at least 2, got " + numKnots );
+
+		final float min = shape.getMin();
+		final float max = shape.getMax();
+		final int paletteRangeLength = shape.getPaletteRangeLength();
+
+		final double[] ts = new double[ numKnots ];
+		final double[] values = new double[ numKnots ];
+		for ( int i = 0; i < numKnots; i++ )
+		{
+			final double t = i / ( double ) ( numKnots - 1 );
+			final float rawValue = ( float ) ( min + t * ( max - min ) );
+			ts[ i ] = t;
+			values[ i ] = Math.max( 0.0, Math.min( 1.0, shape.getPaletteValueForRaw( rawValue ) / paletteRangeLength ) );
+		}
+
+		final CustomInterpPresetFunc result = new CustomInterpPresetFunc( min, max, paletteRangeLength );
+		result.setKnots( ts, values );
+		return result;
 	}
 
 	/**

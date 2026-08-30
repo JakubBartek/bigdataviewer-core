@@ -31,15 +31,13 @@ import bdv.tools.brightness.colorscheme.ColorScheme;
 
 /**
  * Maps a raw image value all the way to a color: {@code rawValue -> boundary
- * handling -> paletteValue -> color}. The common public face of
- * {@link DiscretePaletteWrapper} and {@link ContinuousPaletteWrapper} -- the
- * two differ only in how a raw value becomes a palette value (a discrete step
- * count vs. a {@code PresetFunc}), which a caller that just wants a color for a
- * pixel does not need to know.
+ * handling -> paletteValue -> color}. The public face of
+ * {@link PresetPaletteWrapper} (raw value -> palette value via a
+ * {@code PresetFunc}, then a color scheme), kept as an interface so a renderer
+ * can depend on the mapping without the concrete composition.
  * <p>
  * This is the seam a renderer plugs into: it holds a {@code PaletteWrapper}
- * and calls {@link #getRGBForRaw(float)} per pixel, without caring which of the
- * two concrete kinds it was handed (see {@code PaletteConverter}).
+ * and calls {@link #getRGBForRaw(float)} per pixel (see {@code PaletteConverter}).
  */
 public interface PaletteWrapper
 {

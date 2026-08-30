@@ -29,8 +29,7 @@ package bdv.tools.brightness.presetfunc;
 
 /**
  * Rises quickly near the low end, then flattens out -- boosts detail in dark
- * raw values at the expense of bright ones. Same shape and steepness
- * ({@code k = 20}) as {@code MappingPreset#LOG}.
+ * raw values at the expense of bright ones, with steepness {@code k = 20}.
  */
 public class LogPresetFunc extends AbstractPresetFunc
 {

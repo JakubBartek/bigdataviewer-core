@@ -30,8 +30,7 @@ package bdv.tools.brightness.presetfunc;
 /**
  * An S-shaped curve built from the tangent function, rescaled to
  * {@code [0, 1]} -- steeper through the middle than {@link SigmoidPresetFunc}
- * for the same nominal range. Same steepness ({@code k = 1.4}) as
- * {@code MappingPreset#TAN}.
+ * for the same nominal range, with steepness {@code k = 1.4}.
  */
 public class TanPresetFunc extends AbstractPresetFunc
 {

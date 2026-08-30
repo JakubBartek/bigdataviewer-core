@@ -28,15 +28,9 @@
 package bdv.tools.brightness.palette;
 
 /**
- * What a {@link DiscretePaletteWrapper} or {@link ContinuousPaletteWrapper}
- * does when a raw value falls outside its domain, independently for the left
- * and right side.
- * <p>
- * Where that domain ends differs by wrapper -- the discrete one's is half-open
- * ({@code [min, min + N * stepSize)}), the continuous one's closed
- * ({@code [presetFunc.getMin(), presetFunc.getMax()]}) -- but the choice of
- * what to do on crossing it is the same either way, which is why this enum is
- * shared. See {@code AbstractPaletteWrapper}.
+ * What a {@link PresetPaletteWrapper} does when a raw value falls outside its
+ * domain ({@code [presetFunc.getMin(), presetFunc.getMax()]}), independently
+ * for the left and right side.
  * <p>
  * Deliberately owned by the wrapper, not the color scheme it wraps: a color
  * scheme already has its own fixed edge behavior for an out-of-domain value
@@ -70,8 +64,8 @@ public enum BoundaryCondition
 	 * (packed ARGB) rather than a palette value, it can be a hue not in the
 	 * palette or, via its alpha, transparent -- which is how a "background"
 	 * out-of-range value is made to render as nothing. See
-	 * {@code AbstractPaletteWrapper#getLeftSpecialColor()}/
-	 * {@code AbstractPaletteWrapper#getRightSpecialColor()}.
+	 * {@link PresetPaletteWrapper#getLeftSpecialColor()}/
+	 * {@link PresetPaletteWrapper#getRightSpecialColor()}.
 	 */
 	SPECIAL
 }

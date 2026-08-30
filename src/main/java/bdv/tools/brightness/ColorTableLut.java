@@ -29,6 +29,7 @@ package bdv.tools.brightness;
 
 import java.util.Arrays;
 
+import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import net.imglib2.display.ColorTable;
 
 /**
@@ -47,10 +48,8 @@ public class ColorTableLut implements ColorTable
 	/**
 	 * A black-to-white gradient, used as the placeholder whenever no real
 	 * palette has been chosen yet. Deliberately a two-stop
-	 * {@code ColorTableLut} rather than a {@link net.imglib2.display.ColorTable8}:
-	 * the latter always reports 256 entries, which would be a nonsensical
-	 * wrap period if {@link RangeMode#CYCLIC} were selected before a real
-	 * (typically much smaller) palette is loaded. Safe to share, since a
+	 * {@code ColorTableLut} rather than a {@link net.imglib2.display.ColorTable8},
+	 * which always reports 256 entries. Safe to share, since a
 	 * {@code ColorTableLut} exposes no mutators.
 	 */
 	public static final ColorTableLut DEFAULT = new ColorTableLut(
@@ -97,10 +96,9 @@ public class ColorTableLut implements ColorTable
 	 * 		whether this palette is meant to be smoothly interpolated (e.g. a
 	 * 		continuous palette like viridis) rather than used as discrete,
 	 * 		individually chosen colors (e.g. a qualitative/categorical palette
-	 * 		like tab10); see {@link #isInterpolated(ColorTable)}. Purely
-	 * 		advisory -- does not affect {@link #lookupARGB(double, double,
-	 * 		double)} or any other lookup here, which always honor whatever
-	 * 		{@link ValueMatching} they are explicitly given.
+	 * 		like tab10); see {@link #isInterpolated(ColorTable)}. Consumed by the
+	 * 		LUT editor to pick a discrete vs. continuous color scheme; it does
+	 * 		not affect {@code ColorTableLut}'s own {@link #lookupARGB(double, double, double)}.
 	 */
 	public ColorTableLut( final double[] positions, final double[] red, final double[] green, final double[] blue, final double[] alpha, final boolean interpolated )
 	{
@@ -115,62 +113,22 @@ public class ColorTableLut implements ColorTable
 		this.interpolated = interpolated;
 	}
 
+	/**
+	 * Normalizes {@code value} into {@code [0, 1]} across {@code [min, max]},
+	 * then defers to {@link ContinuousColorScheme} for the actual stop lookup
+	 * and blending, rather than repeating that interpolation here. Note this
+	 * treats the control points as evenly spaced, same as
+	 * {@link ContinuousColorScheme} always does -- unlike {@link #get(int, int)}/
+	 * {@link #getResampled(int, int, int)}, this no longer respects a
+	 * {@link ColorTableLut} built with unevenly spaced {@code positions}.
+	 */
 	@Override
 	public int lookupARGB( final double min, final double max, final double value )
 	{
 		final double span = max - min;
 		final double t = span > 0 ? Math.max( 0.0, Math.min( 1.0, ( value - min ) / span ) ) : 0.0;
-		return pack( interpolate( red, t ), interpolate( green, t ), interpolate( blue, t ), interpolate( alpha, t ) );
-	}
-
-	/**
-	 * Look up a color from {@code lut}, honoring {@code matching}: for
-	 * {@link ValueMatching#INTERPOLATE} this is the same as
-	 * {@link ColorTable#lookupARGB(double, double, double)}, blending
-	 * smoothly between control points; for {@link ValueMatching#TRUNCATE} it
-	 * instead snaps to a single control point's exact color, with no
-	 * blending -- consistent with how that mode makes the mapping curve
-	 * itself step rather than interpolate.
-	 * <p>
-	 * Only has an effect for {@code lut} instances that are actually a
-	 * {@link ColorTableLut}; any other {@link ColorTable} (e.g. the default
-	 * {@link net.imglib2.display.ColorTable8}) always behaves as if
-	 * {@link ValueMatching#INTERPOLATE} were selected.
-	 */
-	public static int lookupARGB( final ColorTable lut, final double min, final double max, final double value, final ValueMatching matching )
-	{
-		if ( matching == ValueMatching.INTERPOLATE || !( lut instanceof ColorTableLut ) )
-			return lut.lookupARGB( min, max, value );
-		return ( ( ColorTableLut ) lut ).lookupARGBTruncated( min, max, value );
-	}
-
-	private int lookupARGBTruncated( final double min, final double max, final double value )
-	{
-		final double span = max - min;
-		final double t = span > 0 ? Math.max( 0.0, Math.min( 1.0, ( value - min ) / span ) ) : 0.0;
-		final int idx = truncateIndex( t );
-		return pack( red[ idx ], green[ idx ], blue[ idx ], alpha[ idx ] );
-	}
-
-	/**
-	 * The normalized positions (in [0, 1]) of {@code lut}'s colors, in order.
-	 * For a {@link ColorTableLut} these are its actual control point positions,
-	 * which are not necessarily evenly spaced (e.g. a categorical palette may
-	 * deliberately cluster some colors closer together than others); for any
-	 * other {@link ColorTable} (e.g. the fixed-256-entry
-	 * {@link net.imglib2.display.ColorTable8}) they are assumed evenly
-	 * spaced, since that is how such tables are always laid out.
-	 */
-	public static double[] colorPositions( final ColorTable lut )
-	{
-		if ( lut instanceof ColorTableLut )
-			return ( ( ColorTableLut ) lut ).positions.clone();
-
-		final int n = Math.max( 1, lut.getLength() );
-		final double[] positions = new double[ n ];
-		for ( int i = 0; i < n; i++ )
-			positions[ i ] = n > 1 ? i / ( double ) ( n - 1 ) : 0.0;
-		return positions;
+		final ContinuousColorScheme scheme = new ContinuousColorScheme( this );
+		return scheme.getRGBA( ( float ) ( t * scheme.getPaletteRangeLength() ) );
 	}
 
 	/**
@@ -212,108 +170,6 @@ public class ColorTableLut implements ColorTable
 	public static boolean isInterpolated( final ColorTable lut )
 	{
 		return !( lut instanceof ColorTableLut ) || ( ( ColorTableLut ) lut ).interpolated;
-	}
-
-	/**
-	 * Average size of the gaps between consecutive {@code positions}. One of
-	 * three candidate estimates for the size of a final color's interval
-	 * when it has no following position to measure a gap against (see
-	 * {@link #lookupARGBQualitative}); this one is a palette-wide average,
-	 * robust to any single unusually large or small gap elsewhere.
-	 */
-	public static double averageIntervalSize( final double[] positions )
-	{
-		final int n = positions.length;
-		if ( n < 2 )
-			return 0.0;
-		double sum = 0.0;
-		for ( int i = 1; i < n; i++ )
-			sum += positions[ i ] - positions[ i - 1 ];
-		return sum / ( n - 1 );
-	}
-
-	/**
-	 * Size of the last gap between consecutive {@code positions}, mirrored
-	 * past the final position. One of three candidate estimates for the
-	 * size of a final color's interval (see {@link #lookupARGBQualitative});
-	 * this one assumes the spacing right at the end of the palette is
-	 * locally representative of what the final interval would be.
-	 */
-	public static double mirroredLastIntervalSize( final double[] positions )
-	{
-		final int n = positions.length;
-		if ( n < 2 )
-			return 0.0;
-		return positions[ n - 1 ] - positions[ n - 2 ];
-	}
-
-	/**
-	 * Size of the first gap between consecutive {@code positions}, reused
-	 * for the final position's interval. One of three candidate estimates
-	 * for the size of a final color's interval (see
-	 * {@link #lookupARGBQualitative}).
-	 */
-	public static double firstIntervalSize( final double[] positions )
-	{
-		if ( positions.length < 2 )
-			return 0.0;
-		return positions[ 1 ] - positions[ 0 ];
-	}
-
-	/**
-	 * Look up a color from {@code lut} for a qualitative/categorical preview:
-	 * each color owns a band of {@code [0, 1]} sized by the gap to the next
-	 * color's position, so that under {@link ValueMatching#TRUNCATE} every
-	 * color -- including the last -- gets a fair visual share of the bar.
-	 * <p>
-	 * The last color has no following position to size its band from, so
-	 * {@code lastIntervalSize} (one of {@link #averageIntervalSize},
-	 * {@link #mirroredLastIntervalSize}, {@link #firstIntervalSize}) is used
-	 * instead; without this, the last color's band collapses to the single
-	 * point {@code t == 1}, an easy-to-miss sliver instead of a proper band.
-	 *
-	 * @param t
-	 * 		normalized position across the whole (extended) bar, in [0, 1].
-	 */
-	public static int lookupARGBQualitative( final ColorTable lut, final double t, final double lastIntervalSize )
-	{
-		final double[] positions = colorPositions( lut );
-		final int n = positions.length;
-		if ( n < 2 )
-			return lut.lookupARGB( 0, 1, t );
-
-		final double span = ( positions[ n - 1 ] + lastIntervalSize ) - positions[ 0 ];
-		final double scaledT = positions[ 0 ] + Math.max( 0.0, Math.min( 1.0, t ) ) * span;
-
-		int idx = 0;
-		for ( int i = 1; i < n; i++ )
-			if ( positions[ i ] <= scaledT )
-				idx = i;
-
-		// positions[idx] is an exact control point, so this resolves to
-		// index idx's raw color regardless of the underlying ColorTable type.
-		return lut.lookupARGB( 0, 1, positions[ idx ] );
-	}
-
-	/**
-	 * The control point used for {@link ValueMatching#TRUNCATE} lookup:
-	 * holds the color of the last control point at or before {@code t}.
-	 */
-	private int truncateIndex( final double t )
-	{
-		// t typically comes from a value that was already rounded to an
-		// integer LUT index in [0, 255] upstream (see
-		// MappingModel#mapToLutIndex), which can round *down* by up to
-		// 0.5/255. Without slack here, that alone -- with no actual intent
-		// behind it -- can make TRUNCATE floor to the *previous* control
-		// point instead of landing exactly on the intended one, silently
-		// dropping colors from the cycle.
-		final double eps = 0.5 / 255.0 + 1e-9;
-		int idx = 0;
-		for ( int i = 0; i < positions.length; i++ )
-			if ( positions[ i ] <= t + eps )
-				idx = i;
-		return idx;
 	}
 
 	@Override
@@ -385,10 +241,5 @@ public class ColorTableLut implements ColorTable
 	private static int to8( final double v )
 	{
 		return Math.max( 0, Math.min( 255, ( int ) Math.round( v * 255.0 ) ) );
-	}
-
-	private static int pack( final double r, final double g, final double b, final double a )
-	{
-		return ( to8( a ) << 24 ) | ( to8( r ) << 16 ) | ( to8( g ) << 8 ) | to8( b );
 	}
 }

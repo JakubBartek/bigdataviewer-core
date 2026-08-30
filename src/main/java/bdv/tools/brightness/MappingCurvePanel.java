@@ -45,6 +45,8 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 
+import bdv.tools.brightness.colorscheme.ColorScheme;
+import bdv.tools.brightness.palette.PaletteWrapper;
 import net.imglib2.display.ColorTable;
 
 /**
@@ -79,18 +81,6 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	private static final int COLORBAR_GAP = 10;
 
-	/**
-	 * Minimum on-screen width (in pixels) of the "treat min as background"
-	 * swatch in {@link RangeMode#FIT}. There, {@link MappingModel#isBackgroundValue}
-	 * is true only for the single point {@code value == min}, which would
-	 * otherwise occupy at most one pixel column here -- too thin to notice.
-	 * Widening it is purely cosmetic for this preview; real rendering (e.g.
-	 * {@link RealLUTConverter}) is unaffected and keeps using the exact
-	 * single-point cutoff. Not needed in {@link RangeMode#CYCLIC}, where the
-	 * reserved {@code [min, min + 1)} interval is already wide enough.
-	 */
-	private static final int MIN_BACKGROUND_PIXELS = 4;
-
 	private static final Color CURVE_COLOR = Color.BLACK;
 
 	private static final Color POINT_FILL = Color.WHITE;
@@ -99,16 +89,13 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	private static final double[] OUTPUT_TICK_FRACTIONS = { 0.0, 0.25, 0.5, 0.75, 1.0 };
 
-	private final MappingModel model;
+	private final LutEditorMapping model;
 
 	private double rangeMin = 0;
 
 	private double rangeMax = 255;
 
 	private ColorTable palette = ColorTableLut.DEFAULT;
-
-	/** {@link ColorTableLut#colorPositions(ColorTable)} of {@link #palette}, cached since painting reuses it per pixel column. */
-	private double[] paletteColorPositions = ColorTableLut.colorPositions( palette );
 
 	private Integer draggedPoint = null;
 
@@ -125,7 +112,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	private BiConsumer< Double, Double > rangeChangeListener = null;
 
-	public MappingCurvePanel( final MappingModel model )
+	public MappingCurvePanel( final LutEditorMapping model )
 	{
 		this.model = model;
 		setPreferredSize( new Dimension( 280, 200 ) );
@@ -174,47 +161,13 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		final int y = transformBarBottom() + 2;
 		final int left = plotLeft();
 
-		// The min field straddles the boundary its value labels, centered on
-		// it. Normally that is the plot's left edge; while the "treat min as
-		// background" swatch is drawn there, the value instead belongs to the
-		// swatch's far side, so shift the field right by exactly the swatch's
-		// width -- keeping it centered, just on the other boundary.
+		// The min/max fields straddle the plot's left/right edges, centered on
+		// them (clamped so the min field never runs into the max field).
 		final int maxFieldX = curveXToPixelX( 1 ) - RANGE_FIELD_WIDTH / 2;
-		final int minFieldX = Math.min(
-				left + backgroundBarWidthPixels() - RANGE_FIELD_WIDTH / 2,
-				// Never let it run into the max field, however wide the swatch
-				// gets (e.g. Cyclic over a range only a few units wide, where
-				// the reserved unit interval is a large share of the plot).
-				maxFieldX - RANGE_FIELD_WIDTH );
+		final int minFieldX = Math.min( left - RANGE_FIELD_WIDTH / 2, maxFieldX - RANGE_FIELD_WIDTH );
 
 		minField.setBounds( minFieldX, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT );
 		maxField.setBounds( maxFieldX, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT );
-	}
-
-	/**
-	 * Width, in pixel columns, of the "treat min as background" swatch at the
-	 * left edge of the plot -- i.e. exactly how many columns
-	 * {@link #drawTransformColorBar} fills with
-	 * {@link MappingModel#getBackgroundColor()} before the palette takes
-	 * over. {@code 0} when the option is off.
-	 * <p>
-	 * Deliberately measured by walking the same {@link #isBackgroundForPreview}
-	 * predicate the bar is painted with, rather than converting the raw-value
-	 * cutoff to pixels independently: the two roundings would not agree
-	 * (the cutoff differs by range mode, and {@link RangeMode#FIT} widens it
-	 * to {@link #MIN_BACKGROUND_PIXELS} purely for visibility), leaving the
-	 * min field a pixel or two off the swatch it is supposed to sit against.
-	 */
-	private int backgroundBarWidthPixels()
-	{
-		if ( !model.isTreatMinAsBackground() )
-			return 0;
-		final int left = plotLeft();
-		final int right = plotRight();
-		int px = left;
-		while ( px < right && isBackgroundForPreview( pixelXToValue( px ) ) )
-			px++;
-		return px - left;
 	}
 
 	/**
@@ -285,7 +238,6 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	public void setPalette( final ColorTable palette )
 	{
 		this.palette = palette == null ? ColorTableLut.DEFAULT : palette;
-		this.paletteColorPositions = ColorTableLut.colorPositions( this.palette );
 		repaint();
 	}
 
@@ -357,45 +309,12 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		return rangeMin + normX * ( rangeMax - rangeMin );
 	}
 
-	/**
-	 * Pixel x-coordinate for a raw input value, i.e. the inverse of
-	 * {@link #pixelXToValue}.
-	 */
-	private int valueToPixelX( final double value )
+	/** Normalized curve position (in [0, 1]) for a raw input value: the fraction of the way across [rangeMin, rangeMax]. */
+	private double valueToCurveX( final double value )
 	{
 		final double span = rangeMax - rangeMin;
 		final double frac = span > 0 ? ( value - rangeMin ) / span : 0.0;
-		return plotLeft() + ( int ) Math.round( frac * plotWidth() );
-	}
-
-	/**
-	 * Normalized curve position (in [0, 1]) for a raw input value, using
-	 * exactly the same formula as {@link MappingModel#mapToLutIndex}, so that
-	 * the curve is drawn/edited consistently with what is actually applied.
-	 */
-	private double valueToCurveX( final double value )
-	{
-		return model.getRangeMode() == RangeMode.CYCLIC
-				? MappingModel.cyclicPosition( value, rangeMin, paletteColorPositions, model.effectiveCyclicPeriod( paletteColorPositions ), model.isTreatMinAsBackground() )
-				: MappingModel.fitPosition( value, rangeMin, rangeMax );
-	}
-
-	/**
-	 * Whether a raw input value should be shown as the dedicated background
-	 * swatch in this preview. Delegates to {@link MappingModel#isBackgroundValue}
-	 * but, in {@link RangeMode#FIT}, additionally widens its single-point
-	 * cutoff to {@link #MIN_BACKGROUND_PIXELS} worth of raw value so the
-	 * swatch is actually visible here -- see that constant's javadoc.
-	 */
-	private boolean isBackgroundForPreview( final double value )
-	{
-		if ( model.isBackgroundValue( value, rangeMin ) )
-			return true;
-		if ( model.getRangeMode() != RangeMode.FIT || !model.isTreatMinAsBackground() )
-			return false;
-		final double span = rangeMax - rangeMin;
-		final double minVisibleSpan = span > 0 ? span * MIN_BACKGROUND_PIXELS / plotWidth() : 0;
-		return value < rangeMin + minVisibleSpan;
+		return Math.max( 0.0, Math.min( 1.0, frac ) );
 	}
 
 	/** Pixel x-coordinate for a normalized curve position in [0, 1]. */
@@ -424,12 +343,18 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		final Graphics2D g2 = ( Graphics2D ) g;
 		g2.setRenderingHint( RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON );
 
+		// The new color-mapping representation renders the preview: the wrapper
+		// turns each raw value straight into its final color, and its color
+		// scheme is the palette bar. Rebuilt per paint from the current curve /
+		// palette / range -- cheap for a preview, and always in sync.
+		final PaletteWrapper wrapper = PaletteWrapperBuilder.build( palette, model, rangeMin, rangeMax );
+
 		drawGrid( g2 );
-		drawCurve( g2 );
+		drawCurve( g2, wrapper.getColorScheme().getPaletteRangeLength() );
 		if ( editMode )
 			drawControlPoints( g2 );
-		drawOutputColorBar( g2 );
-		drawTransformColorBar( g2 );
+		drawOutputColorBar( g2, wrapper.getColorScheme() );
+		drawTransformColorBar( g2, wrapper );
 	}
 
 	private void drawGrid( final Graphics2D g )
@@ -454,98 +379,59 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	}
 
 	/**
-	 * Draws the curve exactly as it is actually applied to input values (via
-	 * {@link MappingModel#mapToLutIndex}), rather than just plotting the raw
-	 * {@link Curve} across the full plot width. In {@link RangeMode#CYCLIC}
-	 * this means the curve repeats every {@link MappingModel#effectiveCyclicPeriod}
-	 * input units; the line is not drawn across a wrap boundary, so each
-	 * repetition appears as a separate segment (like a sawtooth), matching
-	 * the actual discontinuity in the mapping.
+	 * Draws the transfer curve: its normalized shape, input {@code [0, 1]}
+	 * across the plot to output {@code [0, 255]}. For a discrete (categorical)
+	 * palette this is drawn as a staircase, not the curve's own smooth line --
+	 * matching {@link bdv.tools.brightness.colorscheme.DiscreteColorScheme},
+	 * which floors every output to one of {@code paletteRangeLength} stops
+	 * (see {@link #flooredOutput(int, int)}) -- since a smooth line would show
+	 * a transition that never actually happens in the rendered color.
 	 */
-	private void drawCurve( final Graphics2D g )
+	private void drawCurve( final Graphics2D g, final int paletteRangeLength )
 	{
 		g.setColor( CURVE_COLOR );
 		g.setStroke( new BasicStroke( 2 ) );
 
-		final double period = model.effectiveCyclicPeriod( paletteColorPositions );
-		final boolean cyclic = model.getRangeMode() == RangeMode.CYCLIC && period > 0;
-		final boolean treatMinAsBackground = model.isTreatMinAsBackground();
+		final Curve curve = model.getCurve();
+		final boolean discrete = model.isDiscrete();
 		final int left = plotLeft();
 		final int right = plotRight();
 
 		Integer prevX = null;
 		Integer prevY = null;
-		double prevValue = 0;
 		for ( int px = left; px <= right; px++ )
 		{
-			final double value = pixelXToValue( px );
-
-			// The dedicated background color (see MappingModel#isBackgroundValue)
-			// is not part of the curve's 0-255 output scale at all, so skip
-			// drawing the line here entirely rather than showing a misleading
-			// position for it.
-			if ( isBackgroundForPreview( value ) )
-			{
-				prevX = null;
-				continue;
-			}
-
-			final int smoothY = model.mapToLutIndex( value, rangeMin, rangeMax, paletteColorPositions );
-			final int py = outputToPixelY( smoothY );
-
-			final boolean wrapped = cyclic && prevX != null
-					&& MappingModel.cycleIndex( value, rangeMin, period, treatMinAsBackground )
-							!= MappingModel.cycleIndex( prevValue, rangeMin, period, treatMinAsBackground );
-			if ( prevX != null && !wrapped )
+			final double t = ( px - left ) / ( double ) plotWidth();
+			final int output = curve.evaluate( t );
+			final int py = outputToPixelY( discrete ? flooredOutput( output, paletteRangeLength ) : output );
+			if ( prevX != null )
 				g.drawLine( prevX, prevY, px, py );
-
 			prevX = px;
 			prevY = py;
-			prevValue = value;
 		}
 	}
 
 	/**
-	 * Draws each curve control point. In {@link RangeMode#CYCLIC}, the cycle
-	 * is anchored at rangeMin (see {@link MappingModel#cyclicPosition}), so a
-	 * control point at normalized x corresponds to a raw value of
-	 * {@code k*period + rangeMin + offset} for every repetition {@code k},
-	 * where {@code offset} is {@link MappingModel#inverseCyclicPosition} of
-	 * the point's x -- i.e. the inverse of {@link MappingModel#cyclicPosition},
-	 * so this lines up correctly even when the palette's colors are not
-	 * evenly spaced; it is drawn once per repetition that falls within the
-	 * visible [rangeMin, rangeMax] range, matching the repeated segments
-	 * drawn by {@link #drawCurve}.
+	 * {@code rawOutput} (in {@code [0, 255]}) snapped down to the nearest of
+	 * {@code paletteRangeLength} evenly spaced stops, then back to
+	 * {@code [0, 255]} -- the curve's own output space -- for drawing. Mirrors
+	 * exactly how {@link bdv.tools.brightness.colorscheme.DiscreteColorScheme#colorAt}
+	 * floors a palette value to a stop index (same {@code floor}, same
+	 * clamp to the last stop at the top edge), just expressed in the
+	 * panel's 0-255 output units instead of a palette value.
 	 */
+	private static int flooredOutput( final int rawOutput, final int paletteRangeLength )
+	{
+		final int stopIndex = Math.min( paletteRangeLength - 1, ( int ) ( rawOutput / 255.0 * paletteRangeLength ) );
+		return ( int ) Math.round( stopIndex / ( double ) paletteRangeLength * 255.0 );
+	}
+
+	/** Draws each curve control point at its normalized (x, output) position. */
 	private void drawControlPoints( final Graphics2D g )
 	{
 		final Curve curve = model.getCurve();
-		final double period = model.effectiveCyclicPeriod( paletteColorPositions );
-		final boolean cyclic = model.getRangeMode() == RangeMode.CYCLIC && period > 0;
-		final boolean treatMinAsBackground = model.isTreatMinAsBackground();
-
 		for ( int i = 0; i < curve.getPointCount(); i++ )
-		{
-			final int py = outputToPixelY( curve.getY( i ) );
-
-			if ( cyclic )
-			{
-				final double offset = rangeMin + MappingModel.inverseCyclicPosition( curve.getX( i ), paletteColorPositions, period, treatMinAsBackground );
-				final int kMin = ( int ) Math.floor( ( rangeMin - offset ) / period ) - 1;
-				final int kMax = ( int ) Math.ceil( ( rangeMax - offset ) / period ) + 1;
-				for ( int k = kMin; k <= kMax; k++ )
-				{
-					final double value = k * period + offset;
-					if ( value < rangeMin || value > rangeMax )
-						continue;
-					drawControlPointAt( g, valueToPixelX( value ), py );
-				}
-			}
-			else
-			{
-				drawControlPointAt( g, curveXToPixelX( curve.getX( i ) ), py );
-			}
-		}
+			drawControlPointAt( g, curveXToPixelX( curve.getX( i ) ), outputToPixelY( curve.getY( i ) ) );
 	}
 
 	private void drawControlPointAt( final Graphics2D g, final int px, final int py )
@@ -559,35 +445,28 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	/**
 	 * Vertical color bar along the y (output value) axis, to the left of the
-	 * curve editor. It is the identity ramp through the palette (LUT index ==
-	 * output value) and does not depend on the mapping curve, so it always
-	 * looks the same for a given palette. Tick labels show the actual
-	 * palette color index (0 to {@code palette.getLength() - 1}), the scale
-	 * that matters to the user, rather than the internal 0-255 LUT index.
+	 * curve editor. It is the palette itself (output value == position through
+	 * the palette) and does not depend on the mapping curve, so it always looks
+	 * the same for a given palette. Tick labels show the actual palette color
+	 * index (0 to {@code palette.getLength() - 1}), the scale that matters to
+	 * the user, rather than the internal 0-255 output value.
 	 * <p>
-	 * Under {@link ValueMatching#TRUNCATE} each color is drawn as a band
-	 * sized by {@link ColorTableLut#lookupARGBQualitative}, so a qualitative
-	 * palette's last color gets a fair share of the bar instead of
-	 * collapsing to a sliver.
+	 * Rendered through the {@code scheme}, so a discrete (categorical) palette
+	 * shows each color as a flat band and a continuous one as a gradient,
+	 * automatically -- see {@link ColorScheme}.
 	 */
-	private void drawOutputColorBar( final Graphics2D g )
+	private void drawOutputColorBar( final Graphics2D g, final ColorScheme scheme )
 	{
 		final int barLeft = LABEL_WIDTH;
 		final int top = plotTop();
 		final int bottom = plotBottom();
 
-		final ValueMatching matching = model.getValueMatching();
-		final double lastIntervalSize = ColorTableLut.mirroredLastIntervalSize( paletteColorPositions );
+		final int paletteRangeLength = scheme.getPaletteRangeLength();
 
 		for ( int py = top; py < bottom; py++ )
 		{
 			final double t = ( bottom - py ) / ( double ) plotHeight();
-			final int argb;
-			if ( matching == ValueMatching.TRUNCATE )
-				argb = ColorTableLut.lookupARGBQualitative( palette, t, lastIntervalSize );
-			else
-				argb = ColorTableLut.lookupARGB( palette, 0, 255, ( int ) Math.round( t * 255.0 ), matching );
-			g.setColor( new Color( argb ) );
+			g.setColor( new Color( scheme.getRGB( ( float ) ( t * paletteRangeLength ) ) ) );
 			// fillRect, not drawLine: the stroke is whatever the last caller
 			// left set (drawCurve uses 2px) and antialiasing is on, which
 			// together smear each 1px row across its neighbours instead of
@@ -613,58 +492,24 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	}
 
 	/**
-	 * Horizontal color bar along the x (input value) axis, showing the LUT
-	 * color actually produced after passing each input value through the
-	 * mapping curve ("after transform"). Uses {@link MappingModel#mapToLutIndexForColor}
-	 * rather than {@link MappingModel#mapToLutIndex} (unlike {@link #drawCurve},
-	 * which draws the curve's own continuous shape): in {@link RangeMode#CYCLIC}
-	 * with {@link ValueMatching#TRUNCATE}, that snaps each label to its own
-	 * exact position instead of sweeping across its raw-value interval, so a
-	 * decreasing curve there (e.g. after Invert) can't make one color bleed
-	 * into its neighbor's territory.
-	 * <p>
-	 * In {@link RangeMode#FIT}, additionally uses proportional qualitative
-	 * bands under {@link ValueMatching#TRUNCATE} like {@link #drawOutputColorBar}.
-	 * Not in {@link RangeMode#CYCLIC}: there, {@link MappingModel#cyclicPosition}
-	 * already reserves the last color's own full raw-value interval via its
-	 * flat-hold branch, so the plain lookup already shows it correctly --
-	 * applying the qualitative band extension on top would double up on that
-	 * (rescaling the whole [0, 1] range pulls the last color's band earlier,
-	 * bleeding into what should still be the second-to-last color's interval,
-	 * so the last color would appear to repeat before the actual wrap to the
-	 * first color).
+	 * Horizontal color bar along the x (input value) axis, showing the color
+	 * actually produced after passing each input value through the whole
+	 * mapping ("after transform") -- i.e. exactly what the renderer would show
+	 * for that raw value, straight from {@link PaletteWrapper#getRGBForRaw(float)}
+	 * (curve, then color scheme, then boundary handling).
 	 */
-	private void drawTransformColorBar( final Graphics2D g )
+	private void drawTransformColorBar( final Graphics2D g, final PaletteWrapper wrapper )
 	{
 		final int left = plotLeft();
 		final int right = plotRight();
 		final int top = transformBarTop();
 		final int bottom = transformBarBottom();
 
-		final ValueMatching matching = model.getValueMatching();
-		final boolean useQualitativeBands = matching == ValueMatching.TRUNCATE && model.getRangeMode() == RangeMode.FIT;
-		final double lastIntervalSize = useQualitativeBands ? ColorTableLut.mirroredLastIntervalSize( paletteColorPositions ) : 0;
-
 		for ( int px = left; px < right; px++ )
 		{
 			final double value = pixelXToValue( px );
-			final int argb;
-			if ( isBackgroundForPreview( value ) )
-			{
-				argb = model.getBackgroundColor();
-			}
-			else
-			{
-				final int lutIndex = model.mapToLutIndexForColor( value, rangeMin, rangeMax, paletteColorPositions );
-				if ( useQualitativeBands )
-					argb = ColorTableLut.lookupARGBQualitative( palette, lutIndex / 255.0, lastIntervalSize );
-				else
-					argb = ColorTableLut.lookupARGB( palette, 0, 255, lutIndex, matching );
-			}
-			g.setColor( new Color( argb ) );
-			// fillRect rather than drawLine -- see drawOutputColorBar. Crisp
-			// columns also make the background swatch's right edge exact,
-			// which is what #backgroundBarWidthPixels measures against.
+			g.setColor( new Color( wrapper.getRGBForRaw( ( float ) value ) ) );
+			// fillRect rather than drawLine -- see drawOutputColorBar.
 			g.fillRect( px, top, 1, bottom - top + 1 );
 		}
 
@@ -701,9 +546,6 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 			return;
 
 		final Curve curve = model.getCurve();
-		// Convert the click through the raw input value so that, in Cyclic
-		// mode, clicking any repetition of the curve correctly hits/creates
-		// the single underlying control point (see #valueToCurveX).
 		final double x = valueToCurveX( pixelXToValue( e.getX() ) );
 		final int y = pixelYToOutput( e.getY() );
 

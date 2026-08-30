@@ -40,7 +40,7 @@ import java.util.function.DoubleUnaryOperator;
  * {@code [0, 1]} domain and rescaling the result into
  * {@code [0, getPaletteRangeLength()]}.
  * <p>
- * Not built on {@code MappingModel}/{@code Curve}: those exist to drive an
+ * Not built on {@code LutEditorMapping}/{@code Curve}: those exist to drive an
  * interactively-draggable, {@code [0, 255]}-output, 9-point piecewise-linear
  * <em>approximation</em> of a shape, for a UI that lets a user further hand-edit
  * it -- a different job from computing a shape's exact value at an arbitrary

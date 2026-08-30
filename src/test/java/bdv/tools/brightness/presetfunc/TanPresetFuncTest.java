@@ -34,9 +34,8 @@ import org.junit.Test;
  * Test cases for {@link TanPresetFunc}. Endpoint and out-of-range behavior
  * shared by every {@link PresetFunc} is covered generically by
  * {@link AbstractPresetFuncTest}; this only checks the shape distinctive to
- * this class. Expected values computed independently from the exact same
- * formula {@code MappingPreset#TAN} uses ({@code k = 1.4}), not derived from
- * this implementation.
+ * this class. Expected values computed independently from the formula
+ * ({@code k = 1.4}), not derived from this implementation.
  */
 public class TanPresetFuncTest
 {

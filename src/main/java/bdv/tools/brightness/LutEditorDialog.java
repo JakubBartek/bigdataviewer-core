@@ -45,6 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.WeakHashMap;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -66,9 +67,12 @@ import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
-import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 
+import bdv.tools.brightness.colorscheme.ColorScheme;
+import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
+import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
+import bdv.tools.brightness.palette.PaletteWrapper;
 import bdv.viewer.ConverterSetups;
 import bdv.viewer.SourceAndConverter;
 import bdv.viewer.ViewerState;
@@ -109,11 +113,9 @@ public class LutEditorDialog extends JDialog
 
 	private final JRadioButton radioFit;
 	private final JRadioButton radioCyclic;
-	private final JLabel labelCyclicPeriod;
-	private final JTextField fieldCyclicPeriod;
 	private final JCheckBox checkTreatMinAsBackground;
 	private final JButton buttonBackgroundColor;
-	private final JComboBox< MappingPreset > comboMappingPreset;
+	private final JComboBox< PresetShape > comboMappingPreset;
 	private final JButton buttonInvertCurve;
 
 	/**
@@ -126,15 +128,45 @@ public class LutEditorDialog extends JDialog
 	/** Name of {@link #currentPalette} in {@link #comboPalette}, or {@code null} if it doesn't (or isn't known to) correspond to one -- see {@link #loadIntoEditor}. */
 	private String currentPaletteName = null;
 
-	private final MappingModel mappingModel = new MappingModel();
+	private final LutEditorMapping mappingModel = new LutEditorMapping();
 
 	/** The input value range currently being edited; see {@link #currentPalette}. */
 	private double editedRangeMin = 0;
 	private double editedRangeMax = 255;
 
 	/** The setup/converter {@link #currentPalette} etc. are being live-pushed to; {@code null} if none is currently editable. */
-	private RealLUTConverter< ? > activeLutConv = null;
+	private PaletteConverter< ? > activeLutConv = null;
 	private ConverterSetup activeSetup = null;
+
+	/**
+	 * The editor-facing configuration ({@link ColorTable} palette + editable
+	 * {@link LutEditorMapping}) last pushed to each {@link PaletteConverter}, so
+	 * re-selecting a source can restore what the editor last showed for it.
+	 * <p>
+	 * The converter itself only stores the derived {@link PaletteWrapper} it
+	 * renders through (which cannot be read back into the editor's richer
+	 * palette-plus-curve terms); this remembers those terms instead. Weakly
+	 * keyed so it does not keep converters (hence sources) alive. The display
+	 * range is deliberately not stored here -- it lives on the setup and is
+	 * always read back fresh, so brightness/contrast changes made outside this
+	 * dialog are not clobbered.
+	 */
+	private final Map< PaletteConverter< ? >, EditorState > converterStates = new WeakHashMap<>();
+
+	/** The editor-facing palette + mapping remembered per converter; see {@link #converterStates}. */
+	private static final class EditorState
+	{
+		final ColorTable palette;
+		final String paletteName;
+		final LutEditorMapping mapping;
+
+		EditorState( final ColorTable palette, final String paletteName, final LutEditorMapping mapping )
+		{
+			this.palette = palette;
+			this.paletteName = paletteName;
+			this.mapping = mapping;
+		}
+	}
 
 	/**
 	 * Snapshot of {@link #activeLutConv}'s state as of the last "Apply" (or,
@@ -143,7 +175,7 @@ public class LutEditorDialog extends JDialog
 	 */
 	private ColorTable baselinePalette = ColorTableLut.DEFAULT;
 	private String baselinePaletteName = null;
-	private final MappingModel baselineMapping = new MappingModel();
+	private final LutEditorMapping baselineMapping = new LutEditorMapping();
 	private double baselineRangeMin = 0;
 	private double baselineRangeMax = 255;
 
@@ -163,30 +195,16 @@ public class LutEditorDialog extends JDialog
 		comboEditorPreset = createEditorPresetCombo();
 		buttonSaveEditorPreset = new JButton( "Save..." );
 		buttonSaveEditorPreset.setFocusable( false );
-		panelPaletteSwatch = new GradientPreviewPanel( mappingModel );
+		panelPaletteSwatch = new GradientPreviewPanel();
 		panelPaletteSwatch.setPreferredSize( new Dimension( 200, 16 ) );
 		panelPaletteSwatch.setMaximumSize( new Dimension( Integer.MAX_VALUE, 16 ) );
 
 		radioFit = new JRadioButton( "Fit" );
 		radioCyclic = new JRadioButton( "Cyclic" );
 		radioFit.setSelected( true );
-		labelCyclicPeriod = new JLabel( "Period:" );
-		labelCyclicPeriod.setEnabled( false );
-		fieldCyclicPeriod = new JTextField( 4 );
-		fieldCyclicPeriod.setHorizontalAlignment( SwingConstants.CENTER );
-		fieldCyclicPeriod.setEnabled( false );
-		fieldCyclicPeriod.addActionListener( e -> commitCyclicPeriodField() );
-		fieldCyclicPeriod.addFocusListener( new FocusAdapter()
-		{
-			@Override
-			public void focusLost( final FocusEvent e )
-			{
-				commitCyclicPeriodField();
-			}
-		} );
 		checkTreatMinAsBackground = new JCheckBox();
 		buttonBackgroundColor = createBackgroundColorButton();
-		comboMappingPreset = new JComboBox<>( MappingPreset.values() );
+		comboMappingPreset = new JComboBox<>( PresetShape.values() );
 		buttonInvertCurve = new JButton( "Invert" );
 		buttonInvertCurve.setFocusable( false );
 
@@ -431,10 +449,6 @@ public class LutEditorDialog extends JDialog
 		panelRangeMode.add( Box.createHorizontalStrut( 4 ) );
 		panelRangeMode.add( radioCyclic );
 		panelRangeMode.add( Box.createHorizontalStrut( 8 ) );
-		panelRangeMode.add( labelCyclicPeriod );
-		panelRangeMode.add( Box.createHorizontalStrut( 4 ) );
-		panelRangeMode.add( fieldCyclicPeriod );
-		panelRangeMode.add( Box.createHorizontalStrut( 8 ) );
 		panelRangeMode.add( checkTreatMinAsBackground );
 		panelRangeMode.add( Box.createHorizontalStrut( 4 ) );
 		panelRangeMode.add( buttonBackgroundColor );
@@ -542,25 +556,15 @@ public class LutEditorDialog extends JDialog
 			// Truncate is the closest match to how such palettes are
 			// typically read (each raw value holds the color of the control
 			// point at or before it).
-			mappingModel.setValueMatching( ColorTableLut.isInterpolated( ct ) ? ValueMatching.INTERPOLATE : ValueMatching.TRUNCATE );
-
-			// Revert to the "auto" cyclic period (see MappingModel#getCyclicPeriod)
-			// so it re-derives from this palette's own color count, same as
-			// picking a palette always overrides value matching above --
-			// rather than silently keeping a period sized for the previous,
-			// possibly differently-sized, palette.
-			mappingModel.setCyclicPeriod( MappingModel.AUTO_CYCLIC_PERIOD );
-			updateCyclicPeriodFieldText();
+			mappingModel.setDiscrete( !ColorTableLut.isInterpolated( ct ) );
+			updateMappingPresetComboState();
 		} );
 
 		final ActionListener listenerRangeMode = e ->
 		{
-			final boolean cyclic = radioCyclic.isSelected();
-			labelCyclicPeriod.setEnabled( cyclic );
-			fieldCyclicPeriod.setEnabled( cyclic );
 			if ( loadingControls )
 				return;
-			mappingModel.setRangeMode( cyclic ? RangeMode.CYCLIC : RangeMode.FIT );
+			mappingModel.setCyclic( radioCyclic.isSelected() );
 		};
 		radioFit.addActionListener( listenerRangeMode );
 		radioCyclic.addActionListener( listenerRangeMode );
@@ -587,7 +591,7 @@ public class LutEditorDialog extends JDialog
 		{
 			if ( loadingControls )
 				return;
-			mappingModel.applyPreset( ( MappingPreset ) comboMappingPreset.getSelectedItem() );
+			mappingModel.applyPreset( ( PresetShape ) comboMappingPreset.getSelectedItem() );
 		} );
 
 		buttonInvertCurve.addActionListener( e -> mappingModel.invertCurve() );
@@ -681,7 +685,7 @@ public class LutEditorDialog extends JDialog
 		final SourceAndConverter< ? > soc = sources.get( idx );
 		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
 		final Object conv = soc.getConverter();
-		if ( !( conv instanceof RealLUTConverter ) )
+		if ( !( conv instanceof PaletteConverter ) )
 		{
 			activeLutConv = null;
 			activeSetup = null;
@@ -691,32 +695,22 @@ public class LutEditorDialog extends JDialog
 		}
 		labelStatus.setText( "" );
 
-		final RealLUTConverter< ? > lutConv = ( RealLUTConverter< ? > ) conv;
+		final PaletteConverter< ? > lutConv = ( PaletteConverter< ? > ) conv;
 		activeLutConv = lutConv;
 		activeSetup = setup;
 
-		final ColorTable palette = lutConv.getLUT() != null ? lutConv.getLUT() : ColorTableLut.DEFAULT;
-
-		final MappingModel existing = lutConv.getMapping();
-		final MappingModel loaded;
-		if ( existing != null )
-			loaded = existing;
-		else
-		{
-			loaded = new MappingModel();
-			loaded.setRangeMode( RangeMode.FIT );
-			loaded.setValueMatching( ValueMatching.INTERPOLATE );
-			loaded.applyPreset( MappingPreset.LINEAR );
-		}
+		// The converter renders through a PaletteWrapper, which cannot be read
+		// back into the editor's palette-plus-curve terms; restore what the
+		// editor last pushed for this converter instead (see converterStates),
+		// falling back to a neutral default for one set up outside this dialog.
+		final EditorState state = converterStates.get( lutConv );
+		final ColorTable palette = state != null ? state.palette : ColorTableLut.DEFAULT;
+		final String paletteName = state != null ? state.paletteName : LutPalettes.findName( palette );
+		final LutEditorMapping loaded = state != null ? state.mapping : defaultMapping();
 
 		final double min = setup != null ? setup.getDisplayRangeMin() : 0;
 		final double max = setup != null ? setup.getDisplayRangeMax() : 255;
-		// The palette itself doesn't remember which named resource (if any)
-		// it was loaded from, so recover it by matching colors against the
-		// known palettes -- leaving comboPalette deselected ("Select
-		// Palette") only for a genuinely unmatched/custom table, rather than
-		// unconditionally for every source.
-		loadIntoEditor( palette, LutPalettes.findName( palette ), loaded, min, max );
+		loadIntoEditor( palette, paletteName, loaded, min, max );
 
 		snapshotBaseline();
 	}
@@ -731,12 +725,18 @@ public class LutEditorDialog extends JDialog
 	 */
 	private void resetEditorToDefaults()
 	{
-		final MappingModel defaults = new MappingModel();
-		defaults.setRangeMode( RangeMode.FIT );
-		defaults.setValueMatching( ValueMatching.INTERPOLATE );
-		defaults.applyPreset( MappingPreset.LINEAR );
-		loadIntoEditor( ColorTableLut.DEFAULT, null, defaults, 0, 255 );
+		loadIntoEditor( ColorTableLut.DEFAULT, null, defaultMapping(), 0, 255 );
 		snapshotBaseline();
+	}
+
+	/** A neutral mapping (linear, fit, interpolated) -- the editor's starting point for a source with no remembered state. */
+	private static LutEditorMapping defaultMapping()
+	{
+		final LutEditorMapping defaults = new LutEditorMapping();
+		defaults.setCyclic( false );
+		defaults.setDiscrete( false );
+		defaults.applyPreset( PresetShape.LINEAR );
+		return defaults;
 	}
 
 	/**
@@ -746,7 +746,7 @@ public class LutEditorDialog extends JDialog
 	 * actually-applied state, and to reset the editor back to
 	 * {@link #baselinePalette} etc. when reverting.
 	 */
-	private void loadIntoEditor( final ColorTable palette, final String paletteName, final MappingModel mapping, final double min, final double max )
+	private void loadIntoEditor( final ColorTable palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
 	{
 		loadingControls = true;
 		try
@@ -764,15 +764,12 @@ public class LutEditorDialog extends JDialog
 			mappingModel.copyFrom( mapping );
 			updateTreatMinAsBackgroundText();
 
-			radioFit.setSelected( mappingModel.getRangeMode() == RangeMode.FIT );
-			radioCyclic.setSelected( mappingModel.getRangeMode() == RangeMode.CYCLIC );
-			labelCyclicPeriod.setEnabled( mappingModel.getRangeMode() == RangeMode.CYCLIC );
-			fieldCyclicPeriod.setEnabled( mappingModel.getRangeMode() == RangeMode.CYCLIC );
-			updateCyclicPeriodFieldText();
+			radioFit.setSelected( !mappingModel.isCyclic() );
+			radioCyclic.setSelected( mappingModel.isCyclic() );
 			checkTreatMinAsBackground.setSelected( mappingModel.isTreatMinAsBackground() );
 			buttonBackgroundColor.setBackground( new Color( mappingModel.getBackgroundColor(), false ) );
 			buttonBackgroundColor.setEnabled( mappingModel.isTreatMinAsBackground() );
-			comboMappingPreset.setSelectedItem( mappingModel.getPreset() );
+			updateMappingPresetComboState();
 		}
 		finally
 		{
@@ -781,35 +778,15 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Parse {@link #fieldCyclicPeriod}'s text and, if it is a valid positive
-	 * number, apply it via {@link MappingModel#setCyclicPeriod}; either way,
-	 * reset the field's text to whatever period is now actually in effect
-	 * (see {@link #updateCyclicPeriodFieldText()}), same as
-	 * {@link MappingCurvePanel}'s own min/max fields do for invalid input.
+	 * Sync {@link #comboMappingPreset} to {@link #mappingModel}: selected item,
+	 * and enabled only for a continuous palette -- a discrete one always uses
+	 * {@link PresetShape#LINEAR} (see {@link LutEditorMapping#setDiscrete(boolean)}),
+	 * so the choice isn't offered.
 	 */
-	private void commitCyclicPeriodField()
+	private void updateMappingPresetComboState()
 	{
-		try
-		{
-			final double v = Double.parseDouble( fieldCyclicPeriod.getText().trim() );
-			if ( v > 0 )
-				mappingModel.setCyclicPeriod( v );
-		}
-		catch ( final NumberFormatException ignored )
-		{
-		}
-		updateCyclicPeriodFieldText();
-	}
-
-	/**
-	 * Show the cyclic period actually in effect for {@link #currentPalette}
-	 * (see {@link MappingModel#effectiveCyclicPeriod}) -- i.e. the palette's
-	 * own color count while {@link MappingModel#getCyclicPeriod()} is at its
-	 * "auto" default, or the explicitly set value otherwise.
-	 */
-	private void updateCyclicPeriodFieldText()
-	{
-		fieldCyclicPeriod.setText( formatValue( mappingModel.effectiveCyclicPeriod( ColorTableLut.colorPositions( currentPalette ) ) ) );
+		comboMappingPreset.setSelectedItem( mappingModel.getPreset() );
+		comboMappingPreset.setEnabled( !mappingModel.isDiscrete() );
 	}
 
 	/** Snapshot the editor's current state as the new {@link #baselinePalette} etc. to revert unapplied edits back to. */
@@ -838,13 +815,16 @@ public class LutEditorDialog extends JDialog
 			return;
 		}
 
-		final MappingModel presetMapping = new MappingModel();
-		presetMapping.setRangeMode( preset.getRangeMode() );
+		final LutEditorMapping presetMapping = new LutEditorMapping();
+		presetMapping.setCyclic( preset.isCyclic() );
 		presetMapping.setTreatMinAsBackground( preset.isTreatMinAsBackground() );
 		presetMapping.setBackgroundColor( preset.getBackgroundColor() );
-		presetMapping.setValueMatching( ColorTableLut.isInterpolated( palette ) ? ValueMatching.INTERPOLATE : ValueMatching.TRUNCATE );
-		presetMapping.setCyclicPeriod( preset.getCyclicPeriod() );
-		presetMapping.getCurve().setPoints( preset.getCurveXs(), preset.getCurveYs() );
+		presetMapping.setDiscrete( !ColorTableLut.isInterpolated( palette ) );
+		// A discrete palette always keeps setDiscrete's forced linear curve
+		// (see LutEditorMapping#setDiscrete); only a continuous one restores
+		// whatever curve the saved preset carries.
+		if ( !presetMapping.isDiscrete() )
+			presetMapping.getCurve().setPoints( preset.getCurveXs(), preset.getCurveYs() );
 
 		loadIntoEditor( palette, preset.getPaletteName(), presetMapping, editedRangeMin, editedRangeMax );
 		pushLiveEdits();
@@ -894,8 +874,8 @@ public class LutEditorDialog extends JDialog
 
 		try
 		{
-			EditorPresets.save( new EditorPreset( name, currentPaletteName, mappingModel.getRangeMode(),
-					mappingModel.isTreatMinAsBackground(), mappingModel.getBackgroundColor(), mappingModel.getCyclicPeriod(),
+			EditorPresets.save( new EditorPreset( name, currentPaletteName, mappingModel.isCyclic(),
+					mappingModel.isTreatMinAsBackground(), mappingModel.getBackgroundColor(),
 					mappingModel.getCurve().xsArray(), mappingModel.getCurve().ysArray() ) );
 		}
 		catch ( final RuntimeException e )
@@ -945,23 +925,33 @@ public class LutEditorDialog extends JDialog
 	{
 		if ( loadingControls )
 			return;
-		pushToActiveConverter( currentPalette, mappingModel, editedRangeMin, editedRangeMax );
+		pushToActiveConverter( currentPalette, currentPaletteName, mappingModel, editedRangeMin, editedRangeMax );
 	}
 
 	/** Push {@link #baselinePalette}/{@link #baselineMapping}/{@link #baselineRangeMin}/{@link #baselineRangeMax} to {@link #activeLutConv}, discarding any live-pushed edits made since. */
 	private void revertActiveConverterToBaseline()
 	{
-		pushToActiveConverter( baselinePalette, baselineMapping, baselineRangeMin, baselineRangeMax );
+		pushToActiveConverter( baselinePalette, baselinePaletteName, baselineMapping, baselineRangeMin, baselineRangeMax );
 	}
 
-	private void pushToActiveConverter( final ColorTable palette, final MappingModel mapping, final double min, final double max )
+	/**
+	 * Translate the editor's palette + mapping + range into a
+	 * {@link PaletteWrapper} and hand it to {@link #activeLutConv} to render
+	 * through, remembering the editor-facing terms in {@link #converterStates}
+	 * so re-selecting this source can restore them. The display range still
+	 * goes to the setup (which also drives brightness/contrast), so it stays
+	 * the single owner of that range.
+	 */
+	private void pushToActiveConverter( final ColorTable palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
 	{
 		if ( activeLutConv == null )
 			return;
-		activeLutConv.setLUT( palette );
-		final MappingModel target = activeLutConv.getMapping() != null ? activeLutConv.getMapping() : new MappingModel();
-		target.copyFrom( mapping );
-		activeLutConv.setMapping( target );
+		activeLutConv.setWrapper( PaletteWrapperBuilder.build( palette, mapping, min, max ) );
+
+		final LutEditorMapping remembered = new LutEditorMapping();
+		remembered.copyFrom( mapping );
+		converterStates.put( activeLutConv, new EditorState( palette, paletteName, remembered ) );
+
 		if ( activeSetup != null )
 			activeSetup.setDisplayRange( min, max );
 		if ( repaintAction != null )
@@ -1019,7 +1009,6 @@ public class LutEditorDialog extends JDialog
 			return Long.toString( Math.round( value ) );
 		return String.format( "%.2f", value );
 	}
-
 	private static JPanel labeledRow( final String label, final JComponent component )
 	{
 		return labeledRow( label, component, null );
@@ -1078,25 +1067,14 @@ public class LutEditorDialog extends JDialog
 				"- How a mapped value selects a palette color (blended smoothly, or",
 				"  held to the previous palette color) follows the chosen palette's own",
 				"  file: it is not a separate setting here.",
-				"- Range mode controls how input values are handled:",
-				"  Fit clamps values to [min, max]. Cyclic ignores max and instead cycles",
-				"  values with the given Period (raw input units per full cycle), anchored",
-				"  at min -- e.g. with Period 10 and min=5, value 5 gets the palette's",
-				"  first color, value 15 gets the same color again, and so on.",
-				"- Period defaults to the palette's own color count (shown on the graph's",
-				"  y axis), spreading exactly one color per raw unit; setting it to",
-				"  something else spreads the same colors across a longer or shorter span",
-				"  instead. Only used in Cyclic mode; editing the palette resets it back",
-				"  to that default for the newly chosen palette.",
+				"- Range mode controls how input values outside [min, max] are handled:",
+				"  Fit clamps them to the nearest end of the range. Cyclic wraps them",
+				"  around the range instead, so the palette repeats.",
 				"- \"Treat {min} as Bg\" (its label shows the actual min value) forces raw",
-				"  values at or below min to always map to a dedicated background color,",
-				"  instead of the palette. In Cyclic mode this also reserves the range's",
-				"  min value itself so it stops competing with the cycled colors, and the",
-				"  cutoff extends slightly above min (up to but not including min + 1,",
-				"  always exactly 1 raw unit regardless of Period) so continuous data",
-				"  right next to it doesn't leak through as the palette's last color.",
-				"  Click the swatch next to the checkbox to choose the background color",
-				"  (defaults to black); it is not one of the palette's own colors.",
+				"  values below the range to a dedicated background color instead of the",
+				"  palette. Click the swatch next to the checkbox to choose that color",
+				"  (defaults to black, and can be transparent); it is not one of the",
+				"  palette's own colors.",
 				"- Mapping preset replaces the curve with a predefined shape (Linear, Percentile",
 				"  Stretch, Log, Exp, Sigmoid, α-Sigmoid, Tan, Atan). The curve can still be",
 				"  adjusted afterwards.",
@@ -1165,21 +1143,17 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * A preview panel showing a color table as a horizontal gradient bar,
-	 * honoring the current {@link ValueMatching} (e.g. a Truncate palette
-	 * shows discrete color bands instead of a smooth blend).
+	 * A preview panel showing a color table as a horizontal bar, rendered
+	 * through the {@link ColorScheme} it maps to: a categorical (non-interpolated)
+	 * palette shows discrete color bands, a continuous one a smooth gradient.
 	 */
 	private static class GradientPreviewPanel extends JPanel
 	{
-		private final MappingModel model;
+		private ColorTable colorTable = ColorTableLut.DEFAULT;
 
-		private ColorTable colorTable;
-
-		public GradientPreviewPanel( final MappingModel model )
+		public GradientPreviewPanel()
 		{
-			this.model = model;
 			setPreferredSize( new Dimension( 300, 16 ) );
-			this.colorTable = ColorTableLut.DEFAULT;
 		}
 
 		public void update( final ColorTable ct )
@@ -1198,26 +1172,15 @@ public class LutEditorDialog extends JDialog
 
 			if ( colorTable != null )
 			{
-				final ValueMatching matching = model.getValueMatching();
-				if ( matching == ValueMatching.TRUNCATE )
+				final ColorScheme scheme = ColorTableLut.isInterpolated( colorTable )
+						? new ContinuousColorScheme( colorTable )
+						: new DiscreteColorScheme( colorTable );
+				final int paletteRangeLength = scheme.getPaletteRangeLength();
+				for ( int i = 0; i < w; i++ )
 				{
-					final double lastIntervalSize = ColorTableLut.mirroredLastIntervalSize( ColorTableLut.colorPositions( colorTable ) );
-					for ( int i = 0; i < w; i++ )
-					{
-						final int argb = ColorTableLut.lookupARGBQualitative( colorTable, i / ( double ) w, lastIntervalSize );
-						g.setColor( new Color( argb ) );
-						g.fillRect( i, 0, 1, h );
-					}
-				}
-				else
-				{
-					for ( int i = 0; i < w; i++ )
-					{
-						final int idx = ( int ) ( i * 255.0 / w );
-						final int argb = ColorTableLut.lookupARGB( colorTable, 0, 255, idx, matching );
-						g.setColor( new Color( argb ) );
-						g.fillRect( i, 0, 1, h );
-					}
+					final double t = w > 1 ? i / ( double ) ( w - 1 ) : 0.0;
+					g.setColor( new Color( scheme.getRGB( ( float ) ( t * paletteRangeLength ) ) ) );
+					g.fillRect( i, 0, 1, h );
 				}
 			}
 

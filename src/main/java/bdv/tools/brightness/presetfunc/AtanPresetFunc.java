@@ -30,8 +30,7 @@ package bdv.tools.brightness.presetfunc;
 /**
  * An S-shaped curve built from the arctangent function, rescaled to
  * {@code [0, 1]} -- gentler through the middle than {@link SigmoidPresetFunc}
- * for the same nominal range. Same steepness ({@code k = 6}) as
- * {@code MappingPreset#ATAN}.
+ * for the same nominal range, with steepness {@code k = 6}.
  */
 public class AtanPresetFunc extends AbstractPresetFunc
 {

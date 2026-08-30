@@ -93,9 +93,12 @@ import bdv.tools.brightness.BrightnessDialog;
 import bdv.tools.brightness.ConverterSetup;
 import bdv.tools.brightness.LutEditorDialog;
 import bdv.tools.brightness.MinMaxGroup;
-import bdv.tools.brightness.RealLUTConverter;
+import bdv.tools.brightness.PaletteConverter;
 import bdv.tools.brightness.RealARGBColorConverterSetup;
 import bdv.tools.brightness.SetupAssignments;
+import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
+import bdv.tools.brightness.palette.PresetPaletteWrapper;
+import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import bdv.tools.crop.CropDialog;
 import bdv.tools.transformation.ManualTransformation;
 import bdv.tools.transformation.ManualTransformationEditor;
@@ -196,10 +199,10 @@ public class BigDataViewer
 	/**
 	 * Create standard converter from the given {@code type} to ARGB:
 	 * <ul>
-	 * <li>For {@code IntegerType}s a {@link RealLUTConverter} with a default
+	 * <li>For {@code IntegerType}s a {@link PaletteConverter} over a default
 	 * grayscale {@link ColorTable8} is returned.</li>
-	 * <li>For floating-point {@code RealType}s a {@link RealLUTConverter} with a
-	 * default {@code [0, 1]} range and grayscale {@link ColorTable8} is
+	 * <li>For floating-point {@code RealType}s a {@link PaletteConverter} with a
+	 * default {@code [0, 1]} range over a grayscale {@link ColorTable8} is
 	 * returned.</li>
 	 * <li>For other {@code RealType}s a {@link RealARGBColorConverter} is
 	 * returned.</li>
@@ -217,11 +220,11 @@ public class BigDataViewer
 			final IntegerType< ? > t = ( IntegerType< ? > ) type;
 			final double typeMin = Math.max( 0, Math.min( t.getMinValue(), 65535 ) );
 			final double typeMax = Math.max( 0, Math.min( t.getMaxValue(), 65535 ) );
-			return ( Converter< T, ARGBType > ) new RealLUTConverter( typeMin, typeMax, new ColorTable8() );
+			return ( Converter< T, ARGBType > ) createPaletteConverter( typeMin, typeMax );
 		}
 		else if ( type instanceof FloatType || type instanceof DoubleType )
 		{
-			return ( Converter< T, ARGBType > ) new RealLUTConverter( 0, 1, new ColorTable8() );
+			return ( Converter< T, ARGBType > ) createPaletteConverter( 0, 1 );
 		}
 		else if ( type instanceof RealType )
 		{
@@ -236,6 +239,20 @@ public class BigDataViewer
 			return ( Converter< T, ARGBType > ) new ScaledARGBConverter.VolatileARGB( 0, 255 );
 		else
 			throw new IllegalArgumentException( "ImgLoader of type " + type.getClass() + " not supported." );
+	}
+
+	/**
+	 * A {@link PaletteConverter} over the new color-mapping architecture,
+	 * rendering {@code [min, max]} through a grayscale {@link ColorTable8} with
+	 * a linear transfer function -- the default LUT setup, editable via
+	 * {@link LutEditorDialog}.
+	 */
+	private static < T extends RealType< T > > PaletteConverter< T > createPaletteConverter( final double min, final double max )
+	{
+		final ContinuousColorScheme scheme = new ContinuousColorScheme( new ColorTable8() );
+		final double hi = max > min ? max : min + 1;
+		final LinearPresetFunc preset = new LinearPresetFunc( ( float ) min, ( float ) hi, scheme.getPaletteRangeLength() );
+		return new PaletteConverter<>( new PresetPaletteWrapper( scheme, preset ), min, max );
 	}
 
 	/**

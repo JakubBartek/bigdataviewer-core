@@ -5,10 +5,10 @@ import java.util.Arrays;
 import java.util.List;
 
 import bdv.tools.brightness.ConverterSetup;
-import bdv.tools.brightness.MappingModel;
-import bdv.tools.brightness.RangeMode;
-import bdv.tools.brightness.RealLUTConverter;
+import bdv.tools.brightness.PaletteConverter;
 import bdv.tools.brightness.lut.DemoLutConnector;
+import bdv.tools.brightness.palette.BoundaryCondition;
+import bdv.tools.brightness.palette.PresetPaletteWrapper;
 import bdv.tools.brightness.lut.DemoLutConnectorConverterSetup;
 import bdv.viewer.SourceAndConverter;
 import mpicbg.spim.data.sequence.FinalVoxelDimensions;
@@ -135,15 +135,21 @@ public class ExampleCirclesLabelsMultiSource2D {
      * every visible source at each pixel (see AccumulateProjectorARGB); since
      * every source here has background covering nearly the whole canvas, an
      * opaque background on any one source would wash out the combined image.
+     * <p>
+     * In the new color-mapping architecture that is a {@link BoundaryCondition#SPECIAL}
+     * left boundary (values below the display range) with the wrapper's default
+     * transparent special color; the labels {@code 1..N} span the range above
+     * it. Colors are then refined interactively in the LUT editor, which is
+     * what this multi-source demo exists to exercise.
      */
     @SuppressWarnings("unchecked")
     private static void makeBackgroundTransparent(final Converter<UnsignedByteType, ARGBType> converter) {
-        final RealLUTConverter<UnsignedByteType> lutConverter = (RealLUTConverter<UnsignedByteType>) converter;
-        final MappingModel mapping = new MappingModel();
-        mapping.setRangeMode(RangeMode.CYCLIC);
-        mapping.setTreatMinAsBackground(true);
-        mapping.setBackgroundColor(0x00000000);
-        lutConverter.setMapping(mapping);
+        final PaletteConverter<UnsignedByteType> paletteConverter = (PaletteConverter<UnsignedByteType>) converter;
+        ((PresetPaletteWrapper) paletteConverter.getWrapper()).setLeftBoundaryCondition(BoundaryCondition.SPECIAL);
+        // Put the background (0) just below the range so it hits the SPECIAL
+        // (transparent) boundary, with the labels 1..N filling the range.
+        paletteConverter.setMin(1);
+        paletteConverter.setMax(NUMBER_OF_CIRCLES);
     }
 
     static <T extends RealType<T>>

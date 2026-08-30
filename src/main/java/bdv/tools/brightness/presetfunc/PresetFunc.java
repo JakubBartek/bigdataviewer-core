@@ -40,7 +40,7 @@ package bdv.tools.brightness.presetfunc;
  * palettes, or boundary conditions -- turning a palette value into a color is
  * a separate concern ({@code ColorScheme}), and deciding what to do with a
  * raw value outside {@code [getMin(), getMax()]} is another
- * ({@code ContinuousPaletteWrapper}). This interface
+ * ({@code PresetPaletteWrapper}). This interface
  * only ever computes {@code paletteValue = f(rawValue)}; {@code getMin()}/
  * {@code getMax()} are exposed so a caller can make that boundary decision
  * without this class needing to know it is being made.

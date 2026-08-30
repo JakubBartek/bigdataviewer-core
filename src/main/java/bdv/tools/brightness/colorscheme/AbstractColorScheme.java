@@ -65,13 +65,16 @@ abstract class AbstractColorScheme implements ColorScheme
 	private static int[] stopsOf( final ColorTable colorTable )
 	{
 		final int n = colorTable.getLength();
+		// Some tables (e.g. the default grayscale ColorTable8) carry only RGB,
+		// with no ALPHA component; those stops are fully opaque.
+		final boolean hasAlpha = colorTable.getComponentCount() > ColorTable.ALPHA;
 		final int[] argb = new int[ n ];
 		for ( int i = 0; i < n; i++ )
 			argb[ i ] = ARGBType.rgba(
 					colorTable.get( ColorTable.RED, i ),
 					colorTable.get( ColorTable.GREEN, i ),
 					colorTable.get( ColorTable.BLUE, i ),
-					colorTable.get( ColorTable.ALPHA, i ) );
+					hasAlpha ? colorTable.get( ColorTable.ALPHA, i ) : 255 );
 		return argb;
 	}
 

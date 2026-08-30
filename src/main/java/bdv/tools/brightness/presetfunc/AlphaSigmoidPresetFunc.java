@@ -30,8 +30,7 @@ package bdv.tools.brightness.presetfunc;
 /**
  * An S-shaped curve built from a power-law ratio ({@code t^a / (t^a + (1-t)^a)})
  * rather than a logistic -- a gentler, differently-shaped alternative to
- * {@link SigmoidPresetFunc}. Same exponent ({@code alpha = 0.5}) as
- * {@code MappingPreset#ALPHA_SIGMOID}.
+ * {@link SigmoidPresetFunc}, with exponent {@code alpha = 0.5}.
  */
 public class AlphaSigmoidPresetFunc extends AbstractPresetFunc
 {
