@@ -118,6 +118,26 @@ public class StepPresetFuncTest
 		Assert.assertEquals( 1.5f, wider.getPaletteValueForRaw( 1.5f ), 1e-5 );
 	}
 
+	/**
+	 * Regression: with stepSize 1 and a domain whose length is not a whole
+	 * multiple of {@code paletteRangeLength * stepSize} (10 raw units, 3
+	 * stops), consecutive integer raw values must still land on consecutive,
+	 * non-repeating stops. Narrowing the normalized {@code t} to {@code float}
+	 * before multiplying by {@link #getPeriods()} lost enough precision (e.g.
+	 * {@code 0.7f} is actually {@code 0.69999998807907104...}) to push an
+	 * exact color-stop boundary a hair below its integer value, so flooring it
+	 * landed on the previous stop instead of advancing -- a discrete palette
+	 * showing the same color for two consecutive raw values.
+	 */
+	@Test
+	public void testStepSizeOneWithNonDivisibleRangeDoesNotRepeatStops()
+	{
+		final StepPresetFunc f = new StepPresetFunc( 0f, 10f, 3, 1.0 );
+		final int[] expectedStop = { 0, 1, 2, 0, 1, 2, 0, 1, 2 };
+		for ( int r = 0; r < expectedStop.length; r++ )
+			Assert.assertEquals( "raw value " + r, expectedStop[ r ], ( int ) Math.floor( f.getPaletteValueForRaw( r ) ) );
+	}
+
 	@Test
 	public void testRejectsNonPositiveStepSize()
 	{

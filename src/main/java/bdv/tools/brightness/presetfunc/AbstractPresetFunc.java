@@ -91,8 +91,14 @@ abstract class AbstractPresetFunc implements PresetFunc
 	@Override
 	public final float getPaletteValueForRaw( final float rawValue )
 	{
-		final float t = ( rawValue - min ) / ( max - min );
-		final float clampedT = Math.max( 0f, Math.min( 1f, t ) );
+		// Computed in double, not float: narrowing t to float here loses enough
+		// precision (e.g. 0.7f is actually 0.69999998807907104...) that
+		// StepPresetFunc's periods multiplication can push an exact color-stop
+		// boundary a hair below its integer value, so DiscreteColorScheme floors
+		// it onto the previous stop instead -- the same stop showing twice in a
+		// row where the palette should have advanced.
+		final double t = ( ( double ) rawValue - min ) / ( max - min );
+		final double clampedT = Math.max( 0.0, Math.min( 1.0, t ) );
 		return ( float ) ( shape( clampedT ) * paletteRangeLength );
 	}
 
