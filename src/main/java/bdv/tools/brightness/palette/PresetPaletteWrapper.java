@@ -72,6 +72,18 @@ public class PresetPaletteWrapper implements PaletteWrapper
 	/** Default {@link BoundaryCondition#SPECIAL} color: fully transparent, so an out-of-range value renders as "nothing there" (a background) until a color is chosen. */
 	public static final int DEFAULT_SPECIAL_COLOR = 0x00000000;
 
+	/**
+	 * How many ULPs of the raw value {@link #cycled(double)} treats as landing
+	 * exactly on a period boundary. Deliberately a local constant rather than a
+	 * shared one: the number is small and the same, but the reason it is in
+	 * <em>raw</em> units belongs with the subtraction that makes it so, and this
+	 * wrap is a different decision from the one {@code PresetFunc}s make. Four
+	 * leaves roughly an order of magnitude of headroom over the largest error
+	 * measured here (an eighth of a ULP), while the distinction it must never
+	 * blur -- one whole period -- is enormously larger.
+	 */
+	private static final int WRAP_SNAP_ULPS = 4;
+
 	private ColorScheme colorScheme;
 
 	private PresetFunc presetFunc;
@@ -314,6 +326,24 @@ public class PresetPaletteWrapper implements PaletteWrapper
 		double offset = ( rawValue - domainMin ) % period;
 		if ( offset < 0 )
 			offset += period;
+		// A value within a hair of a whole number of periods is deliberately
+		// resolved to the START of the domain rather than to a hair short of its
+		// end. Both readings are defensible -- at that distance the raw value
+		// does not carry enough precision to say which -- but they are opposite
+		// ends of the palette, so an arbitrary choice here shows the LAST color
+		// where the first belongs. Breaking the tie toward the boundary matches
+		// what a step size means to whoever typed it: 0.3 is decimal 0.3, and
+		// 6.6 is 22 of them, even though in binary 6.6 % 0.6 comes out as
+		// 0.5999999999999999 -- a whole palette away from 0, on a difference of
+		// an eighth of a ULP of 6.6.
+		//
+		// The tolerance is in raw units, ULPs of the value being wrapped, for
+		// the same reason as in StepPresetFunc: subtracting domainMin cancels
+		// the low bits away, so at the precision the raw value carries there is
+		// nothing between "just short of a period" and "exactly a period".
+		final double tolerance = WRAP_SNAP_ULPS * Math.ulp( Math.max( Math.abs( rawValue ), Math.abs( domainMin ) ) );
+		if ( offset <= tolerance || period - offset <= tolerance )
+			return domainMin;
 		return domainMin + offset;
 	}
 

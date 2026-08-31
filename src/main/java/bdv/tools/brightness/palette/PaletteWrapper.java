@@ -66,9 +66,13 @@ public interface PaletteWrapper
 	 * Stretch this wrapper's raw-value domain to {@code [min, max]}, i.e. make
 	 * {@code min} map to palette value {@code 0} and {@code max} to the end of
 	 * the palette. This is how a display-range (brightness/contrast) change
-	 * reaches the mapping, uniformly for both kinds: the discrete wrapper
-	 * adjusts its step size, the continuous one re-ranges its {@code PresetFunc}
-	 * -- neither disturbs the palette or (for continuous) the chosen shape.
+	 * reaches the mapping, without disturbing the palette or the chosen shape.
+	 * <p>
+	 * A {@code StepPresetFunc} (the discrete path) honours {@code min} but
+	 * derives its own maximum from its step size, since that step size is a
+	 * quantity in raw units that a range change is not supposed to rescale -- so
+	 * for a discrete mapping this moves where the palette starts and leaves how
+	 * wide each color band is alone. See that class's javadoc.
 	 *
 	 * @throws IllegalArgumentException if {@code max} is not strictly greater than {@code min}.
 	 */

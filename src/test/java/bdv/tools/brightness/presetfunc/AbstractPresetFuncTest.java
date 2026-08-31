@@ -80,7 +80,7 @@ public class AbstractPresetFuncTest
 	 * contract checked here.
 	 */
 	private static final List< PresetFuncFactory > ALL_CONSTRUCTORS = concat( RANGE_STRETCHING_CONSTRUCTORS,
-			( min, max, n ) -> new StepPresetFunc( min, max, n, StepPresetFunc.defaultStepSize( min, max, n ) ) );
+			( min, max, n ) -> new StepPresetFunc( min, n, StepPresetFunc.defaultStepSize( min, max, n ) ) );
 
 	private static List< PresetFuncFactory > concat( final List< PresetFuncFactory > factories, final PresetFuncFactory extra )
 	{

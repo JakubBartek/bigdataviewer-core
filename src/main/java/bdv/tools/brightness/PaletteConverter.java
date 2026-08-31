@@ -46,11 +46,19 @@ import net.imglib2.type.numeric.RealType;
  * configures the wrapper it renders through (see {@code PaletteWrapperBuilder}).
  * <p>
  * The converter's {@linkplain #getMin() min}/{@linkplain #getMax() max} are the
- * display range -- the raw window the palette is stretched across, driven by the
- * brightness/contrast controls via {@code ConverterSetup#setDisplayRange}. Every
- * change to it is forwarded to {@link PaletteWrapper#setRawDomain(double, double)},
- * so the wrapper's own domain always tracks the display range; the wrapper stays
- * the single source of truth for how a raw value becomes a color.
+ * display range, driven by the brightness/contrast controls via
+ * {@code ConverterSetup#setDisplayRange}. Every change to it is forwarded to
+ * {@link PaletteWrapper#setRawDomain(double, double)}; the wrapper stays the
+ * single source of truth for how a raw value becomes a color.
+ * <p>
+ * How much of that range the wrapper actually uses is its own business, and
+ * differs by kind. A continuous mapping stretches its curve across the whole
+ * window, so both ends matter. A discrete one is defined by a step size in raw
+ * units -- so many raw values per color -- which fixes the width of the palette
+ * independently of the window; there, only {@code min} moves the mapping, and
+ * what happens past the last color stop is the wrapper's boundary condition
+ * rather than a consequence of how wide the window is. See
+ * {@code StepPresetFunc}.
  *
  * @param <R> source pixel type.
  */

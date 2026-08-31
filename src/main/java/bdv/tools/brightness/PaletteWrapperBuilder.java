@@ -98,13 +98,21 @@ public final class PaletteWrapperBuilder
 	 * {@link LutEditorMapping#getStepSize()} raw values, resolving
 	 * {@link LutEditorMapping#AUTO_STEP_SIZE} against the range and stop count
 	 * the model deliberately does not know about.
+	 * <p>
+	 * Only {@code lo} reaches the function: a {@link StepPresetFunc} derives its
+	 * own maximum from the step size and the stop count, so the display range's
+	 * top is not part of what color a raw value gets (see that class's javadoc).
+	 * {@code hi} is used solely to resolve an automatic step size into an
+	 * explicit one -- the step size that would put the palette's far edge on
+	 * {@code hi}. Past that edge the boundary condition takes over, repeating the
+	 * palette (CYCLE) or holding the last color (CLAMP).
 	 */
 	private static PresetFunc stepFunc( final LutEditorMapping mapping, final ColorScheme scheme, final double lo, final double hi )
 	{
 		final int paletteRangeLength = scheme.getPaletteRangeLength();
 		final double chosen = mapping.getStepSize();
 		final double stepSize = chosen > 0.0 ? chosen : StepPresetFunc.defaultStepSize( lo, hi, paletteRangeLength );
-		return new StepPresetFunc( lo, hi, paletteRangeLength, stepSize );
+		return new StepPresetFunc( lo, paletteRangeLength, stepSize );
 	}
 
 	/** The continuous palette's shape: the editor's curve, knot for knot. */

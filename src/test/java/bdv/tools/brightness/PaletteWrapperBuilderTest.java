@@ -115,24 +115,53 @@ public class PaletteWrapperBuilderTest
 
 	/**
 	 * A discrete palette's shape is its step size, not the curve: one color per
-	 * that many raw values, starting the palette over once it runs out. With 3
-	 * stops over [0, 6] and one stop per raw unit, the palette is used twice.
+	 * that many raw values. An explicit step size therefore decides how far the
+	 * palette reaches on its own, and the display range's top does not enter
+	 * into it -- with 3 stops at one raw unit each the palette covers
+	 * {@code [0, 3)} whether the range given was {@code [0, 6]} or anything
+	 * else. Past that, the boundary condition decides, so the default
+	 * {@link bdv.tools.brightness.palette.BoundaryCondition#CLAMP} holds the
+	 * last color rather than starting over.
 	 */
 	@Test
-	public void testDiscreteStepSizeRepeatsThePaletteAcrossTheRange()
+	public void testDiscreteStepSizeDecidesHowFarThePaletteReaches()
 	{
 		final LutEditorMapping mapping = new LutEditorMapping();
 		mapping.setDiscrete( true );
 		mapping.setStepSize( 1.0 );
+
+		for ( final double rangeMax : new double[] { 3, 6, 100 } )
+		{
+			final PaletteWrapper wrapper = PaletteWrapperBuilder.build( threeStopPalette(), mapping, 0, rangeMax );
+			final String where = "range max " + rangeMax;
+
+			Assert.assertEquals( where, RED, wrapper.getRGBForRaw( 0.5 ) );
+			Assert.assertEquals( where, GREEN, wrapper.getRGBForRaw( 1.5 ) );
+			Assert.assertEquals( where, BLUE, wrapper.getRGBForRaw( 2.5 ) );
+			// Past the last stop, CLAMP holds -- and does so identically no
+			// matter how wide the display range was.
+			Assert.assertEquals( where, BLUE, wrapper.getRGBForRaw( 3.5 ) );
+			Assert.assertEquals( where, BLUE, wrapper.getRGBForRaw( 5.5 ) );
+		}
+	}
+
+	/** Repeating the palette is the {@link bdv.tools.brightness.palette.BoundaryCondition#CYCLE} boundary's job, and the only way to get it. */
+	@Test
+	public void testDiscretePaletteRepeatsOnlyWhenTheBoundaryIsCyclic()
+	{
+		final LutEditorMapping mapping = new LutEditorMapping();
+		mapping.setDiscrete( true );
+		mapping.setStepSize( 1.0 );
+		mapping.setRightBoundaryCondition( bdv.tools.brightness.palette.BoundaryCondition.CYCLE );
 		final PaletteWrapper wrapper = PaletteWrapperBuilder.build( threeStopPalette(), mapping, 0, 6 );
 
-		Assert.assertEquals( RED, wrapper.getRGBForRaw( 0.5f ) );
-		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 1.5f ) );
-		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 2.5f ) );
+		Assert.assertEquals( RED, wrapper.getRGBForRaw( 0.5 ) );
+		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 1.5 ) );
+		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 2.5 ) );
 		// second pass through the palette
-		Assert.assertEquals( RED, wrapper.getRGBForRaw( 3.5f ) );
-		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 4.5f ) );
-		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 5.5f ) );
+		Assert.assertEquals( RED, wrapper.getRGBForRaw( 3.5 ) );
+		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 4.5 ) );
+		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 5.5 ) );
 	}
 
 	/**

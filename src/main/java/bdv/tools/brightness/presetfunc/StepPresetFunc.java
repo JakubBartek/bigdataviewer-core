@@ -29,64 +29,79 @@ package bdv.tools.brightness.presetfunc;
 
 /**
  * A linear ramp with an explicit, raw-unit <em>step size</em>: one color stop
- * per {@code stepSize} raw values, repeating through the palette as often as
- * the domain allows. The shape a discrete (categorical) palette is driven by,
- * where the question is not "what curve reshapes this gradient" but "how many
- * raw units does one color cover" -- e.g. a label image wants
+ * per {@code stepSize} raw values. The shape a discrete (categorical) palette
+ * is driven by, where the question is not "what curve reshapes this gradient"
+ * but "how many raw units does one color cover" -- e.g. a label image wants
  * {@code stepSize = 1}, so every integer label id gets its own color.
  * <p>
  * Unlike every other {@link PresetFunc} here, this one is not parameterized by
- * a fixed shape constant but by a quantity in the caller's own raw units, so
- * {@link #withRange(float, float)} deliberately keeps the step size rather
- * than rescaling it: a band that covers 1 raw unit still covers 1 raw unit
- * after the display range changes, which is the whole point of specifying it
- * in raw units. The number of times the palette repeats across the domain
- * changes instead.
+ * a fixed shape constant but by a quantity in the caller's own raw units, and
+ * <strong>its domain follows from that rather than being given</strong>:
+ * {@link #getMax()} is always {@code min + stepSize * paletteRangeLength}, the
+ * raw value at which the ramp has just run off the end of the palette. That is
+ * the only consistent answer -- with a {@code DiscreteColorScheme} stop
+ * {@code i} owns palette values {@code [i, i + 1)} and so raw values
+ * {@code [min + i * stepSize, min + (i + 1) * stepSize)}, which puts the last
+ * stop's far edge at exactly {@code min + stepSize * paletteRangeLength}.
  * <p>
- * The palette repeats <em>within</em> the domain once the ramp runs past the
- * last stop -- which is a different thing from {@code BoundaryCondition.CYCLE},
- * and composes with it: this class decides what happens inside
- * {@code [getMin(), getMax()]}, the boundary condition what happens outside.
- * When the domain is not wide enough for even one full pass ({@link #getPeriods()}
- * {@code <= 1}) there is nothing to repeat and the ramp is left plain, so the
- * default step size ({@link #defaultStepSize}, exactly one pass across the
- * domain) still maps {@link #getMax()} onto the last stop rather than wrapping
- * back onto the first.
+ * A display range's maximum therefore does not enter into what color a raw
+ * value gets; only its minimum and the step size do.
+ * {@link #withRange(double, double)} accordingly keeps the step size and
+ * ignores the {@code max} it is handed -- a band covering 1 raw unit still
+ * covers 1 raw unit after a brightness or contrast change, which is the whole
+ * point of specifying it in raw units -- and {@link #defaultStepSize} is how a
+ * caller that <em>does</em> want the palette spread across a particular range
+ * converts that range into the step size which produces it.
+ * <p>
+ * Repetition is entirely {@code BoundaryCondition.CYCLE}'s job, not this
+ * class's: past {@link #getMax()} the palette either starts over (CYCLE) or
+ * stops on its last color (CLAMP), and which one is the wrapper's decision.
+ * This class only ever describes a single pass. An earlier version also
+ * repeated the ramp <em>inside</em> its domain, as many times as the given
+ * {@code max} allowed; that second, independent repetition mechanism made the
+ * rendered colors depend on the display range's maximum, so every color stop
+ * moved whenever the range was dragged.
  */
 public class StepPresetFunc extends AbstractPresetFunc
 {
 	private final double stepSize;
 
-	private final double periods;
-
 	/**
-	 * @param stepSize how many raw values one color stop covers; must be strictly positive.
-	 *                 See {@link #defaultStepSize} for the value that spreads the palette
-	 *                 exactly once across {@code [min, max]}.
-	 * @throws IllegalArgumentException if {@code stepSize} is not strictly positive (or is NaN).
+	 * @param min                raw value the first color stop starts at.
+	 * @param paletteRangeLength the palette's stop count, which together with the step size
+	 *                           fixes {@link #getMax()} at
+	 *                           {@code min + stepSize * paletteRangeLength}; there is
+	 *                           deliberately no {@code max} parameter, see the class javadoc.
+	 * @param stepSize           how many raw values one color stop covers; must be strictly
+	 *                           positive. See {@link #defaultStepSize} for the value that lands
+	 *                           {@link #getMax()} on a particular raw value.
+	 * @throws IllegalArgumentException if {@code stepSize} is not strictly positive (or is NaN), or
+	 *                                  if {@code min} is so large that adding the whole palette's
+	 *                                  width to it does not change it -- the step size is then
+	 *                                  finer than a {@code double} resolves at that magnitude, so
+	 *                                  no stop boundary could be told from its neighbour anyway.
 	 */
-	public StepPresetFunc( final double min, final double max, final int paletteRangeLength, final double stepSize )
+	public StepPresetFunc( final double min, final int paletteRangeLength, final double stepSize )
 	{
-		super( min, max, paletteRangeLength );
-		// Written as !(x > 0) rather than (x <= 0) so NaN is rejected too.
+		super( min, min + requirePositive( stepSize ) * paletteRangeLength, paletteRangeLength );
+		this.stepSize = stepSize;
+	}
+
+	/** Checked before {@code super(...)} runs, because the derived maximum depends on it. Written as {@code !(x > 0)} rather than {@code x <= 0} so NaN is rejected too. */
+	private static double requirePositive( final double stepSize )
+	{
 		if ( !( stepSize > 0.0 ) )
 			throw new IllegalArgumentException( "stepSize must be strictly positive, got " + stepSize );
-		this.stepSize = stepSize;
-		// Snapped, because this is a branch condition below and being a single
-		// ULP out flips it: with the default step size the exact value is 1, but
-		// (max - min) / ((max - min) / N * N) lands just above 1 for about one
-		// in twelve palette-size and display-range pairs (a 13-stop palette over
-		// 0-65535 among them). That takes the wrapping branch and sends getMax()
-		// to the FIRST stop instead of the last, contradicting the contract in
-		// the class javadoc.
-		this.periods = snappedToWhole( ( max - min ) / ( stepSize * paletteRangeLength ) );
+		return stepSize;
 	}
 
 	/**
 	 * The step size that spreads the palette exactly once across
-	 * {@code [min, max]} -- i.e. the one for which this function is a plain
-	 * linear ramp over the whole palette, the behavior of a discrete palette
-	 * with no explicit step size chosen.
+	 * {@code [min, max]}, i.e. the one whose derived {@link #getMax()} is
+	 * {@code max} -- the behavior of a discrete palette with no explicit step
+	 * size chosen. This is the one place a caller's desired maximum enters: it
+	 * is converted into a step size here, and the step size is what the function
+	 * is then actually defined by.
 	 */
 	public static double defaultStepSize( final double min, final double max, final int paletteRangeLength )
 	{
@@ -100,21 +115,15 @@ public class StepPresetFunc extends AbstractPresetFunc
 	}
 
 	/**
-	 * How many complete passes through the palette fit across the domain, i.e.
-	 * {@code (max - min) / (stepSize * paletteRangeLength)}. A value of 1 is a
-	 * single pass (see {@link #defaultStepSize}); above 1 the palette repeats,
-	 * below 1 only its first part is reached.
+	 * As {@link PresetFunc#withRange(double, double)}, keeping the step size in
+	 * raw units and <em>ignoring {@code max}</em>: this function's maximum is
+	 * derived from its minimum and step size, so re-ranging it can only move
+	 * where the palette starts. See the class javadoc.
 	 */
-	public double getPeriods()
-	{
-		return periods;
-	}
-
-	/** As {@link PresetFunc#withRange(double, double)}, keeping the step size in raw units; see the class javadoc. */
 	@Override
 	public StepPresetFunc withRange( final double min, final double max )
 	{
-		return new StepPresetFunc( min, max, getPaletteRangeLength(), stepSize );
+		return new StepPresetFunc( min, getPaletteRangeLength(), stepSize );
 	}
 
 	/**
@@ -142,7 +151,6 @@ public class StepPresetFunc extends AbstractPresetFunc
 	@Override
 	double paletteValueForClampedRaw( final double clampedRaw )
 	{
-		final int stops = getPaletteRangeLength();
 		final double min = getMin();
 		// A raw value within a few ULPs of a stop boundary IS that boundary:
 		// subtracting min cancels the low bits away, so at the precision the raw
@@ -153,11 +161,11 @@ public class StepPresetFunc extends AbstractPresetFunc
 		// came out 1.2e-12 short, which is under half a ULP of the raw value but
 		// about 2700 ULPs of the quotient, and floors to the previous stop.
 		final double rawTolerance = SNAP_ULPS * Math.ulp( Math.max( Math.abs( clampedRaw ), Math.abs( min ) ) );
-		final double stopsIn = snappedToWhole( ( clampedRaw - min ) / stepSize, rawTolerance / stepSize );
-		// Below one full pass there is nothing to wrap, and wrapping would cost
-		// the endpoint: getMax() would come back as stop 0 (the *next* pass's
-		// first) instead of reaching the last one. See the class javadoc.
-		return periods <= 1.0 ? stopsIn : stopsIn - stops * Math.floor( stopsIn / stops );
+		// Nothing to wrap: the domain is exactly one pass wide by construction,
+		// so getMax() lands on paletteRangeLength (which a discrete scheme
+		// clamps to its last stop) and everything past it is the boundary
+		// condition's business. See the class javadoc.
+		return snappedToWhole( ( clampedRaw - min ) / stepSize, rawTolerance / stepSize );
 	}
 
 	/**
