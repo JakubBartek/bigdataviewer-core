@@ -28,6 +28,7 @@
  */
 package bdv.tools.brightness;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -40,7 +41,13 @@ public class RealARGBColorConverterSetup implements ConverterSetup
 {
 	private final int id;
 
-	private final List< ColorConverter > converters;
+	/**
+	 * The converters this setup drives. A mutable copy of what the caller
+	 * passed, not the caller's own list, because {@link #setConverters} needs
+	 * to be able to replace its contents (and a varargs constructor's
+	 * {@link Arrays#asList} would not allow that).
+	 */
+	private final List< ColorConverter > converters = new ArrayList<>();
 
 	private final Listeners.List< SetupChangeListener > listeners;
 
@@ -52,8 +59,30 @@ public class RealARGBColorConverterSetup implements ConverterSetup
 	public RealARGBColorConverterSetup( final int setupId, final List< ColorConverter > converters )
 	{
 		this.id = setupId;
-		this.converters = converters;
+		this.converters.addAll( converters );
 		this.listeners = new Listeners.SynchronizedList<>();
+	}
+
+	/**
+	 * Point this setup at a different set of converters, keeping its identity.
+	 * <p>
+	 * Needed when a source's converter is swapped in place (see
+	 * {@code SourceAndConverter#setConverter}): this setup would otherwise go
+	 * on reading and writing the display range of the converter that is no
+	 * longer rendering anything. Replacing the converters rather than building
+	 * a fresh setup matters because a {@code ConverterSetup} is an identity
+	 * everything else holds on to -- {@code SetupAssignments}, the
+	 * brightness dialog's slider groups, {@code ConverterSetupBounds} -- none
+	 * of which would follow a substitute.
+	 * <p>
+	 * The new converters keep whatever display range they already carry; this
+	 * does not push the old one onto them.
+	 */
+	public void setConverters( final List< ColorConverter > converters )
+	{
+		this.converters.clear();
+		this.converters.addAll( converters );
+		listeners.list.forEach( l -> l.setupParametersChanged( this ) );
 	}
 
 	@Override

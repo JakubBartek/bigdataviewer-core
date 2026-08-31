@@ -45,7 +45,7 @@ public class SourceAndConverter< T >
 	/**
 	 * converts {@link #spimSource} type T to ARGBType for display
 	 */
-	protected final Converter< T, ARGBType > converter;
+	protected Converter< T, ARGBType > converter;
 
 	protected final SourceAndConverter< ? extends Volatile< T > > volatileSourceAndConverter;
 
@@ -90,6 +90,30 @@ public class SourceAndConverter< T >
 	public Converter< T, ARGBType > getConverter()
 	{
 		return converter;
+	}
+
+	/**
+	 * Render this source through a different {@link Converter} from now on.
+	 * <p>
+	 * The render path asks for the converter afresh every render pass (see
+	 * {@code ProjectorFactory}), so the new one takes effect on the next
+	 * repaint. Swapping it in place is what makes it possible to re-render an
+	 * existing source through a different color-mapping implementation without
+	 * removing it from and re-adding it to the {@code ViewerState}, which
+	 * would lose its position in the source list, its group memberships and
+	 * its visibility.
+	 * <p>
+	 * Two things do not follow by themselves. A {@link #asVolatile() nested
+	 * volatile} source keeps its own converter and has to be swapped
+	 * separately, or the two halves of the same source render differently
+	 * while data is still loading. And a {@code ConverterSetup} built from
+	 * this source holds the <em>old</em> converter, so it would keep driving
+	 * that one's display range; it has to be re-pointed at the new one (see
+	 * {@code RealARGBColorConverterSetup#setConverters}).
+	 */
+	public void setConverter( final Converter< T, ARGBType > converter )
+	{
+		this.converter = converter;
 	}
 
 	public SourceAndConverter< ? extends Volatile< T > > asVolatile()

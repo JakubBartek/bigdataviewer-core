@@ -42,9 +42,11 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.WeakHashMap;
 
 import javax.swing.BorderFactory;
@@ -64,6 +66,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
 import bdv.tools.brightness.colorscheme.ColorScheme;
@@ -76,6 +79,9 @@ import bdv.tools.brightness.presetfunc.StepPresetFunc;
 import bdv.viewer.ConverterSetups;
 import bdv.viewer.SourceAndConverter;
 import bdv.viewer.ViewerState;
+import bdv.viewer.ViewerStateChange;
+import net.imglib2.converter.Converter;
+import net.imglib2.display.ColorConverter;
 
 /**
  * A LUT editor dialog, laid out as three stacked panels:
@@ -145,9 +151,43 @@ public class LutEditorDialog extends JDialog
 	private double editedRangeMin = 0;
 	private double editedRangeMax = 255;
 
+	/**
+	 * The source this editing session belongs to (see {@link #beginSession}),
+	 * or {@code null} if there is none. Its name is what the window title
+	 * announces, and it is what {@link #syncToCurrentSource()} compares the
+	 * viewer's current source against to decide whether anything changed.
+	 */
+	private SourceAndConverter< ? > sessionSource = null;
+
 	/** The setup/converter {@link #currentPalette} etc. are being live-pushed to; {@code null} if none is currently editable. */
 	private PaletteConverter< ? > activeLutConv = null;
+
+	/**
+	 * The {@link SourceAndConverter#asVolatile() volatile} counterpart of
+	 * {@link #activeLutConv}, if the source has one and it is also a
+	 * {@link PaletteConverter}. Edits go to both: the volatile converter is
+	 * what renders while data is still loading, so leaving it behind would
+	 * show the old colors until the last block arrives and then snap.
+	 */
+	private PaletteConverter< ? > activeVolatileLutConv = null;
+
 	private ConverterSetup activeSetup = null;
+
+	/**
+	 * Sources whose foreign converter the user has already declined to convert
+	 * (see {@link #offerConversion}), so that selecting one again -- which
+	 * happens on every pass through the sources with the 1..9 keys -- does not
+	 * ask a second time. Weakly held so it does not keep sources alive.
+	 */
+	private final Set< SourceAndConverter< ? > > declinedConversion =
+			Collections.newSetFromMap( new WeakHashMap<>() );
+
+	/**
+	 * Guards {@link #comboSource} and the viewer's current source against
+	 * echoing each other: each is set from the other, and without this the
+	 * second assignment would start a redundant session.
+	 */
+	private boolean syncingSource = false;
 
 	/**
 	 * The editor-facing configuration ({@link Palette} + editable
@@ -251,8 +291,34 @@ public class LutEditorDialog extends JDialog
 
 		// -- Behavior --------------------------------------------------------
 		installControlListeners();
+		installViewerStateListener();
 		rebuildList();
 		packAndMatchGraphWidth( panelLeftColumn, panelMappingCurveColumn );
+	}
+
+	/**
+	 * Follow the viewer: selecting a different current source there starts a
+	 * new editing session here (see {@link #beginSession}), and adding or
+	 * removing sources rebuilds the chooser.
+	 * <p>
+	 * Both are bounced onto the EDT, since a {@code ViewerState} change can be
+	 * made from any thread, and both are written to be no-ops when nothing
+	 * actually differs -- they can arrive after this dialog has already
+	 * reacted to the same change from its own side.
+	 * <p>
+	 * The listener is never removed: it points at a dialog that is owned by
+	 * the same viewer window as the state it listens to, so the two become
+	 * unreachable together.
+	 */
+	private void installViewerStateListener()
+	{
+		viewerState.changeListeners().add( change ->
+		{
+			if ( change == ViewerStateChange.CURRENT_SOURCE_CHANGED )
+				SwingUtilities.invokeLater( this::syncToCurrentSource );
+			else if ( change == ViewerStateChange.NUM_SOURCES_CHANGED )
+				SwingUtilities.invokeLater( this::rebuildList );
+		} );
 	}
 
 	/**
@@ -264,6 +330,11 @@ public class LutEditorDialog extends JDialog
 	 * closed with its keyboard shortcut, all of which just call this -- first
 	 * confirm with the user if there are unapplied edits to discard, then
 	 * revert to the last-applied (or, absent that, originally loaded) state.
+	 * <p>
+	 * Becoming visible is the other half of the same idea: it opens a new
+	 * session (see {@link #restartSession()}), so the window always shows the
+	 * source the viewer is on and takes its backup from what is on screen now,
+	 * not from whenever it was last closed.
 	 */
 	@Override
 	public void setVisible( final boolean visible )
@@ -278,7 +349,49 @@ public class LutEditorDialog extends JDialog
 		}
 		if ( !visible && isVisible() )
 			revertLiveEdits();
+
+		final boolean showing = visible && !isVisible();
 		super.setVisible( visible );
+		if ( showing )
+			restartSession();
+	}
+
+	/**
+	 * Open a session for the source the viewer is currently on, now that the
+	 * window is actually on screen.
+	 * <p>
+	 * Needed as its own entry point because a session started while the window
+	 * was hidden cannot warn about a converter it is unable to edit (see
+	 * {@link #offerConversion}) -- there would be a modal prompt on screen with
+	 * nothing behind it to explain where it came from. The dialog is
+	 * constructed with the viewer and only shown later, so without this the
+	 * warning would never appear for the source the user opens it on.
+	 * <p>
+	 * The previous session is dropped rather than reverted: hiding the window
+	 * already reverted whatever was outstanding, and forgetting it here is what
+	 * stops {@link #beginSession} from pushing a stale display range back over
+	 * one the brightness controls changed while this window was closed.
+	 */
+	private void restartSession()
+	{
+		activeLutConv = null;
+		activeVolatileLutConv = null;
+		activeSetup = null;
+
+		final int index = sources.indexOf( viewerState.getCurrentSource() );
+		if ( index >= 0 && index != comboSource.getSelectedIndex() )
+		{
+			syncingSource = true;
+			try
+			{
+				comboSource.setSelectedIndex( index );
+			}
+			finally
+			{
+				syncingSource = false;
+			}
+		}
+		beginSession( selectedSource() );
 	}
 
 	/** Whether the editor currently differs from {@link #baselinePalette} etc., i.e. has edits since the last "Apply" (or load) that closing now would discard. */
@@ -536,7 +649,7 @@ public class LutEditorDialog extends JDialog
 		return column;
 	}
 
-	/** Help/Edit Curve/status on the left, Cancel/Apply on the right. */
+	/** Help/Edit Curve/status on the left, Reset/Cancel/Apply on the right. */
 	private JPanel createBottomBar()
 	{
 		final JButton buttonHelp = new JButton( "Help" );
@@ -557,13 +670,16 @@ public class LutEditorDialog extends JDialog
 		panelLeftBottom.add( toggleEditCurve );
 		panelLeftBottom.add( labelStatus );
 
+		final JButton buttonReset = new JButton( "Reset" );
+		buttonReset.addActionListener( e -> resetToSessionBaseline() );
 		final JButton buttonCancel = new JButton( "Cancel" );
 		buttonCancel.addActionListener( e -> setVisible( false ) );
 		final JButton buttonApply = new JButton( "Apply" );
 		buttonApply.addActionListener( e -> applyCurrent() );
-		normalizeButtonSizes( buttonCancel, buttonApply );
+		normalizeButtonSizes( buttonReset, buttonCancel, buttonApply );
 
-		final JPanel panelRightBottom = new JPanel( new GridLayout( 1, 2, 8, 0 ) );
+		final JPanel panelRightBottom = new JPanel( new GridLayout( 1, 3, 8, 0 ) );
+		panelRightBottom.add( buttonReset );
 		panelRightBottom.add( buttonCancel );
 		panelRightBottom.add( buttonApply );
 
@@ -580,7 +696,7 @@ public class LutEditorDialog extends JDialog
 	 */
 	private void installControlListeners()
 	{
-		comboSource.addActionListener( e -> onSourceChanged() );
+		comboSource.addActionListener( e -> onSourceComboChanged() );
 
 		comboPalette.addActionListener( e ->
 		{
@@ -718,40 +834,53 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Load the currently applied palette and mapping (if any) of the selected
-	 * source/setup into the editor. Any live-pushed edits still outstanding
-	 * on whichever source/setup was previously active are first reverted
-	 * back to their own baseline, same as closing the dialog on them without
-	 * pressing "Apply" would have done.
+	 * Start a new editing session on {@code soc}: bind the window to that
+	 * source, take the backup that {@link #resetToSessionBaseline()} and
+	 * closing the dialog restore, and load the source's applied palette and
+	 * mapping into the controls.
+	 * <p>
+	 * Any live-pushed edits still outstanding on the previous session's
+	 * source/converter are first reverted back to <em>its</em> baseline, the
+	 * same as closing the dialog without pressing "Apply" would have done --
+	 * so leaving a source behind never silently commits what was being tried
+	 * out on it.
+	 * <p>
+	 * A source rendered by some other kind of converter cannot be edited here;
+	 * the user is warned and offered a conversion (see
+	 * {@link #offerConversion}), and if that comes to nothing the editor falls
+	 * back to a neutral state that is pushed nowhere.
 	 */
-	private void onSourceChanged()
+	private void beginSession( final SourceAndConverter< ? > soc )
 	{
 		revertActiveConverterToBaseline();
 
-		final int idx = comboSource.getSelectedIndex();
-		if ( idx < 0 || idx >= sources.size() )
+		sessionSource = soc;
+		activeLutConv = null;
+		activeVolatileLutConv = null;
+		activeSetup = null;
+		updateTitle();
+
+		if ( soc == null )
 		{
-			activeLutConv = null;
-			activeSetup = null;
 			resetEditorToDefaults();
 			labelStatus.setText( "no setup selected" );
 			return;
 		}
-		final SourceAndConverter< ? > soc = sources.get( idx );
-		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
-		final Object conv = soc.getConverter();
-		if ( !( conv instanceof PaletteConverter ) )
+
+		PaletteConverter< ? > lutConv = asPaletteConverter( soc.getConverter() );
+		if ( lutConv == null )
+			lutConv = offerConversion( soc );
+		if ( lutConv == null )
 		{
-			activeLutConv = null;
-			activeSetup = null;
 			resetEditorToDefaults();
 			labelStatus.setText( "Converter does not use a LUT." );
 			return;
 		}
 		labelStatus.setText( "" );
 
-		final PaletteConverter< ? > lutConv = ( PaletteConverter< ? > ) conv;
 		activeLutConv = lutConv;
+		activeVolatileLutConv = soc.asVolatile() == null ? null : asPaletteConverter( soc.asVolatile().getConverter() );
+		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
 		activeSetup = setup;
 
 		// The converter renders through a PaletteWrapper, which cannot be read
@@ -767,7 +896,164 @@ public class LutEditorDialog extends JDialog
 		final double max = setup != null ? setup.getDisplayRangeMax() : 255;
 		loadIntoEditor( palette, paletteName, loaded, min, max );
 
+		// The session backup. Deep exactly where it has to be: a Palette is
+		// immutable and safe to share, but a mapping is not -- baselineMapping
+		// is a separate object whose copyFrom clones the curve's control point
+		// arrays, so editing the live mapping cannot reach into the backup.
 		snapshotBaseline();
+	}
+
+	/** {@code converter} as a {@link PaletteConverter}, or {@code null} if it is some other implementation. */
+	private static PaletteConverter< ? > asPaletteConverter( final Converter< ?, ? > converter )
+	{
+		return converter instanceof PaletteConverter ? ( PaletteConverter< ? > ) converter : null;
+	}
+
+	/**
+	 * Warn that {@code soc} is rendered by a converter this editor does not
+	 * understand, and offer to re-render it through one that it does -- see
+	 * {@link PaletteConverterFactory}, which spells out how much of the
+	 * original setup survives that translation. Returns the converter now
+	 * rendering the source, or {@code null} if it was not converted.
+	 * <p>
+	 * Only asked while the dialog is actually on screen, and only once per
+	 * source: this runs on every source switch, and a modal prompt appearing
+	 * behind the user's back, or again every time they cycle past the same
+	 * source with the 1..9 keys, would cost more than the warning is worth.
+	 */
+	private PaletteConverter< ? > offerConversion( final SourceAndConverter< ? > soc )
+	{
+		if ( !isVisible() || !declinedConversion.add( soc ) )
+			return null;
+
+		final Converter< ?, ? > conv = soc.getConverter();
+		final String kind = conv == null ? "no converter" : conv.getClass().getSimpleName();
+		final String preamble = "Source \"" + sourceName( soc ) + "\" is rendered by " + kind + ",\n"
+				+ "which this LUT editor cannot edit.";
+
+		if ( !PaletteConverterFactory.canApproximate( soc ) )
+		{
+			JOptionPane.showMessageDialog( this,
+					preamble + "\n\nIt cannot be converted to a palette-based converter either.",
+					"Unsupported Converter", JOptionPane.WARNING_MESSAGE );
+			return null;
+		}
+
+		final int choice = JOptionPane.showConfirmDialog( this,
+				preamble + "\n\nConvert it to a palette-based converter?\n"
+						+ "Its display range is kept and mapped linearly; its color\n"
+						+ "becomes the closest sequential palette, so the image will\n"
+						+ "look similar but not identical.",
+				"Unsupported Converter", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE );
+		if ( choice != JOptionPane.YES_OPTION )
+			return null;
+
+		final PaletteConverter< ? > converted = PaletteConverterFactory.approximateInPlace( soc );
+		if ( converted == null )
+			return null;
+
+		// Editable from here on, so no longer a source to stop asking about.
+		declinedConversion.remove( soc );
+		repointConverterSetup( soc );
+		if ( repaintAction != null )
+			repaintAction.run();
+		return converted;
+	}
+
+	/**
+	 * Re-point {@code soc}'s {@link ConverterSetup} at the converters now
+	 * rendering it, after {@link PaletteConverterFactory} swapped them: it
+	 * would otherwise go on reading and writing the display range of a
+	 * converter that renders nothing, and the brightness/contrast controls
+	 * would appear to do nothing.
+	 * <p>
+	 * Done in place where the setup allows it, because a {@code ConverterSetup}
+	 * is an identity that {@link SetupAssignments}, the brightness dialog and
+	 * {@code ConverterSetupBounds} all hold on to and would not follow to a
+	 * substitute. A setup of some other implementation has to be replaced
+	 * instead, which those holders do not see -- brightness for that source
+	 * keeps working through this dialog and the source table, but a group it
+	 * was put in by {@code SetupAssignments} will not follow it.
+	 */
+	private void repointConverterSetup( final SourceAndConverter< ? > soc )
+	{
+		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
+		if ( setup == null )
+			return;
+		final List< ColorConverter > converters = PaletteConverterFactory.colorConvertersOf( soc );
+		if ( converters.isEmpty() )
+			return;
+		if ( setup instanceof RealARGBColorConverterSetup )
+			( ( RealARGBColorConverterSetup ) setup ).setConverters( converters );
+		else
+			converterSetups.put( soc, new RealARGBColorConverterSetup( setup.getSetupId(), converters ) );
+	}
+
+	/**
+	 * Adopt the viewer's current source as this window's, if it is not already.
+	 * Deliberately a no-op when it is, so that the change notification this
+	 * dialog provokes itself -- by setting the current source from
+	 * {@link #comboSource} -- does not restart the session it just started.
+	 */
+	private void syncToCurrentSource()
+	{
+		final SourceAndConverter< ? > current = viewerState.getCurrentSource();
+		if ( current == sessionSource )
+			return;
+
+		syncingSource = true;
+		try
+		{
+			comboSource.setSelectedIndex( sources.indexOf( current ) );
+		}
+		finally
+		{
+			syncingSource = false;
+		}
+		beginSession( selectedSource() );
+	}
+
+	/**
+	 * The user picked a source here: make it the viewer's current source too,
+	 * so the two selections cannot drift apart, and start its session. The
+	 * resulting {@code CURRENT_SOURCE_CHANGED} then finds the session already
+	 * started and does nothing (see {@link #syncToCurrentSource()}).
+	 */
+	private void onSourceComboChanged()
+	{
+		if ( syncingSource )
+			return;
+		final SourceAndConverter< ? > soc = selectedSource();
+		if ( soc != null )
+			viewerState.setCurrentSource( soc );
+		beginSession( soc );
+	}
+
+	/** The source {@link #comboSource} currently selects, or {@code null} if it selects none. */
+	private SourceAndConverter< ? > selectedSource()
+	{
+		final int index = comboSource.getSelectedIndex();
+		return index >= 0 && index < sources.size() ? sources.get( index ) : null;
+	}
+
+	/** The source's own name, or its setup id if there is no source to ask. */
+	private String sourceName( final SourceAndConverter< ? > soc )
+	{
+		if ( soc.getSpimSource() != null )
+			return soc.getSpimSource().getName();
+		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
+		return setup != null ? Integer.toString( setup.getSetupId() ) : "?";
+	}
+
+	/**
+	 * Name the source being edited in the window title. This dialog is not
+	 * modal and is meant to be left open beside the viewer, where it can
+	 * easily end up looking at a source other than the one the user has their
+	 * eye on -- the title is what says which.
+	 */
+	private void updateTitle()
+	{
+		setTitle( sessionSource == null ? "LUT Editor" : "LUT Editor - " + sourceName( sessionSource ) );
 	}
 
 	/**
@@ -1041,6 +1327,19 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
+	 * Put the session's backup back: whatever the source looked like when
+	 * {@link #beginSession} bound it to this window, or when "Apply" last
+	 * moved that baseline forward. Unlike "Cancel" this leaves the window
+	 * open, which is the point of it -- the dialog is not modal and is meant
+	 * to be kept around while trying things out.
+	 */
+	private void resetToSessionBaseline()
+	{
+		revertLiveEdits();
+		labelStatus.setText( activeLutConv == null ? "" : "Reset." );
+	}
+
+	/**
 	 * Move the "revert to" baseline forward to the currently edited state,
 	 * which is already live-pushed to the converter as it was edited (see
 	 * {@link #pushLiveEdits()}) -- so closing the dialog, or switching to
@@ -1081,12 +1380,20 @@ public class LutEditorDialog extends JDialog
 	 * so re-selecting this source can restore them. The display range still
 	 * goes to the setup (which also drives brightness/contrast), so it stays
 	 * the single owner of that range.
+	 * <p>
+	 * The same wrapper instance also goes to
+	 * {@link #activeVolatileLutConv}, which is what renders the source until
+	 * its data has finished loading; it can be shared because the two
+	 * converters describe the same mapping of the same pixels.
 	 */
 	private void pushToActiveConverter( final Palette palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
 	{
 		if ( activeLutConv == null )
 			return;
-		activeLutConv.setWrapper( PaletteWrapperBuilder.build( palette, mapping, min, max ) );
+		final PaletteWrapper wrapper = PaletteWrapperBuilder.build( palette, mapping, min, max );
+		activeLutConv.setWrapper( wrapper );
+		if ( activeVolatileLutConv != null )
+			activeVolatileLutConv.setWrapper( wrapper );
 
 		final LutEditorMapping remembered = new LutEditorMapping();
 		remembered.copyFrom( mapping );
@@ -1109,23 +1416,45 @@ public class LutEditorDialog extends JDialog
 		loadIntoEditor( baselinePalette, baselinePaletteName, baselineMapping, baselineRangeMin, baselineRangeMax );
 	}
 
+	/**
+	 * Repopulate the source chooser from the viewer's sources, and land on the
+	 * viewer's current source -- falling back to the first one, and to nothing
+	 * at all if no source has a {@link ConverterSetup} to edit.
+	 * <p>
+	 * Rebuilt rather than patched because this also runs when sources are
+	 * added or removed while the dialog is open, and the combo's items are
+	 * labels that carry the setup ids. The session is (re)started at the end
+	 * either way: the previously edited source may be one of the ones that has
+	 * just gone.
+	 */
 	private void rebuildList()
 	{
-		comboSource.removeAllItems();
-		sources.clear();
-		final List< SourceAndConverter< ? > > stateSources = viewerState.getSources();
-		for ( final SourceAndConverter< ? > soc : stateSources )
+		final SourceAndConverter< ? > wanted = viewerState.getCurrentSource();
+
+		syncingSource = true;
+		try
 		{
-			final ConverterSetup setup = converterSetups.getConverterSetup( soc );
-			if ( setup == null )
-				continue;
-			sources.add( soc );
-			final String name = soc.getSpimSource() != null ? soc.getSpimSource().getName() : Integer.toString( setup.getSetupId() );
-			comboSource.addItem( "[" + setup.getSetupId() + "] " + name );
+			comboSource.removeAllItems();
+			sources.clear();
+			for ( final SourceAndConverter< ? > soc : viewerState.getSources() )
+			{
+				final ConverterSetup setup = converterSetups.getConverterSetup( soc );
+				if ( setup == null )
+					continue;
+				sources.add( soc );
+				comboSource.addItem( "[" + setup.getSetupId() + "] " + sourceName( soc ) );
+			}
+			if ( comboSource.getItemCount() > 0 )
+			{
+				final int index = sources.indexOf( wanted );
+				comboSource.setSelectedIndex( index >= 0 ? index : 0 );
+			}
 		}
-		if ( comboSource.getItemCount() > 0 )
-			comboSource.setSelectedIndex( 0 );
-		onSourceChanged();
+		finally
+		{
+			syncingSource = false;
+		}
+		beginSession( selectedSource() );
 	}
 
 	/**

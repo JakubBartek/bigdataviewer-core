@@ -94,6 +94,7 @@ import bdv.tools.brightness.ConverterSetup;
 import bdv.tools.brightness.LutEditorDialog;
 import bdv.tools.brightness.MinMaxGroup;
 import bdv.tools.brightness.PaletteConverter;
+import bdv.tools.brightness.PaletteConverterFactory;
 import bdv.tools.brightness.RealARGBColorConverterSetup;
 import bdv.tools.brightness.SetupAssignments;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
@@ -272,19 +273,7 @@ public class BigDataViewer
 	 */
 	public static ConverterSetup createConverterSetup( final SourceAndConverter< ? > soc, final int setupId )
 	{
-		final List< ColorConverter > converters = new ArrayList<>();
-
-		final Converter< ?, ARGBType > c = soc.getConverter();
-		if ( c instanceof ColorConverter )
-			converters.add( ( ColorConverter ) c );
-
-		final SourceAndConverter< ? extends Volatile< ? > > vsoc = soc.asVolatile();
-		if ( vsoc != null )
-		{
-			final Converter< ?, ARGBType > vc = vsoc.getConverter();
-			if ( vc instanceof ColorConverter )
-				converters.add( ( ColorConverter ) vc );
-		}
+		final List< ColorConverter > converters = PaletteConverterFactory.colorConvertersOf( soc );
 
 		if ( converters.isEmpty() )
 			return null;
