@@ -80,6 +80,7 @@ import bdv.viewer.ConverterSetups;
 import bdv.viewer.SourceAndConverter;
 import bdv.viewer.ViewerState;
 import bdv.viewer.ViewerStateChange;
+import bdv.viewer.ViewerStateChangeListener;
 import net.imglib2.converter.Converter;
 import net.imglib2.display.ColorConverter;
 
@@ -108,6 +109,18 @@ public class LutEditorDialog extends JDialog
 	private final ConverterSetups converterSetups;
 	private final ViewerState viewerState;
 	private final Runnable repaintAction;
+
+	/** Kept so {@link #dispose()} can unregister it again; see {@link #installViewerStateListener()}. */
+	private ViewerStateChangeListener viewerStateListener;
+
+	/**
+	 * Set by {@link #dispose()}, after which this dialog must not touch the
+	 * viewer again. Volatile because {@link #dispose()} is not guaranteed to
+	 * run on the EDT -- {@code BdvHandle.close()} is routinely called from
+	 * whichever thread closes the window -- while what it stops runs on the
+	 * EDT.
+	 */
+	private volatile boolean disposed = false;
 
 	private final JComboBox< Object > comboPalette;
 	private final JComboBox< Object > comboEditorPreset;
@@ -303,17 +316,47 @@ public class LutEditorDialog extends JDialog
 	 * is no current source left).
 	 * <p>
 	 * Bounced onto the EDT, since a {@code ViewerState} change can be made from
-	 * any thread. The listener is never removed: it points at a dialog owned by
-	 * the same viewer window as the state it listens to, so the two become
-	 * unreachable together.
+	 * any thread. That hand-off is why the listener has to be unregistered in
+	 * {@link #dispose()} rather than left to be collected with the window: a
+	 * notification can outlive the viewer it came from, and the work it queues
+	 * would then run against a viewer that has already been torn down.
 	 */
 	private void installViewerStateListener()
 	{
-		viewerState.changeListeners().add( change ->
+		viewerStateListener = change ->
 		{
 			if ( change == ViewerStateChange.CURRENT_SOURCE_CHANGED )
 				SwingUtilities.invokeLater( this::syncToCurrentSource );
-		} );
+		};
+		viewerState.changeListeners().add( viewerStateListener );
+	}
+
+	/**
+	 * Stop following the viewer, then dispose the window as usual.
+	 * <p>
+	 * Both halves are needed, because unregistering the listener does not
+	 * recall the notifications it has already turned into queued EDT work:
+	 * {@code BdvHandle.close()} disposes this dialog and then drops the viewer,
+	 * so a {@link #syncToCurrentSource()} still sitting on the queue would come
+	 * to run afterwards and drive a repaint of a viewer that is no longer
+	 * there. {@link #disposed} is what those queued runnables check.
+	 * <p>
+	 * This is teardown, not hiding -- closing the window with "Cancel", its
+	 * close button or the keyboard shortcut goes through
+	 * {@link #setVisible(boolean)} and leaves the dialog reusable. A disposed
+	 * dialog is done: showing it again would give a window that no longer
+	 * follows the viewer's source selection.
+	 */
+	@Override
+	public void dispose()
+	{
+		disposed = true;
+		if ( viewerStateListener != null )
+		{
+			viewerState.changeListeners().remove( viewerStateListener );
+			viewerStateListener = null;
+		}
+		super.dispose();
 	}
 
 	/**
@@ -971,9 +1014,13 @@ public class LutEditorDialog extends JDialog
 	 * already is, so that a notification arriving after this dialog has
 	 * already reacted -- the listener is dispatched asynchronously, see
 	 * {@link #installViewerStateListener()} -- does not restart the session.
+	 * Also a no-op once {@link #dispose()} has run, which is the same
+	 * asynchrony arriving after the viewer itself has gone.
 	 */
 	private void syncToCurrentSource()
 	{
+		if ( disposed )
+			return;
 		final SourceAndConverter< ? > current = viewerState.getCurrentSource();
 		if ( current != sessionSource )
 			beginSession( current );
