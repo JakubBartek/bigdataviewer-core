@@ -415,9 +415,8 @@ public class LutEditorDialog extends JDialog
 	/**
 	 * A per-end boundary-condition chooser: what happens to raw values past
 	 * that end of the input range. Offers the render model's own
-	 * {@link BoundaryCondition}s directly -- the editor no longer translates
-	 * them into a range mode plus a background checkbox -- just relabeled for
-	 * the UI (see {@link #boundaryLabel}).
+	 * {@link BoundaryCondition}s directly, just relabeled for the UI (see
+	 * {@link #boundaryLabel}).
 	 */
 	private static JComboBox< BoundaryCondition > createBoundaryCombo()
 	{
@@ -858,8 +857,7 @@ public class LutEditorDialog extends JDialog
 
 	/**
 	 * Ask for one end's {@link BoundaryCondition#SPECIAL} color and store it.
-	 * Forced opaque, as the old background color always was: {@link JColorChooser}
-	 * has no alpha channel to offer here.
+	 * Forced opaque: {@link JColorChooser} has no alpha channel to offer here.
 	 */
 	private void chooseSpecialColor( final boolean left )
 	{

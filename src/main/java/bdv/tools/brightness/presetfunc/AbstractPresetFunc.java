@@ -33,22 +33,17 @@ import java.util.function.DoubleUnaryOperator;
  * Shared range storage and rescaling mechanics for every {@link PresetFunc}:
  * a concrete subclass only implements {@link #shape(double)}, a normalized
  * curve shape over {@code [0, 1] -> [0, 1]} (for the fixed shapes, with
- * {@code shape(0) == 0} and {@code shape(1) == 1}, exactly the family of shapes
- * {@code bdv.tools.brightness.MappingPreset} already defines, deliberately
- * mirrored here with the same constants for the same curve shapes -- see
- * each subclass); this class handles normalizing a raw value into that
- * {@code [0, 1]} domain and rescaling the result into
- * {@code [0, getPaletteRangeLength()]}.
+ * {@code shape(0) == 0} and {@code shape(1) == 1} -- see each subclass); this
+ * class handles normalizing a raw value into that {@code [0, 1]} domain and
+ * rescaling the result into {@code [0, getPaletteRangeLength()]}.
  * <p>
  * Not built on {@code LutEditorMapping}/{@code Curve}: those exist to drive an
  * interactively-draggable, {@code [0, 255]}-output, 9-point piecewise-linear
  * <em>approximation</em> of a shape, for a UI that lets a user further hand-edit
  * it -- a different job from computing a shape's exact value at an arbitrary
- * point over an arbitrary {@code [0, getPaletteRangeLength()]} output range, which
- * is all a {@link PresetFunc} needs to do. The shape formulas themselves are
- * copied verbatim (same constants) from {@code MappingPreset} rather than
- * shared by reference, to avoid a dependency from this new, self-contained
- * architecture back onto the old curve-editing one.
+ * point over an arbitrary {@code [0, getPaletteRangeLength()]} output range,
+ * which is all a {@link PresetFunc} needs to do. This package has no
+ * dependency on the curve-editing one.
  */
 abstract class AbstractPresetFunc implements PresetFunc
 {
@@ -179,11 +174,9 @@ abstract class AbstractPresetFunc implements PresetFunc
 	}
 
 	/**
-	 * Rescales {@code f} so that {@code f(0) -> 0} and {@code f(1) -> 1} --
-	 * same helper (and purpose) as {@code MappingPreset}'s own
-	 * {@code normalized}, for shapes (sigmoid, tan, atan) that are naturally
-	 * defined on a wider range than {@code [0, 1]} and need rescaling to fit
-	 * it exactly.
+	 * Rescales {@code f} so that {@code f(0) -> 0} and {@code f(1) -> 1}, for
+	 * shapes (sigmoid, tan, atan) that are naturally defined on a wider range
+	 * than {@code [0, 1]} and need rescaling to fit it exactly.
 	 */
 	static double normalized( final double t, final DoubleUnaryOperator f )
 	{

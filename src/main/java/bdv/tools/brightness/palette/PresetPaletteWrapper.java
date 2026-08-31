@@ -61,11 +61,11 @@ import bdv.tools.brightness.presetfunc.PresetFunc;
  * value resolves to and then delegates to the other two. The boundary
  * conditions live here, never in the color scheme or the preset function.
  * <p>
- * This is the only {@link PaletteWrapper} implementation (a discrete- and a
- * continuous-specific one used to exist separately; the discrete-vs-continuous
- * difference turned out to be entirely the {@link ColorScheme}'s, so they
- * merged into this one class), so it implements the interface directly rather
- * than through an intermediate abstract base.
+ * This is the only {@link PaletteWrapper} implementation -- the
+ * discrete-vs-continuous difference is entirely the {@link ColorScheme}'s, so
+ * there is no need for a discrete/continuous split here too -- and it
+ * implements the interface directly rather than through an intermediate
+ * abstract base.
  */
 public class PresetPaletteWrapper implements PaletteWrapper
 {

@@ -195,9 +195,8 @@ public final class LutPalettes
 	 * EDT each time the LUT editor's selected source changes.
 	 * <p>
 	 * Safe to cache, since the bundled resources cannot change while the
-	 * process runs and a {@link Palette} is immutable -- so, unlike the
-	 * mutable-in-principle {@code ColorTable} this used to hand out, sharing
-	 * one instance between callers cannot alias unrelated sources together.
+	 * process runs and a {@link Palette} is immutable, so sharing one instance
+	 * between callers cannot alias unrelated sources together.
 	 */
 	private static Map< String, Palette > cachedPalettes()
 	{

@@ -96,7 +96,7 @@ public class PaletteConverter< R extends RealType< R > > extends AbstractLinearR
 	{
 		// getRGBAForRaw, not getRGBForRaw, so a color stop's own alpha and a
 		// transparent SPECIAL-boundary (background) color both survive to the
-		// display -- matching how the old ColorTable path carried alpha.
+		// display.
 		//
 		// The sample is handed over as the double it already is: narrowing to
 		// float here would silently merge label ids above 2^24 (float cannot

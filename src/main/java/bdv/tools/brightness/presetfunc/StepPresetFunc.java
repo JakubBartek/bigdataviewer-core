@@ -56,11 +56,9 @@ package bdv.tools.brightness.presetfunc;
  * Repetition is entirely {@code BoundaryCondition.CYCLE}'s job, not this
  * class's: past {@link #getMax()} the palette either starts over (CYCLE) or
  * stops on its last color (CLAMP), and which one is the wrapper's decision.
- * This class only ever describes a single pass. An earlier version also
- * repeated the ramp <em>inside</em> its domain, as many times as the given
- * {@code max} allowed; that second, independent repetition mechanism made the
- * rendered colors depend on the display range's maximum, so every color stop
- * moved whenever the range was dragged.
+ * This class only ever describes a single pass -- a second, independent
+ * repetition mechanism inside the domain would make color stops depend on the
+ * display range's maximum, moving every stop whenever the range was dragged.
  */
 public class StepPresetFunc extends AbstractPresetFunc
 {

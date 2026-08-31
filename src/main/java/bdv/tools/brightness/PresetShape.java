@@ -40,11 +40,11 @@ import bdv.tools.brightness.presetfunc.TanPresetFunc;
 
 /**
  * Predefined shapes for the mapping {@link Curve}, sampled from the
- * {@code bdv.tools.brightness.presetfunc} shape classes -- unlike the old
- * {@code MappingPreset} this replaced, the shape math lives exactly once
- * (in each {@link PresetFunc}), not duplicated here. Each preset is sampled
- * at a fixed number of control points spanning the normalized input range
- * [0, 1]; the resulting points can be dragged further by the user afterwards.
+ * {@code bdv.tools.brightness.presetfunc} shape classes, so the shape math
+ * lives exactly once (in each {@link PresetFunc}), not duplicated here. Each
+ * preset is sampled at a fixed number of control points spanning the
+ * normalized input range [0, 1]; the resulting points can be dragged further
+ * by the user afterwards.
  */
 public enum PresetShape
 {
@@ -57,11 +57,7 @@ public enum PresetShape
 	TAN( "Tan", TanPresetFunc::new ),
 	ATAN( "Atan", AtanPresetFunc::new );
 
-	/**
-	 * Sampled at as many control points as {@code MappingPreset} used, so a
-	 * preset looks and drags the same as before; {@link #LINEAR} is still the
-	 * exception below (see {@link #xs()}).
-	 */
+	/** Number of control points a non-linear preset is sampled at; {@link #LINEAR} is the exception below (see {@link #xs()}). */
 	private static final int NUM_POINTS = 9;
 
 	private final String label;
