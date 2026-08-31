@@ -52,17 +52,17 @@ public interface PresetFunc
 	 * {@code 0} for every implementation here except
 	 * {@link CustomInterpPresetFunc}, whose shape is user-defined.
 	 */
-	float getMin();
+	double getMin();
 
 	/**
 	 * Raw value this function's domain ends at. Maps to palette value
 	 * {@link #getPaletteRangeLength()} for every implementation here except
 	 * {@link CustomInterpPresetFunc}, whose shape is user-defined.
 	 */
-	float getMax();
+	double getMax();
 
 	/**
-	 * Length of the palette-value range {@link #getPaletteValueForRaw(float)}
+	 * Length of the palette-value range {@link #getPaletteValueForRaw(double)}
 	 * maps into; see the class javadoc. An {@code int}, like
 	 * {@code ColorScheme#getPaletteRangeLength()}, because it has to equal the
 	 * color scheme's -- which is a stop count, and so always whole.
@@ -70,14 +70,22 @@ public interface PresetFunc
 	int getPaletteRangeLength();
 
 	/**
-	 * {@code paletteValue = f(rawValue)}. {@code rawValue} is not assumed to
+	 * {@code paletteValue = f(rawValue)}. Everything here is {@code double}, end
+	 * to end: a {@code float} cannot represent consecutive integers above 2^24,
+	 * so a label image with ids past 16,777,216 would collide two distinct
+	 * labels onto a single raw value before this function ever saw them -- and a
+	 * narrowing anywhere along the way reintroduces exactly the rounding the
+	 * discrete path has to be free of. {@code double} is exact on integers up to
+	 * 2^53, which no realistic raw value reaches.
+	 * <p>
+	 * {@code rawValue} is not assumed to
 	 * already be inside {@code [getMin(), getMax()]} -- implementations clamp
 	 * it themselves rather than producing an undefined or wildly
 	 * extrapolated result, but a caller that cares whether {@code rawValue}
 	 * was actually in range should check {@link #getMin()}/{@link #getMax()}
 	 * itself beforehand (see the class javadoc).
 	 */
-	float getPaletteValueForRaw( float rawValue );
+	double getPaletteValueForRaw( double rawValue );
 
 	/**
 	 * A copy of this function with the same shape and
@@ -87,5 +95,5 @@ public interface PresetFunc
 	 * without disturbing which shape the user chose. {@code PresetFunc} is
 	 * otherwise immutable, so this returns a new instance rather than mutating.
 	 */
-	PresetFunc withRange( float min, float max );
+	PresetFunc withRange( double min, double max );
 }

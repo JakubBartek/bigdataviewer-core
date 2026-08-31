@@ -36,7 +36,7 @@ public class AlphaSigmoidPresetFunc extends AbstractPresetFunc
 {
 	private static final double ALPHA = 0.5;
 
-	public AlphaSigmoidPresetFunc( final float min, final float max, final int paletteRangeLength )
+	public AlphaSigmoidPresetFunc( final double min, final double max, final int paletteRangeLength )
 	{
 		super( min, max, paletteRangeLength );
 	}
@@ -52,7 +52,7 @@ public class AlphaSigmoidPresetFunc extends AbstractPresetFunc
 	}
 
 	@Override
-	public AlphaSigmoidPresetFunc withRange( final float min, final float max )
+	public AlphaSigmoidPresetFunc withRange( final double min, final double max )
 	{
 		return new AlphaSigmoidPresetFunc( min, max, getPaletteRangeLength() );
 	}

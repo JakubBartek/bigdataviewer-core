@@ -82,7 +82,7 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 	private double[] knotValues;
 
 	/** Starts with two knots, {@code (0, 0)} and {@code (1, 1)} -- the same shape as {@link LinearPresetFunc} until {@link #setKnots(double[], double[])} is called. */
-	public CustomInterpPresetFunc( final float min, final float max, final int paletteRangeLength )
+	public CustomInterpPresetFunc( final double min, final double max, final int paletteRangeLength )
 	{
 		super( min, max, paletteRangeLength );
 		setKnots( new double[] { 0.0, 1.0 }, new double[] { 0.0, 1.0 } );
@@ -106,8 +106,8 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 		if ( numKnots < 2 )
 			throw new IllegalArgumentException( "numKnots must be at least 2, got " + numKnots );
 
-		final float min = shape.getMin();
-		final float max = shape.getMax();
+		final double min = shape.getMin();
+		final double max = shape.getMax();
 		final int paletteRangeLength = shape.getPaletteRangeLength();
 
 		final double[] ts = new double[ numKnots ];
@@ -115,7 +115,7 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 		for ( int i = 0; i < numKnots; i++ )
 		{
 			final double t = i / ( double ) ( numKnots - 1 );
-			final float rawValue = ( float ) ( min + t * ( max - min ) );
+			final double rawValue = min + t * ( max - min );
 			ts[ i ] = t;
 			values[ i ] = Math.max( 0.0, Math.min( 1.0, shape.getPaletteValueForRaw( rawValue ) / paletteRangeLength ) );
 		}
@@ -176,9 +176,9 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 		return knotValues.clone();
 	}
 
-	/** As {@link PresetFunc#withRange(float, float)}, carrying this function's current knots over unchanged (they are domain fractions, so independent of the raw range). */
+	/** As {@link PresetFunc#withRange(double, double)}, carrying this function's current knots over unchanged (they are domain fractions, so independent of the raw range). */
 	@Override
-	public CustomInterpPresetFunc withRange( final float min, final float max )
+	public CustomInterpPresetFunc withRange( final double min, final double max )
 	{
 		final CustomInterpPresetFunc copy = new CustomInterpPresetFunc( min, max, getPaletteRangeLength() );
 		copy.setKnots( knotTs, knotValues );

@@ -405,7 +405,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		Integer prevY = null;
 		for ( int px = left; px <= right; px++ )
 		{
-			final float paletteValue = wrapper.getPaletteValueForRaw( ( float ) pixelXToValue( px ) );
+			final double paletteValue = wrapper.getPaletteValueForRaw( pixelXToValue( px ) );
 			final int py = outputToPixelY( paletteValueToOutput( paletteValue, paletteRangeLength, discrete ) );
 			if ( prevX != null )
 				g.drawLine( prevX, prevY, px, py );
@@ -422,7 +422,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	 * does (same {@code floor}, same clamp to the last stop at the top edge),
 	 * which is what turns the drawn line into a staircase.
 	 */
-	private static int paletteValueToOutput( final float paletteValue, final int paletteRangeLength, final boolean discrete )
+	private static int paletteValueToOutput( final double paletteValue, final int paletteRangeLength, final boolean discrete )
 	{
 		final double stops = discrete
 				? Math.max( 0, Math.min( paletteRangeLength - 1, ( int ) Math.floor( paletteValue ) ) )
@@ -470,7 +470,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		for ( int py = top; py < bottom; py++ )
 		{
 			final double t = ( bottom - py ) / ( double ) plotHeight();
-			g.setColor( new Color( scheme.getRGB( ( float ) ( t * paletteRangeLength ) ) ) );
+			g.setColor( new Color( scheme.getRGB( t * paletteRangeLength ) ) );
 			// fillRect, not drawLine: the stroke is whatever the last caller
 			// left set (drawCurve uses 2px) and antialiasing is on, which
 			// together smear each 1px row across its neighbours instead of
@@ -499,7 +499,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	 * Horizontal color bar along the x (input value) axis, showing the color
 	 * actually produced after passing each input value through the whole
 	 * mapping ("after transform") -- i.e. exactly what the renderer would show
-	 * for that raw value, straight from {@link PaletteWrapper#getRGBForRaw(float)}
+	 * for that raw value, straight from {@link PaletteWrapper#getRGBForRaw(double)}
 	 * (curve, then color scheme, then boundary handling).
 	 */
 	private void drawTransformColorBar( final Graphics2D g, final PaletteWrapper wrapper )
@@ -512,7 +512,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 		for ( int px = left; px < right; px++ )
 		{
 			final double value = pixelXToValue( px );
-			g.setColor( new Color( wrapper.getRGBForRaw( ( float ) value ) ) );
+			g.setColor( new Color( wrapper.getRGBForRaw( value ) ) );
 			// fillRect rather than drawLine -- see drawOutputColorBar.
 			g.fillRect( px, top, 1, bottom - top + 1 );
 		}

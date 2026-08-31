@@ -36,7 +36,7 @@ public class ExpPresetFunc extends AbstractPresetFunc
 {
 	private static final double K = 4.0;
 
-	public ExpPresetFunc( final float min, final float max, final int paletteRangeLength )
+	public ExpPresetFunc( final double min, final double max, final int paletteRangeLength )
 	{
 		super( min, max, paletteRangeLength );
 	}
@@ -48,7 +48,7 @@ public class ExpPresetFunc extends AbstractPresetFunc
 	}
 
 	@Override
-	public ExpPresetFunc withRange( final float min, final float max )
+	public ExpPresetFunc withRange( final double min, final double max )
 	{
 		return new ExpPresetFunc( min, max, getPaletteRangeLength() );
 	}

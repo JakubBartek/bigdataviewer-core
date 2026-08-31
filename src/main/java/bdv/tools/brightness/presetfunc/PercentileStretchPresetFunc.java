@@ -38,7 +38,7 @@ public class PercentileStretchPresetFunc extends AbstractPresetFunc
 
 	private static final double HI = 0.98;
 
-	public PercentileStretchPresetFunc( final float min, final float max, final int paletteRangeLength )
+	public PercentileStretchPresetFunc( final double min, final double max, final int paletteRangeLength )
 	{
 		super( min, max, paletteRangeLength );
 	}
@@ -54,7 +54,7 @@ public class PercentileStretchPresetFunc extends AbstractPresetFunc
 	}
 
 	@Override
-	public PercentileStretchPresetFunc withRange( final float min, final float max )
+	public PercentileStretchPresetFunc withRange( final double min, final double max )
 	{
 		return new PercentileStretchPresetFunc( min, max, getPaletteRangeLength() );
 	}

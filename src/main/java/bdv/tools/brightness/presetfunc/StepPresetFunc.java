@@ -65,14 +65,21 @@ public class StepPresetFunc extends AbstractPresetFunc
 	 *                 exactly once across {@code [min, max]}.
 	 * @throws IllegalArgumentException if {@code stepSize} is not strictly positive (or is NaN).
 	 */
-	public StepPresetFunc( final float min, final float max, final int paletteRangeLength, final double stepSize )
+	public StepPresetFunc( final double min, final double max, final int paletteRangeLength, final double stepSize )
 	{
 		super( min, max, paletteRangeLength );
 		// Written as !(x > 0) rather than (x <= 0) so NaN is rejected too.
 		if ( !( stepSize > 0.0 ) )
 			throw new IllegalArgumentException( "stepSize must be strictly positive, got " + stepSize );
 		this.stepSize = stepSize;
-		this.periods = ( max - min ) / ( stepSize * paletteRangeLength );
+		// Snapped, because this is a branch condition below and being a single
+		// ULP out flips it: with the default step size the exact value is 1, but
+		// (max - min) / ((max - min) / N * N) lands just above 1 for about one
+		// in twelve palette-size and display-range pairs (a 13-stop palette over
+		// 0-65535 among them). That takes the wrapping branch and sends getMax()
+		// to the FIRST stop instead of the last, contradicting the contract in
+		// the class javadoc.
+		this.periods = snappedToWhole( ( max - min ) / ( stepSize * paletteRangeLength ) );
 	}
 
 	/**
@@ -81,7 +88,7 @@ public class StepPresetFunc extends AbstractPresetFunc
 	 * linear ramp over the whole palette, the behavior of a discrete palette
 	 * with no explicit step size chosen.
 	 */
-	public static double defaultStepSize( final float min, final float max, final int paletteRangeLength )
+	public static double defaultStepSize( final double min, final double max, final int paletteRangeLength )
 	{
 		return ( max - min ) / ( double ) paletteRangeLength;
 	}
@@ -103,20 +110,65 @@ public class StepPresetFunc extends AbstractPresetFunc
 		return periods;
 	}
 
-	/** As {@link PresetFunc#withRange(float, float)}, keeping the step size in raw units; see the class javadoc. */
+	/** As {@link PresetFunc#withRange(double, double)}, keeping the step size in raw units; see the class javadoc. */
 	@Override
-	public StepPresetFunc withRange( final float min, final float max )
+	public StepPresetFunc withRange( final double min, final double max )
 	{
 		return new StepPresetFunc( min, max, getPaletteRangeLength(), stepSize );
 	}
 
+	/**
+	 * Worked entirely in <em>stops</em> -- {@code (clampedRaw - min) / stepSize},
+	 * i.e. how far into the ramp this raw value sits measured in color stops --
+	 * because that is the unit in which the answers that have to be exact are
+	 * whole numbers. Every stop boundary is an integer here, and the wrap is a
+	 * plain modulo by the stop count, so nothing has to survive a round trip
+	 * through a normalized fraction to get back to it.
+	 * <p>
+	 * Two tempting round trips are wrong here, both by about one part in 10^16,
+	 * which is exactly enough to land on the wrong side of a floor. Reaching the
+	 * position as {@code t * periods} multiplies two separately-rounded copies
+	 * of {@code (max - min)} back together and they do not cancel, putting an
+	 * exact stop boundary a hair <em>below</em> its integer, one stop back; under
+	 * {@code BoundaryCondition.CYCLE} that reads as the last color twice in a row
+	 * where it should have wrapped to the first. Returning a {@code [0, 1]}
+	 * fraction for {@link AbstractPresetFunc} to scale by the stop count divides
+	 * by that count only to multiply it straight back, which turns stop 1 of a
+	 * 3-stop palette into {@code 0.9999999999999998}. Neither is visible while
+	 * the result is narrowed to {@code float} on the way out -- that narrowing
+	 * rounds the difference away and hides both -- so neither may be reintroduced
+	 * on the strength of the numbers happening to look right.
+	 */
+	@Override
+	double paletteValueForClampedRaw( final double clampedRaw )
+	{
+		final int stops = getPaletteRangeLength();
+		final double min = getMin();
+		// A raw value within a few ULPs of a stop boundary IS that boundary:
+		// subtracting min cancels the low bits away, so at the precision the raw
+		// value itself carries the two are not distinguishable. The budget is
+		// therefore in RAW units -- ULPs of the larger operand of that
+		// subtraction -- converted to stops by dividing by the step size. It has
+		// to be: around raw 4610 with a step size of 0.3, an exact stop boundary
+		// came out 1.2e-12 short, which is under half a ULP of the raw value but
+		// about 2700 ULPs of the quotient, and floors to the previous stop.
+		final double rawTolerance = SNAP_ULPS * Math.ulp( Math.max( Math.abs( clampedRaw ), Math.abs( min ) ) );
+		final double stopsIn = snappedToWhole( ( clampedRaw - min ) / stepSize, rawTolerance / stepSize );
+		// Below one full pass there is nothing to wrap, and wrapping would cost
+		// the endpoint: getMax() would come back as stop 0 (the *next* pass's
+		// first) instead of reaching the last one. See the class javadoc.
+		return periods <= 1.0 ? stopsIn : stopsIn - stops * Math.floor( stopsIn / stops );
+	}
+
+	/**
+	 * This shape is really a function of the raw value, so it is defined by
+	 * {@link #paletteValueForClampedRaw(double)}; a normalized {@code t} is
+	 * un-normalized back into raw units to get there, keeping one
+	 * implementation rather than two that could drift apart.
+	 */
 	@Override
 	double shape( final double t )
 	{
-		final double u = t * periods;
-		// Below one full pass there is nothing to wrap, and wrapping would cost
-		// the endpoint: u == 1 would come back as 0 (the *next* pass's first
-		// stop) instead of reaching the last one. See the class javadoc.
-		return periods <= 1.0 ? u : u - Math.floor( u );
+		return paletteValueForClampedRaw( getMin() + t * ( getMax() - getMin() ) ) / getPaletteRangeLength();
 	}
 }

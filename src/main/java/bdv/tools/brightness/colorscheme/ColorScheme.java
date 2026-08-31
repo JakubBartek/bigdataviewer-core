@@ -50,20 +50,20 @@ public interface ColorScheme
 	 * The color at {@code paletteValue}, packed as ARGB (see
 	 * {@link net.imglib2.type.numeric.ARGBType#rgba(int, int, int, int)}) with
 	 * alpha forced fully opaque ({@code 0xff}) regardless of the underlying
-	 * color stop's own alpha -- see {@link #getRGBA(float)} to read that alpha
+	 * color stop's own alpha -- see {@link #getRGBA(double)} to read that alpha
 	 * instead.
 	 * <p>
 	 * {@code paletteValue} outside this scheme's domain (see
 	 * {@link #getPaletteRangeLength()}) is not an error: the nearest edge stop's
 	 * color is returned instead of throwing.
 	 */
-	int getRGB( float paletteValue );
+	int getRGB( double paletteValue );
 
 	/**
-	 * Like {@link #getRGB(float)}, but carrying the color stop's own alpha
+	 * Like {@link #getRGB(double)}, but carrying the color stop's own alpha
 	 * component instead of forcing full opacity.
 	 */
-	int getRGBA( float paletteValue );
+	int getRGBA( double paletteValue );
 
 	/**
 	 * The length of this scheme's valid palette-value domain, which always

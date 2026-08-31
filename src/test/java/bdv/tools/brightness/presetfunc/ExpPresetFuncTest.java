@@ -69,8 +69,8 @@ public class ExpPresetFuncTest
 	public void testGainsMoreInTheLastQuarterThanTheFirst()
 	{
 		final ExpPresetFunc f = scaled();
-		final float gainFirstQuarter = f.getPaletteValueForRaw( 125f ) - f.getPaletteValueForRaw( 100f );
-		final float gainLastQuarter = f.getPaletteValueForRaw( 200f ) - f.getPaletteValueForRaw( 175f );
+		final double gainFirstQuarter = f.getPaletteValueForRaw( 125 ) - f.getPaletteValueForRaw( 100 );
+		final double gainLastQuarter = f.getPaletteValueForRaw( 200 ) - f.getPaletteValueForRaw( 175 );
 		Assert.assertTrue( gainLastQuarter > gainFirstQuarter );
 	}
 }

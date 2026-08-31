@@ -48,11 +48,11 @@ public class AbstractPresetFuncTest
 	@FunctionalInterface
 	private interface PresetFuncFactory
 	{
-		PresetFunc create( float min, float max, int paletteRangeLength );
+		PresetFunc create( double min, double max, int paletteRangeLength );
 	}
 
 	/**
-	 * The shapes whose {@link PresetFunc#withRange(float, float)} stretches
+	 * The shapes whose {@link PresetFunc#withRange(double, double)} stretches
 	 * them onto the new endpoints -- every implementation except
 	 * {@link StepPresetFunc}, whose step size is a quantity in raw units and so
 	 * deliberately survives a range change unscaled (see
@@ -181,7 +181,7 @@ public class AbstractPresetFuncTest
 	}
 
 	/**
-	 * {@link PresetFunc#withRange(float, float)} keeps the shape and palette
+	 * {@link PresetFunc#withRange(double, double)} keeps the shape and palette
 	 * range but moves the endpoints: at the new min/max the palette value is
 	 * the same 0/rangeLength as at the old ones, and a proportionally-placed
 	 * raw value maps to the same palette value as before -- i.e. the shape was

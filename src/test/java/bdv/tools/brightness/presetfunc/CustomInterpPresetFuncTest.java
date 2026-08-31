@@ -132,11 +132,11 @@ public class CustomInterpPresetFuncTest
 		final CustomInterpPresetFunc f = scaled();
 		f.setKnots( new double[] { 0.0, 1.0 }, new double[] { 0.5, 0.5 } );
 
-		for ( final float raw : new float[] { 100f, 125f, 150f, 175f, 200f } )
+		for ( final double raw : new double[] { 100, 125, 150, 175, 200 } )
 		{
-			final float paletteValue = f.getPaletteValueForRaw( raw );
-			Assert.assertFalse( "NaN at raw=" + raw, Float.isNaN( paletteValue ) );
-			Assert.assertEquals( 5f, paletteValue, 1e-4f );
+			final double paletteValue = f.getPaletteValueForRaw( raw );
+			Assert.assertFalse( "NaN at raw=" + raw, Double.isNaN( paletteValue ) );
+			Assert.assertEquals( 5.0, paletteValue, 1e-4 );
 		}
 	}
 

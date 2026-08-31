@@ -62,12 +62,12 @@ public class ContinuousColorScheme extends AbstractColorScheme
 	}
 
 	@Override
-	int colorAt( final float paletteValue )
+	int colorAt( final double paletteValue )
 	{
 		final int lastIndex = stops.length - 1;
-		final float clamped = Math.max( 0f, Math.min( ( float ) lastIndex, paletteValue ) );
+		final double clamped = Math.max( 0.0, Math.min( lastIndex, paletteValue ) );
 		final int index = Math.min( lastIndex - 1, ( int ) Math.floor( clamped ) );
-		final float frac = clamped - index;
+		final double frac = clamped - index;
 		return interpolateColor( stops[ index ], stops[ index + 1 ], frac );
 	}
 }

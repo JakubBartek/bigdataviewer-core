@@ -37,7 +37,10 @@ import bdv.tools.brightness.colorscheme.ColorScheme;
  * can depend on the mapping without the concrete composition.
  * <p>
  * This is the seam a renderer plugs into: it holds a {@code PaletteWrapper}
- * and calls {@link #getRGBForRaw(float)} per pixel (see {@code PaletteConverter}).
+ * and calls {@link #getRGBAForRaw(double)} per pixel (see {@code PaletteConverter}).
+ * Raw values travel as {@code double} the whole way: see
+ * {@link bdv.tools.brightness.presetfunc.PresetFunc#getPaletteValueForRaw(double)}
+ * for why nothing on this path may narrow to {@code float}.
  */
 public interface PaletteWrapper
 {
@@ -48,13 +51,13 @@ public interface PaletteWrapper
 	 * {@link #getColorScheme()} to get a color, or use the {@code *ForRaw}
 	 * shortcuts below.
 	 */
-	float getPaletteValueForRaw( float rawValue );
+	double getPaletteValueForRaw( double rawValue );
 
-	/** The color for a raw image value, fully opaque; see {@link ColorScheme#getRGB(float)}. */
-	int getRGBForRaw( float rawValue );
+	/** The color for a raw image value, fully opaque; see {@link ColorScheme#getRGB(double)}. */
+	int getRGBForRaw( double rawValue );
 
-	/** Like {@link #getRGBForRaw(float)}, but carrying the color stop's own alpha; see {@link ColorScheme#getRGBA(float)}. */
-	int getRGBAForRaw( float rawValue );
+	/** Like {@link #getRGBForRaw(double)}, but carrying the color stop's own alpha; see {@link ColorScheme#getRGBA(double)}. */
+	int getRGBAForRaw( double rawValue );
 
 	/** The color scheme a resolved palette value is finally looked up in. */
 	ColorScheme getColorScheme();

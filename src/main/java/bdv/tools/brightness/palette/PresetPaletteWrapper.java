@@ -45,7 +45,7 @@ import bdv.tools.brightness.presetfunc.PresetFunc;
  * -> ColorScheme -> RGB/RGBA}. A raw value strictly below
  * {@link PresetFunc#getMin()} or strictly above {@link PresetFunc#getMax()}
  * has its boundary condition applied first; a value inside the range goes
- * straight to {@link PresetFunc#getPaletteValueForRaw(float)}.
+ * straight to {@link PresetFunc#getPaletteValueForRaw(double)}.
  * <p>
  * Whether the palette value blends between stops or snaps to one is entirely
  * the {@link ColorScheme}'s call, not this wrapper's: with a
@@ -144,13 +144,13 @@ public class PresetPaletteWrapper implements PaletteWrapper
 		this.presetFunc = presetFunc;
 	}
 
-	/** Re-ranges the {@link #getPresetFunc()} over {@code [min, max]}, keeping its shape and palette-range length (see {@link PresetFunc#withRange(float, float)}). */
+	/** Re-ranges the {@link #getPresetFunc()} over {@code [min, max]}, keeping its shape and palette-range length (see {@link PresetFunc#withRange(double, double)}). */
 	@Override
 	public void setRawDomain( final double min, final double max )
 	{
 		if ( !( max > min ) )
 			throw new IllegalArgumentException( "max must be strictly greater than min, got min=" + min + ", max=" + max );
-		this.presetFunc = presetFunc.withRange( ( float ) min, ( float ) max );
+		this.presetFunc = presetFunc.withRange( min, max );
 	}
 
 	// -- boundary conditions -------------------------------------------------
@@ -214,11 +214,11 @@ public class PresetPaletteWrapper implements PaletteWrapper
 	 * {@link BoundaryCondition#SPECIAL} is a color-level override with no
 	 * palette-value counterpart (its color need not be in the palette at all),
 	 * so here it behaves like {@link BoundaryCondition#CLAMP}; the special
-	 * color itself is only observable through {@link #getRGBForRaw(float)}/
-	 * {@link #getRGBAForRaw(float)}.
+	 * color itself is only observable through {@link #getRGBForRaw(double)}/
+	 * {@link #getRGBAForRaw(double)}.
 	 */
 	@Override
-	public float getPaletteValueForRaw( final float rawValue )
+	public double getPaletteValueForRaw( final double rawValue )
 	{
 		final BoundaryCondition hit = boundaryHit( rawValue );
 		if ( hit == BoundaryCondition.CYCLE )
@@ -232,10 +232,10 @@ public class PresetPaletteWrapper implements PaletteWrapper
 	/**
 	 * The color for a raw image value, fully opaque: the {@link BoundaryCondition#SPECIAL}
 	 * color (forced opaque) if the value hit a SPECIAL boundary, otherwise
-	 * {@link #getPaletteValueForRaw(float)} looked up in {@link #getColorScheme()}.
+	 * {@link #getPaletteValueForRaw(double)} looked up in {@link #getColorScheme()}.
 	 */
 	@Override
-	public int getRGBForRaw( final float rawValue )
+	public int getRGBForRaw( final double rawValue )
 	{
 		final Integer special = specialColorForRaw( rawValue );
 		if ( special != null )
@@ -244,13 +244,13 @@ public class PresetPaletteWrapper implements PaletteWrapper
 	}
 
 	/**
-	 * Like {@link #getRGBForRaw(float)}, but carrying alpha instead of forcing
+	 * Like {@link #getRGBForRaw(double)}, but carrying alpha instead of forcing
 	 * full opacity -- both the color stop's own alpha and, crucially, a
 	 * transparent {@link BoundaryCondition#SPECIAL} color (see
-	 * {@link ColorScheme#getRGBA(float)}).
+	 * {@link ColorScheme#getRGBA(double)}).
 	 */
 	@Override
-	public int getRGBAForRaw( final float rawValue )
+	public int getRGBAForRaw( final double rawValue )
 	{
 		final Integer special = specialColorForRaw( rawValue );
 		if ( special != null )
@@ -259,7 +259,7 @@ public class PresetPaletteWrapper implements PaletteWrapper
 	}
 
 	/** Which boundary {@code rawValue} hits and with what condition, or {@code null} if it is inside the domain. */
-	private BoundaryCondition boundaryHit( final float rawValue )
+	private BoundaryCondition boundaryHit( final double rawValue )
 	{
 		if ( rawValue < presetFunc.getMin() )
 			return leftBoundaryCondition;
@@ -275,13 +275,13 @@ public class PresetPaletteWrapper implements PaletteWrapper
 	 * {@code [min, max)}: {@code max} represents the same point as {@code min}
 	 * (like 360{@code deg} and 0{@code deg} on a color wheel), so it must wrap
 	 * back to the first stop rather than resolve to the last one, matching
-	 * {@link #cycled(float)}'s own half-open target range. Otherwise (CLAMP or
+	 * {@link #cycled(double)}'s own half-open target range. Otherwise (CLAMP or
 	 * SPECIAL) the domain is closed: {@code presetFunc.getMax()} maps to
 	 * palette value {@code paletteRangeLength}, which the color scheme resolves
 	 * to its last stop (a continuous scheme's final stop, or a discrete scheme
 	 * flooring {@code N} back to stop {@code N - 1}), so it is still in-domain.
 	 */
-	private boolean isAboveDomain( final float rawValue )
+	private boolean isAboveDomain( final double rawValue )
 	{
 		return rightBoundaryCondition == BoundaryCondition.CYCLE
 				? rawValue >= presetFunc.getMax()
@@ -289,7 +289,7 @@ public class PresetPaletteWrapper implements PaletteWrapper
 	}
 
 	/** The SPECIAL color for {@code rawValue} if it hit a SPECIAL boundary, else {@code null} (so the palette-value path is used instead). */
-	private Integer specialColorForRaw( final float rawValue )
+	private Integer specialColorForRaw( final double rawValue )
 	{
 		if ( rawValue < presetFunc.getMin() && leftBoundaryCondition == BoundaryCondition.SPECIAL )
 			return leftSpecialColor;
@@ -307,11 +307,11 @@ public class PresetPaletteWrapper implements PaletteWrapper
 	 * the domain it was supposed to wrap into. {@link Math#floorMod(int, int)}
 	 * would be the ready-made equivalent, but it has no floating-point overload.
 	 */
-	private float cycled( final float rawValue )
+	private double cycled( final double rawValue )
 	{
-		final float domainMin = presetFunc.getMin();
-		final float period = presetFunc.getMax() - domainMin;
-		float offset = ( rawValue - domainMin ) % period;
+		final double domainMin = presetFunc.getMin();
+		final double period = presetFunc.getMax() - domainMin;
+		double offset = ( rawValue - domainMin ) % period;
 		if ( offset < 0 )
 			offset += period;
 		return domainMin + offset;

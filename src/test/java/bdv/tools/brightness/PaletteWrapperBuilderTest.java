@@ -168,7 +168,7 @@ public class PaletteWrapperBuilderTest
 		plain.setStepSize( 1.0 );
 		final PaletteWrapper plainWrapper = PaletteWrapperBuilder.build( threeStopPalette(), plain, 0, 6 );
 
-		for ( final float raw : new float[] { 0.5f, 1.5f, 2.5f, 3.5f, 4.5f, 5.5f } )
+		for ( final double raw : new double[] { 0.5, 1.5, 2.5, 3.5, 4.5, 5.5 } )
 			Assert.assertEquals( "raw " + raw, plainWrapper.getRGBForRaw( raw ), bentWrapper.getRGBForRaw( raw ) );
 	}
 

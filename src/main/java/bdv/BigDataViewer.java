@@ -252,7 +252,7 @@ public class BigDataViewer
 	{
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( Palette.of( new ColorTable8() ) );
 		final double hi = max > min ? max : min + 1;
-		final LinearPresetFunc preset = new LinearPresetFunc( ( float ) min, ( float ) hi, scheme.getPaletteRangeLength() );
+		final LinearPresetFunc preset = new LinearPresetFunc( min, hi, scheme.getPaletteRangeLength() );
 		return new PaletteConverter<>( new PresetPaletteWrapper( scheme, preset ), min, max );
 	}
 

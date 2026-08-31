@@ -138,6 +138,127 @@ public class StepPresetFuncTest
 			Assert.assertEquals( "raw value " + r, expectedStop[ r ], ( int ) Math.floor( f.getPaletteValueForRaw( r ) ) );
 	}
 
+	/**
+	 * Regression: a raw value sitting exactly on a color-stop boundary must
+	 * begin the next pass through the palette, not finish the previous one.
+	 * With 3 stops over [0, 11] at one raw unit per stop the palette wraps every
+	 * 3 raw units, so raw 3, 6 and 9 each start a fresh pass -- but computing
+	 * the position as {@code t * periods} multiplied two separately-rounded
+	 * halves of {@code (max - min)} back together, and the roundings did not
+	 * cancel: the result came out a hair short of the wrap and so returned
+	 * {@code paletteRangeLength}, which a discrete scheme resolves to the
+	 * <em>last</em> stop, where 0 (the first) was due. Under
+	 * {@code BoundaryCondition.CYCLE} that reads as the last color twice in a
+	 * row instead of last-then-first. Whether it happened depended on the exact
+	 * domain length, which is why [0, 10] (the case above) is unaffected while
+	 * [0, 11] is not.
+	 */
+	@Test
+	public void testExactStopBoundariesBeginTheNextPass()
+	{
+		final StepPresetFunc f = new StepPresetFunc( 0f, 11f, 3, 1.0 );
+
+		// Exactly 0, not "almost 3": no tolerance, that is the whole point.
+		Assert.assertEquals( 0f, f.getPaletteValueForRaw( 3f ), 0f );
+		Assert.assertEquals( 0f, f.getPaletteValueForRaw( 6f ), 0f );
+		Assert.assertEquals( 0f, f.getPaletteValueForRaw( 9f ), 0f );
+
+		// ...and across the whole domain one raw unit is still one stop.
+		for ( int r = 0; r <= 11; r++ )
+			Assert.assertEquals( "raw value " + r, r % 3, ( int ) Math.floor( f.getPaletteValueForRaw( r ) ) );
+	}
+
+	// -- properties ----------------------------------------------------------
+	//
+	// The three regressions above were all found by picking a domain length by
+	// hand and noticing the colors were wrong -- [0, 10] happens to be fine,
+	// [0, 11] is not, and nothing about either says which. The tests below stop
+	// guessing and state the property instead, then check it over every domain
+	// length in a range. They are what would have caught all three before they
+	// shipped.
+
+	/**
+	 * The property behind every repeated-color bug found here so far: with one
+	 * raw unit per stop, consecutive integer raw values must land on
+	 * consecutive stops, wrapping cleanly back to the first, for
+	 * <em>every</em> domain length -- not just the ones someone thought to
+	 * write a test for.
+	 */
+	@Test
+	public void testOneRawUnitPerStopAdvancesOneStopForEveryDomainLength()
+	{
+		for ( int stops = 2; stops <= 8; stops++ )
+			for ( int max = 2; max <= 120; max++ )
+			{
+				final StepPresetFunc f = new StepPresetFunc( 0, max, stops, 1.0 );
+				// The very top of the domain is excluded when the palette does
+				// not repeat across it: a single pass is defined to END on the
+				// last stop rather than wrap past it onto the first (see
+				// testDefaultStepSizeSpreadsThePaletteOnce). Wherever it does
+				// repeat, max is just another stop boundary and is included.
+				final int highestWrappingRaw = f.getPeriods() > 1.0 ? max : max - 1;
+				for ( int raw = 0; raw <= highestWrappingRaw; raw++ )
+					Assert.assertEquals( "stops=" + stops + " domain=[0," + max + "] raw=" + raw,
+							raw % stops, ( int ) Math.floor( f.getPaletteValueForRaw( raw ) ) );
+			}
+	}
+
+	/**
+	 * The same property where the arithmetic cannot be exact: a step size that
+	 * is not a dyadic fraction, and a domain far from the origin so that
+	 * subtracting {@code min} cancels the low bits of the raw value away. A raw
+	 * value sitting on stop boundary {@code k} must still resolve to stop
+	 * {@code k % stops} -- these are the cases whose error is thousands of ULPs
+	 * of the quotient, and they are exactly the ones a tolerance measured in
+	 * ULPs of the quotient would miss (see
+	 * {@link StepPresetFunc#paletteValueForClampedRaw(double)}).
+	 */
+	@Test
+	public void testStopBoundariesResolveExactlyForNonDyadicStepSizesFarFromTheOrigin()
+	{
+		final double[] awkwardStepSizes = { 0.3, 1.0 / 3.0, 0.7, 1.1, 7.7, 0.123456789, Math.PI };
+		final double[] awkwardOrigins = { 4610.39727228942, -8123.7, 0.1, -0.3, 65535.5 };
+
+		for ( int stops = 2; stops <= 6; stops++ )
+			for ( final double stepSize : awkwardStepSizes )
+				for ( final double min : awkwardOrigins )
+				{
+					final int lastStop = 200;
+					final StepPresetFunc f = new StepPresetFunc( min, min + lastStop * stepSize, stops, stepSize );
+					for ( int k = 0; k < lastStop; k++ )
+						Assert.assertEquals( "stops=" + stops + " step=" + stepSize + " min=" + min + " boundary=" + k,
+								k % stops, ( int ) Math.floor( f.getPaletteValueForRaw( min + k * stepSize ) ) );
+				}
+	}
+
+	/**
+	 * The default step size means "one pass across the domain", so
+	 * {@link StepPresetFunc#getMax()} must reach the <em>last</em> stop -- for
+	 * every stop count and display range, not just the ones where
+	 * {@code (max - min) / stops * stops} happens to come back to
+	 * {@code max - min} exactly. Before the periods snap this failed for 580 of
+	 * 7176 sampled pairs, sending the top of the display range to the first
+	 * color instead of the last.
+	 */
+	@Test
+	public void testDefaultStepSizeAlwaysReachesTheLastStop()
+	{
+		final double[] ranges = { 1, 37, 255, 1000, 4095, 65535, 65536, 1e6 };
+		for ( int stops = 2; stops <= 300; stops++ )
+			for ( final double min : new double[] { 0, 1, -1000, 12.5 } )
+				for ( final double span : ranges )
+				{
+					final double max = min + span;
+					final StepPresetFunc f = new StepPresetFunc( min, max, stops, StepPresetFunc.defaultStepSize( min, max, stops ) );
+					Assert.assertEquals( "stops=" + stops + " domain=[" + min + "," + max + "] periods",
+							1.0, f.getPeriods(), 0.0 );
+					Assert.assertEquals( "stops=" + stops + " domain=[" + min + "," + max + "] at max",
+							stops - 1, Math.min( stops - 1, ( int ) Math.floor( f.getPaletteValueForRaw( max ) ) ) );
+					Assert.assertTrue( "stops=" + stops + " domain=[" + min + "," + max + "] at max must not wrap to 0",
+							f.getPaletteValueForRaw( max ) > stops - 1 );
+				}
+	}
+
 	@Test
 	public void testRejectsNonPositiveStepSize()
 	{

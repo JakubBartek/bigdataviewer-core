@@ -52,13 +52,24 @@ import java.util.function.DoubleUnaryOperator;
  */
 abstract class AbstractPresetFunc implements PresetFunc
 {
-	private final float min;
+	/**
+	 * How many ULPs either side of a whole number still counts as that whole
+	 * number, for {@link #snappedToWhole(double)} and as the unit callers scale
+	 * when they pass their own tolerance. Measured, not guessed: a quantity
+	 * whose exact value is whole was never seen further than 2 ULPs from it once
+	 * the tolerance is expressed in the right units, so 4 leaves a factor of two
+	 * of headroom, while the distinction it must never blur -- neighbouring
+	 * color stops -- is a whole 1.0 away.
+	 */
+	static final int SNAP_ULPS = 4;
 
-	private final float max;
+	private final double min;
+
+	private final double max;
 
 	private final int paletteRangeLength;
 
-	AbstractPresetFunc( final float min, final float max, final int paletteRangeLength )
+	AbstractPresetFunc( final double min, final double max, final int paletteRangeLength )
 	{
 		if ( !( max > min ) )
 			throw new IllegalArgumentException( "max must be strictly greater than min, got min=" + min + ", max=" + max );
@@ -71,13 +82,13 @@ abstract class AbstractPresetFunc implements PresetFunc
 	}
 
 	@Override
-	public final float getMin()
+	public final double getMin()
 	{
 		return min;
 	}
 
 	@Override
-	public final float getMax()
+	public final double getMax()
 	{
 		return max;
 	}
@@ -89,23 +100,43 @@ abstract class AbstractPresetFunc implements PresetFunc
 	}
 
 	@Override
-	public final float getPaletteValueForRaw( final float rawValue )
+	public final double getPaletteValueForRaw( final double rawValue )
 	{
-		// Computed in double, not float: narrowing t to float here loses enough
-		// precision (e.g. 0.7f is actually 0.69999998807907104...) that
-		// StepPresetFunc's periods multiplication can push an exact color-stop
-		// boundary a hair below its integer value, so DiscreteColorScheme floors
-		// it onto the previous stop instead -- the same stop showing twice in a
-		// row where the palette should have advanced.
-		final double t = ( ( double ) rawValue - min ) / ( max - min );
-		final double clampedT = Math.max( 0.0, Math.min( 1.0, t ) );
-		return ( float ) ( shape( clampedT ) * paletteRangeLength );
+		// Clamped in raw units rather than after normalizing, and never narrowed
+		// to float on the way through: a float carries about 7 digits, which is
+		// not enough to keep a color-stop boundary on its integer (0.7f is
+		// really 0.69999998807907104...), and DiscreteColorScheme floors what it
+		// is given, so a boundary that lands a hair low picks the stop before it.
+		final double clampedRaw = Math.max( min, Math.min( max, rawValue ) );
+		return paletteValueForClampedRaw( clampedRaw );
+	}
+
+	/**
+	 * The palette value for a raw value already clamped into
+	 * {@code [getMin(), getMax()]}. By default the raw value is normalized to
+	 * {@code t} in {@code [0, 1]}, handed to {@link #shape(double)}, and scaled
+	 * up by {@link #getPaletteRangeLength()} -- all a shape defined as a curve
+	 * over {@code [0, 1]} can do.
+	 * <p>
+	 * The seam exists for {@link StepPresetFunc}, the one shape here defined in
+	 * raw units rather than by a fixed constant. That route is lossy for it
+	 * twice over: normalizing by {@code (max - min)} only to multiply a
+	 * separately-rounded {@code (max - min)} back in, and dividing by the
+	 * palette range length only to multiply it back out. Neither round trip
+	 * cancels, and a stop boundary that is algebraically a whole number arrives
+	 * a hair off it -- which is the whole ballgame for a value about to be
+	 * floored to a stop. It computes the palette value from {@code clampedRaw}
+	 * directly instead, in the units the boundaries are actually whole in.
+	 */
+	double paletteValueForClampedRaw( final double clampedRaw )
+	{
+		return shape( ( clampedRaw - min ) / ( max - min ) ) * paletteRangeLength;
 	}
 
 	/**
 	 * The normalized curve shape, {@code t} in {@code [0, 1]}, returning a
 	 * value in {@code [0, 1]}. {@code t} is already clamped into {@code [0, 1]}
-	 * by {@link #getPaletteValueForRaw(float)} before this is called.
+	 * by {@link #getPaletteValueForRaw(double)} before this is called.
 	 * <p>
 	 * The fixed shapes additionally guarantee {@code shape(0) == 0} and
 	 * {@code shape(1) == 1} (several of them via {@link #normalized(double, DoubleUnaryOperator)});
@@ -113,6 +144,39 @@ abstract class AbstractPresetFunc implements PresetFunc
 	 * whatever the user's knots say -- see its javadoc.
 	 */
 	abstract double shape( double t );
+
+	/**
+	 * {@code x} snapped to the nearest whole number when it is within
+	 * {@code tolerance} of one; {@code x} unchanged otherwise.
+	 * <p>
+	 * For a quantity that is algebraically a whole number -- how many stops into
+	 * the palette a raw value sits, how many passes fit across the domain -- and
+	 * is then floored or compared against an integer, arriving a hair short is
+	 * the difference between the right color stop and its neighbour. No amount
+	 * of care in the arithmetic removes that: the inputs (a raw pixel value, a
+	 * dragged display range, a typed step size) are inexact before this code
+	 * ever runs, so a quantity derived from them can only land <em>near</em> the
+	 * whole number it means. This makes the tolerance that discretizing needs
+	 * explicit, at the sites that actually make a discrete decision, instead of
+	 * leaving it to whatever a narrowing to {@code float} happened to round away.
+	 * <p>
+	 * {@code tolerance} is a parameter rather than a constant because the right
+	 * budget depends on how {@code x} was derived, and can be far larger than
+	 * {@code x}'s own ULPs: a quotient whose numerator came from a cancelling
+	 * subtraction inherits the numerator's absolute error, not its own relative
+	 * one. See {@link StepPresetFunc#paletteValueForClampedRaw(double)}.
+	 */
+	static double snappedToWhole( final double x, final double tolerance )
+	{
+		final double whole = Math.rint( x );
+		return Math.abs( x - whole ) <= tolerance ? whole : x;
+	}
+
+	/** {@link #snappedToWhole(double, double)} with the default budget of {@link #SNAP_ULPS} ULPs of {@code x} itself -- right only when {@code x} was not derived through a cancelling subtraction. */
+	static double snappedToWhole( final double x )
+	{
+		return snappedToWhole( x, SNAP_ULPS * Math.ulp( x ) );
+	}
 
 	/**
 	 * Rescales {@code f} so that {@code f(0) -> 0} and {@code f(1) -> 1} --

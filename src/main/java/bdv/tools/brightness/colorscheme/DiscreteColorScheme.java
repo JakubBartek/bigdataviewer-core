@@ -60,7 +60,7 @@ public class DiscreteColorScheme extends AbstractColorScheme
 	}
 
 	@Override
-	int colorAt( final float paletteValue )
+	int colorAt( final double paletteValue )
 	{
 		final int lastIndex = stops.length - 1;
 		final int index = Math.max( 0, Math.min( lastIndex, ( int ) Math.floor( paletteValue ) ) );

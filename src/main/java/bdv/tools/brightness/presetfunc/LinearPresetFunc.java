@@ -30,7 +30,7 @@ package bdv.tools.brightness.presetfunc;
 /** The identity shape: palette value proportional to raw value. */
 public class LinearPresetFunc extends AbstractPresetFunc
 {
-	public LinearPresetFunc( final float min, final float max, final int paletteRangeLength )
+	public LinearPresetFunc( final double min, final double max, final int paletteRangeLength )
 	{
 		super( min, max, paletteRangeLength );
 	}
@@ -42,7 +42,7 @@ public class LinearPresetFunc extends AbstractPresetFunc
 	}
 
 	@Override
-	public LinearPresetFunc withRange( final float min, final float max )
+	public LinearPresetFunc withRange( final double min, final double max )
 	{
 		return new LinearPresetFunc( min, max, getPaletteRangeLength() );
 	}

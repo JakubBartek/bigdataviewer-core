@@ -36,7 +36,7 @@ public class TanPresetFunc extends AbstractPresetFunc
 {
 	private static final double K = 1.4;
 
-	public TanPresetFunc( final float min, final float max, final int paletteRangeLength )
+	public TanPresetFunc( final double min, final double max, final int paletteRangeLength )
 	{
 		super( min, max, paletteRangeLength );
 	}
@@ -48,7 +48,7 @@ public class TanPresetFunc extends AbstractPresetFunc
 	}
 
 	@Override
-	public TanPresetFunc withRange( final float min, final float max )
+	public TanPresetFunc withRange( final double min, final double max )
 	{
 		return new TanPresetFunc( min, max, getPaletteRangeLength() );
 	}

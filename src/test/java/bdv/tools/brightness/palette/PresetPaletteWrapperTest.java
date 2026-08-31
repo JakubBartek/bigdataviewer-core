@@ -34,6 +34,7 @@ import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import bdv.tools.brightness.presetfunc.PresetFunc;
+import bdv.tools.brightness.presetfunc.StepPresetFunc;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
@@ -145,7 +146,7 @@ public class PresetPaletteWrapperTest
 		final ContinuousColorScheme scheme = continuousThreeStops();
 		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, new LinearPresetFunc( 0f, 2f, 2 ) );
 
-		for ( final float raw : new float[] { -1f, 0f, 0.5f, 1f, 1.5f, 2f, 3f } )
+		for ( final double raw : new double[] { -1, 0, 0.5, 1, 1.5, 2, 3 } )
 			Assert.assertEquals( scheme.getRGB( wrapper.getPaletteValueForRaw( raw ) ), wrapper.getRGBForRaw( raw ) );
 	}
 
@@ -287,6 +288,44 @@ public class PresetPaletteWrapperTest
 		}
 		catch ( final IllegalArgumentException expected )
 		{
+		}
+	}
+
+	/**
+	 * The property behind the bug this composition was actually reported for:
+	 * with a categorical palette, one raw unit per color and
+	 * {@link BoundaryCondition#CYCLE} on both ends, sweeping the raw range must
+	 * cycle through the colors one at a time and never show the same color
+	 * twice in a row. Checked for every domain length in a range rather than a
+	 * chosen one, because whether it held depended on the domain length in a way
+	 * nobody can eyeball: {@code [0, 10]} was fine and {@code [0, 11]} showed
+	 * the last color twice.
+	 * <p>
+	 * {@code max} itself is excluded: under CYCLE it is defined as the same
+	 * point as {@code min} (like 360 and 0 degrees), so it wraps rather than
+	 * stepping -- see {@link #testCycleWrapsExactlyAtTheDomainMaximum}.
+	 */
+	@Test
+	public void testCyclingAStepPaletteNeverRepeatsAColor()
+	{
+		for ( int stops = 2; stops <= 8; stops++ )
+		{
+			final int[] argb = new int[ stops ];
+			for ( int i = 0; i < stops; i++ )
+				argb[ i ] = ARGBType.rgba( i, 2 * i, 3 * i, 255 );
+			final DiscreteColorScheme scheme = new DiscreteColorScheme( argb );
+
+			for ( int min = -20; min <= 5; min += 5 )
+				for ( int max = min + 2; max <= min + 90; max++ )
+				{
+					final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme,
+							new StepPresetFunc( min, max, stops, 1.0 ),
+							BoundaryCondition.CYCLE, BoundaryCondition.CYCLE );
+
+					for ( int raw = min; raw < max; raw++ )
+						Assert.assertEquals( "stops=" + stops + " domain=[" + min + "," + max + "] raw=" + raw,
+								argb[ ( raw - min ) % stops ], wrapper.getRGBAForRaw( raw ) );
+				}
 		}
 	}
 

@@ -117,13 +117,13 @@ public enum PresetShape
 	/** This preset's shape, sampled into {@link #NUM_POINTS} knots over a normalized [0, 1] domain and palette range. */
 	private CustomInterpPresetFunc sample()
 	{
-		final PresetFunc shape = factory.create( 0f, 1f, 1 );
+		final PresetFunc shape = factory.create( 0.0, 1.0, 1 );
 		return CustomInterpPresetFunc.sampled( shape, NUM_POINTS );
 	}
 
 	@FunctionalInterface
 	private interface PresetFuncFactory
 	{
-		PresetFunc create( float min, float max, int paletteRangeLength );
+		PresetFunc create( double min, double max, int paletteRangeLength );
 	}
 }

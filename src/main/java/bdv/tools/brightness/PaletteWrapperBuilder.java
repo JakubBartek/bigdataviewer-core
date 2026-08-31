@@ -80,8 +80,8 @@ public final class PaletteWrapperBuilder
 				? new DiscreteColorScheme( palette )
 				: new ContinuousColorScheme( palette );
 
-		final float lo = ( float ) min;
-		final float hi = ( float ) ( max > min ? max : min + 1 ); // both preset functions require max > min
+		final double lo = min;
+		final double hi = max > min ? max : min + 1; // both preset functions require max > min
 		final PresetFunc presetFunc = mapping.isDiscrete()
 				? stepFunc( mapping, scheme, lo, hi )
 				: curveFunc( mapping, scheme, lo, hi );
@@ -99,7 +99,7 @@ public final class PaletteWrapperBuilder
 	 * {@link LutEditorMapping#AUTO_STEP_SIZE} against the range and stop count
 	 * the model deliberately does not know about.
 	 */
-	private static PresetFunc stepFunc( final LutEditorMapping mapping, final ColorScheme scheme, final float lo, final float hi )
+	private static PresetFunc stepFunc( final LutEditorMapping mapping, final ColorScheme scheme, final double lo, final double hi )
 	{
 		final int paletteRangeLength = scheme.getPaletteRangeLength();
 		final double chosen = mapping.getStepSize();
@@ -108,7 +108,7 @@ public final class PaletteWrapperBuilder
 	}
 
 	/** The continuous palette's shape: the editor's curve, knot for knot. */
-	private static PresetFunc curveFunc( final LutEditorMapping mapping, final ColorScheme scheme, final float lo, final float hi )
+	private static PresetFunc curveFunc( final LutEditorMapping mapping, final ColorScheme scheme, final double lo, final double hi )
 	{
 		final CustomInterpPresetFunc curve = new CustomInterpPresetFunc( lo, hi, scheme.getPaletteRangeLength() );
 		final Knots knots = sanitizedKnots( mapping );

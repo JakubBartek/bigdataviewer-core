@@ -57,7 +57,7 @@ public class LinearPresetFuncTest
 	public void testUnitRangeIsExactlyTheIdentity()
 	{
 		final LinearPresetFunc f = new LinearPresetFunc( 0f, 1f, 1 );
-		for ( float raw = 0f; raw <= 1f; raw += 0.1f )
+		for ( double raw = 0.0; raw <= 1.0; raw += 0.1 )
 			Assert.assertEquals( raw, f.getPaletteValueForRaw( raw ), 1e-5f );
 	}
 }

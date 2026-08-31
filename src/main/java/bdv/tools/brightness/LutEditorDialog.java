@@ -895,8 +895,8 @@ public class LutEditorDialog extends JDialog
 		final double chosen = mappingModel.getStepSize();
 		if ( chosen > 0.0 )
 			return chosen;
-		final float lo = ( float ) editedRangeMin;
-		final float hi = ( float ) ( editedRangeMax > editedRangeMin ? editedRangeMax : editedRangeMin + 1 );
+		final double lo = editedRangeMin;
+		final double hi = editedRangeMax > editedRangeMin ? editedRangeMax : editedRangeMin + 1;
 		return StepPresetFunc.defaultStepSize( lo, hi, new DiscreteColorScheme( currentPalette ).getPaletteRangeLength() );
 	}
 
@@ -1315,7 +1315,7 @@ public class LutEditorDialog extends JDialog
 				for ( int i = 0; i < w; i++ )
 				{
 					final double t = w > 1 ? i / ( double ) ( w - 1 ) : 0.0;
-					g.setColor( new Color( scheme.getRGB( ( float ) ( t * paletteRangeLength ) ) ) );
+					g.setColor( new Color( scheme.getRGB( t * paletteRangeLength ) ) );
 					g.fillRect( i, 0, 1, h );
 				}
 			}

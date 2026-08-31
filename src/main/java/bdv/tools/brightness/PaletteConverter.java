@@ -89,7 +89,14 @@ public class PaletteConverter< R extends RealType< R > > extends AbstractLinearR
 		// getRGBAForRaw, not getRGBForRaw, so a color stop's own alpha and a
 		// transparent SPECIAL-boundary (background) color both survive to the
 		// display -- matching how the old ColorTable path carried alpha.
-		output.set( wrapper.getRGBAForRaw( ( float ) input.getRealDouble() ) );
+		//
+		// The sample is handed over as the double it already is: narrowing to
+		// float here would silently merge label ids above 2^24 (float cannot
+		// represent consecutive integers past 16,777,216, so half of every
+		// million ids above it collide with their neighbour), rendering two
+		// distinct labels in one color with nothing downstream able to tell
+		// them apart again.
+		output.set( wrapper.getRGBAForRaw( input.getRealDouble() ) );
 	}
 
 	@Override
