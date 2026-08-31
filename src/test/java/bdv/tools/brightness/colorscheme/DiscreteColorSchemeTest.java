@@ -31,7 +31,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import bdv.tools.brightness.LutPalettes;
-import net.imglib2.display.ColorTable;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
@@ -136,26 +135,21 @@ public class DiscreteColorSchemeTest
 	/**
 	 * Reuses an actual bundled palette (see {@code bdv.tools.brightness.LutPalettes})
 	 * instead of a hand-built stop array, exercising the
-	 * {@link DiscreteColorScheme#DiscreteColorScheme(ColorTable)} constructor.
+	 * {@link DiscreteColorScheme#DiscreteColorScheme(Palette)} constructor.
 	 * tab10 is a real 10-color qualitative palette -- a natural fit for a
 	 * discrete scheme.
 	 */
 	@Test
-	public void testConstructFromExistingColorTablePalette()
+	public void testConstructFromExistingPalette()
 	{
-		final ColorTable tab10 = LutPalettes.load( "tab10" );
+		final Palette tab10 = LutPalettes.load( "tab10" );
 		Assert.assertNotNull( tab10 );
 
 		final DiscreteColorScheme scheme = new DiscreteColorScheme( tab10 );
 
 		Assert.assertEquals( tab10.getLength(), scheme.getPaletteRangeLength() );
 		for ( int i = 0; i < tab10.getLength(); i++ )
-		{
-			final int expected = ARGBType.rgba(
-					tab10.get( ColorTable.RED, i ), tab10.get( ColorTable.GREEN, i ),
-					tab10.get( ColorTable.BLUE, i ), tab10.get( ColorTable.ALPHA, i ) );
 			// Anywhere within stop i's unit slot must reproduce that stop exactly.
-			Assert.assertEquals( "stop " + i, expected, scheme.getRGBA( i + 0.5f ) );
-		}
+			Assert.assertEquals( "stop " + i, tab10.getStop( i ), scheme.getRGBA( i + 0.5f ) );
 	}
 }

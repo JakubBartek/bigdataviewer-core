@@ -50,7 +50,8 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import net.imglib2.display.ColorTable;
+import bdv.tools.brightness.colorscheme.Palette;
+import net.imglib2.type.numeric.ARGBType;
 
 /**
  * Discovers and loads the built-in LUT (color palette) resources. This is the
@@ -61,11 +62,11 @@ import net.imglib2.display.ColorTable;
  * A LUT resource is a JSON file with a {@code fixes_RGBA} array of
  * {@code [red, green, blue, alpha]} components (all in [0, 1]), one per
  * color, in order -- a color's index is simply its position in the array, so
- * colors are always evenly spaced (see {@link ColorTableLut}). The number of
+ * colors are always evenly spaced (see {@link Palette}). The number of
  * colors is arbitrary (not tied to 256); colors between them are obtained by
  * linear interpolation. A top-level {@code color_interpolation} boolean declares whether the
  * palette is meant to be smoothly interpolated or used as discrete colors
- * (see {@link ColorTableLut#isInterpolated()}, set on the {@link ColorTable}
+ * (see {@link Palette#isInterpolated()}, set on the {@link Palette}
  * returned by {@link #load(String)}).
  */
 public final class LutPalettes
@@ -126,16 +127,16 @@ public final class LutPalettes
 	}
 
 	/**
-	 * Load the named LUT resource as a {@link ColorTable}, or {@code null} if
-	 * it cannot be found or parsed. The returned table's
-	 * {@link ColorTableLut#isInterpolated()} reflects the resource's
+	 * Load the named LUT resource as a {@link Palette}, or {@code null} if
+	 * it cannot be found or parsed. The returned palette's
+	 * {@link Palette#isInterpolated()} reflects the resource's
 	 * {@code color_interpolation} field (defaulting to {@code true} if the
 	 * resource does not declare it).
 	 *
 	 * @param name
 	 * 		a name as returned by {@link #discoverNames()}.
 	 */
-	public static ColorTable load( final String name )
+	public static Palette load( final String name )
 	{
 		final JsonObject root = readRoot( name );
 		if ( root == null )
@@ -148,73 +149,66 @@ public final class LutPalettes
 		if ( n < 2 )
 			return null;
 
-		final double[] positions = new double[ n ];
-		final double[] red = new double[ n ];
-		final double[] green = new double[ n ];
-		final double[] blue = new double[ n ];
-		final double[] alpha = new double[ n ];
+		final int[] stops = new int[ n ];
 		for ( int i = 0; i < n; i++ )
 		{
 			final JsonArray rgba = colors.get( i ).getAsJsonArray();
-			positions[ i ] = i / ( double ) ( n - 1 );
-			red[ i ] = rgba.get( 0 ).getAsDouble();
-			green[ i ] = rgba.get( 1 ).getAsDouble();
-			blue[ i ] = rgba.get( 2 ).getAsDouble();
-			alpha[ i ] = rgba.get( 3 ).getAsDouble();
+			stops[ i ] = ARGBType.rgba(
+					to8( rgba.get( 0 ).getAsDouble() ),
+					to8( rgba.get( 1 ).getAsDouble() ),
+					to8( rgba.get( 2 ).getAsDouble() ),
+					to8( rgba.get( 3 ).getAsDouble() ) );
 		}
 		final boolean interpolated = !root.has( "color_interpolation" ) || root.get( "color_interpolation" ).getAsBoolean();
-		return new ColorTableLut( positions, red, green, blue, alpha, interpolated );
+		return new Palette( stops, interpolated );
+	}
+
+	/** A [0, 1] color component as an 8-bit channel value. */
+	private static int to8( final double v )
+	{
+		return Math.max( 0, Math.min( 255, ( int ) Math.round( v * 255.0 ) ) );
 	}
 
 	/**
 	 * Reverse of {@link #load(String)}: the name of the discovered LUT
-	 * resource whose colors exactly match {@code ct}, or {@code null} if none
-	 * do (e.g. {@code ct} isn't one of these resources at all, such as
-	 * {@link ColorTableLut#DEFAULT} or a palette set up some other way).
-	 * Used to recover a display name for a bare {@link ColorTable} read back
+	 * resource whose colors exactly match {@code palette}, or {@code null} if
+	 * none do (e.g. {@code palette} isn't one of these resources at all, such
+	 * as {@link Palette#DEFAULT} or a palette set up some other way).
+	 * Used to recover a display name for a bare {@link Palette} read back
 	 * from a converter, which doesn't otherwise remember which resource (if
 	 * any) it was originally loaded from.
 	 */
-	public static synchronized String findName( final ColorTable ct )
+	public static synchronized String findName( final Palette palette )
 	{
-		if ( !( ct instanceof ColorTableLut ) )
+		if ( palette == null )
 			return null;
-		final ColorTableLut lut = ( ColorTableLut ) ct;
-		for ( final Map.Entry< String, ColorTable > candidate : cachedPalettes().entrySet() )
-		{
-			// getLength() is just an array length, so checking it first skips
-			// the full component-by-component comparison for all but the few
-			// bundled palettes that happen to have the same color count.
-			final ColorTable table = candidate.getValue();
-			if ( table.getLength() == lut.getLength() && lut.hasSameColors( table ) )
+		for ( final Map.Entry< String, Palette > candidate : cachedPalettes().entrySet() )
+			if ( palette.equals( candidate.getValue() ) )
 				return candidate.getKey();
-		}
 		return null;
 	}
 
 	/**
 	 * Every bundled palette, parsed once and kept for the life of the
 	 * process. Only {@link #findName} uses this: it would otherwise re-read
-	 * and re-parse all ~40 resources on every call, and it is called on the
+	 * and re-parse all ~90 resources on every call, and it is called on the
 	 * EDT each time the LUT editor's selected source changes.
 	 * <p>
-	 * Deliberately not shared with {@link #load(String)}, which keeps
-	 * returning an independent instance per call -- these tables are handed
-	 * out to converters that may hold them indefinitely, so a single shared
-	 * instance per name would silently alias unrelated sources together.
-	 * (Safe to cache here regardless, since the bundled resources cannot
-	 * change while the process runs.)
+	 * Safe to cache, since the bundled resources cannot change while the
+	 * process runs and a {@link Palette} is immutable -- so, unlike the
+	 * mutable-in-principle {@code ColorTable} this used to hand out, sharing
+	 * one instance between callers cannot alias unrelated sources together.
 	 */
-	private static Map< String, ColorTable > cachedPalettes()
+	private static Map< String, Palette > cachedPalettes()
 	{
 		if ( cachedPalettes == null )
 		{
-			final Map< String, ColorTable > palettes = new LinkedHashMap<>();
+			final Map< String, Palette > palettes = new LinkedHashMap<>();
 			for ( final String name : discoverNames() )
 			{
-				final ColorTable ct = load( name );
-				if ( ct != null )
-					palettes.put( name, ct );
+				final Palette palette = load( name );
+				if ( palette != null )
+					palettes.put( name, palette );
 			}
 			cachedPalettes = palettes;
 		}
@@ -222,7 +216,7 @@ public final class LutPalettes
 	}
 
 	/** Guarded by {@code LutPalettes.class}, via {@link #findName}. */
-	private static Map< String, ColorTable > cachedPalettes = null;
+	private static Map< String, Palette > cachedPalettes = null;
 
 	/**
 	 * Read and parse the named LUT resource's root JSON object, or

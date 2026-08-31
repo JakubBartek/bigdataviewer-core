@@ -27,8 +27,6 @@
  */
 package bdv.tools.brightness.colorscheme;
 
-import net.imglib2.display.ColorTable;
-
 /**
  * A color scheme with {@code N} discrete color stops and no blending between
  * them -- suited to qualitative/categorical palettes (e.g. label ids), where
@@ -49,10 +47,10 @@ public class DiscreteColorScheme extends AbstractColorScheme
 		super( argbStops );
 	}
 
-	/** See {@link AbstractColorScheme#AbstractColorScheme(ColorTable)}. */
-	public DiscreteColorScheme( final ColorTable colorTable )
+	/** See {@link AbstractColorScheme#AbstractColorScheme(Palette)}. */
+	public DiscreteColorScheme( final Palette palette )
 	{
-		super( colorTable );
+		super( palette );
 	}
 
 	@Override

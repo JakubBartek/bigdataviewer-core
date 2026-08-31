@@ -97,6 +97,7 @@ import bdv.tools.brightness.PaletteConverter;
 import bdv.tools.brightness.RealARGBColorConverterSetup;
 import bdv.tools.brightness.SetupAssignments;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
+import bdv.tools.brightness.colorscheme.Palette;
 import bdv.tools.brightness.palette.PresetPaletteWrapper;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import bdv.tools.crop.CropDialog;
@@ -249,7 +250,7 @@ public class BigDataViewer
 	 */
 	private static < T extends RealType< T > > PaletteConverter< T > createPaletteConverter( final double min, final double max )
 	{
-		final ContinuousColorScheme scheme = new ContinuousColorScheme( new ColorTable8() );
+		final ContinuousColorScheme scheme = new ContinuousColorScheme( Palette.of( new ColorTable8() ) );
 		final double hi = max > min ? max : min + 1;
 		final LinearPresetFunc preset = new LinearPresetFunc( ( float ) min, ( float ) hi, scheme.getPaletteRangeLength() );
 		return new PaletteConverter<>( new PresetPaletteWrapper( scheme, preset ), min, max );

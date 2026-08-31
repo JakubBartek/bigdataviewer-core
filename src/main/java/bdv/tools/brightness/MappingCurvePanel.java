@@ -46,8 +46,8 @@ import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 
 import bdv.tools.brightness.colorscheme.ColorScheme;
+import bdv.tools.brightness.colorscheme.Palette;
 import bdv.tools.brightness.palette.PaletteWrapper;
-import net.imglib2.display.ColorTable;
 
 /**
  * Displays the mapping curve (input value -&gt; output value) as an
@@ -95,7 +95,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	private double rangeMax = 255;
 
-	private ColorTable palette = ColorTableLut.DEFAULT;
+	private Palette palette = Palette.DEFAULT;
 
 	private Integer draggedPoint = null;
 
@@ -232,9 +232,9 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 	/**
 	 * Set the color palette used to render the color bar.
 	 */
-	public void setPalette( final ColorTable palette )
+	public void setPalette( final Palette palette )
 	{
-		this.palette = palette == null ? ColorTableLut.DEFAULT : palette;
+		this.palette = palette == null ? Palette.DEFAULT : palette;
 		repaint();
 	}
 

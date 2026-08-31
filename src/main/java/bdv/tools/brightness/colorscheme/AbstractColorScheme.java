@@ -27,7 +27,6 @@
  */
 package bdv.tools.brightness.colorscheme;
 
-import net.imglib2.display.ColorTable;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
@@ -51,31 +50,14 @@ abstract class AbstractColorScheme implements ColorScheme
 	}
 
 	/**
-	 * Builds the color stops from an existing palette (see
-	 * {@code bdv.tools.brightness.LutPalettes}/{@code ColorTableLut}), one
-	 * stop per {@link ColorTable} entry, in order -- the reuse path so a
-	 * scheme can be built directly from whatever this project already loads
-	 * a palette into, without a separate "color list" format.
+	 * Builds the color stops from a {@link Palette}, one stop per palette stop,
+	 * in order. A palette's {@link Palette#isInterpolated()} is deliberately
+	 * not consulted: it is what picks <em>which</em> scheme to construct, not
+	 * something a scheme reinterprets once chosen.
 	 */
-	AbstractColorScheme( final ColorTable colorTable )
+	AbstractColorScheme( final Palette palette )
 	{
-		this( stopsOf( colorTable ) );
-	}
-
-	private static int[] stopsOf( final ColorTable colorTable )
-	{
-		final int n = colorTable.getLength();
-		// Some tables (e.g. the default grayscale ColorTable8) carry only RGB,
-		// with no ALPHA component; those stops are fully opaque.
-		final boolean hasAlpha = colorTable.getComponentCount() > ColorTable.ALPHA;
-		final int[] argb = new int[ n ];
-		for ( int i = 0; i < n; i++ )
-			argb[ i ] = ARGBType.rgba(
-					colorTable.get( ColorTable.RED, i ),
-					colorTable.get( ColorTable.GREEN, i ),
-					colorTable.get( ColorTable.BLUE, i ),
-					hasAlpha ? colorTable.get( ColorTable.ALPHA, i ) : 255 );
-		return argb;
+		this( palette.getStops() );
 	}
 
 	@Override

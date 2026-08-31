@@ -69,13 +69,13 @@ import javax.swing.border.EmptyBorder;
 import bdv.tools.brightness.colorscheme.ColorScheme;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
+import bdv.tools.brightness.colorscheme.Palette;
 import bdv.tools.brightness.palette.BoundaryCondition;
 import bdv.tools.brightness.palette.PaletteWrapper;
 import bdv.tools.brightness.presetfunc.StepPresetFunc;
 import bdv.viewer.ConverterSetups;
 import bdv.viewer.SourceAndConverter;
 import bdv.viewer.ViewerState;
-import net.imglib2.display.ColorTable;
 
 /**
  * A LUT editor dialog, laid out as three stacked panels:
@@ -134,7 +134,7 @@ public class LutEditorDialog extends JDialog
 	 * to {@link #activeLutConv} as they happen (see {@link #pushLiveEdits()}),
 	 * so they are visible in the viewer immediately, not just after "Apply".
 	 */
-	private ColorTable currentPalette = ColorTableLut.DEFAULT;
+	private Palette currentPalette = Palette.DEFAULT;
 
 	/** Name of {@link #currentPalette} in {@link #comboPalette}, or {@code null} if it doesn't (or isn't known to) correspond to one -- see {@link #loadIntoEditor}. */
 	private String currentPaletteName = null;
@@ -150,7 +150,7 @@ public class LutEditorDialog extends JDialog
 	private ConverterSetup activeSetup = null;
 
 	/**
-	 * The editor-facing configuration ({@link ColorTable} palette + editable
+	 * The editor-facing configuration ({@link Palette} + editable
 	 * {@link LutEditorMapping}) last pushed to each {@link PaletteConverter}, so
 	 * re-selecting a source can restore what the editor last showed for it.
 	 * <p>
@@ -167,11 +167,11 @@ public class LutEditorDialog extends JDialog
 	/** The editor-facing palette + mapping remembered per converter; see {@link #converterStates}. */
 	private static final class EditorState
 	{
-		final ColorTable palette;
+		final Palette palette;
 		final String paletteName;
 		final LutEditorMapping mapping;
 
-		EditorState( final ColorTable palette, final String paletteName, final LutEditorMapping mapping )
+		EditorState( final Palette palette, final String paletteName, final LutEditorMapping mapping )
 		{
 			this.palette = palette;
 			this.paletteName = paletteName;
@@ -184,7 +184,7 @@ public class LutEditorDialog extends JDialog
 	 * absent that, as loaded by {@link #onSourceChanged()}) -- what
 	 * {@link #revertLiveEdits()} restores unapplied live edits back to.
 	 */
-	private ColorTable baselinePalette = ColorTableLut.DEFAULT;
+	private Palette baselinePalette = Palette.DEFAULT;
 	private String baselinePaletteName = null;
 	private final LutEditorMapping baselineMapping = new LutEditorMapping();
 	private double baselineRangeMin = 0;
@@ -308,8 +308,7 @@ public class LutEditorDialog extends JDialog
 			return true;
 		if ( currentPaletteName != null || baselinePaletteName != null )
 			return Objects.equals( currentPaletteName, baselinePaletteName );
-		return currentPalette instanceof ColorTableLut
-				&& ( ( ColorTableLut ) currentPalette ).hasSameColors( baselinePalette );
+		return Objects.equals( currentPalette, baselinePalette );
 	}
 
 	/**
@@ -592,7 +591,7 @@ public class LutEditorDialog extends JDialog
 			if ( !( selected instanceof String ) )
 				return;
 			final String name = ( String ) selected;
-			final ColorTable ct = LutPalettes.load( name );
+			final Palette ct = LutPalettes.load( name );
 			if ( ct == null )
 			{
 				labelStatus.setText( "Failed to load LUT: " + name );
@@ -611,7 +610,7 @@ public class LutEditorDialog extends JDialog
 			// Truncate is the closest match to how such palettes are
 			// typically read (each raw value holds the color of the control
 			// point at or before it).
-			mappingModel.setDiscrete( !ColorTableLut.isInterpolated( ct ) );
+			mappingModel.setDiscrete( !ct.isInterpolated() );
 			updateShapeControls();
 		} );
 
@@ -761,7 +760,7 @@ public class LutEditorDialog extends JDialog
 		// editor last pushed for this converter instead (see converterStates),
 		// falling back to a neutral default for one set up outside this dialog.
 		final EditorState state = converterStates.get( lutConv );
-		final ColorTable palette = state != null ? state.palette : ColorTableLut.DEFAULT;
+		final Palette palette = state != null ? state.palette : Palette.DEFAULT;
 		final String paletteName = state != null ? state.paletteName : LutPalettes.findName( palette );
 		final LutEditorMapping loaded = state != null ? state.mapping : defaultMapping();
 
@@ -782,7 +781,7 @@ public class LutEditorDialog extends JDialog
 	 */
 	private void resetEditorToDefaults()
 	{
-		loadIntoEditor( ColorTableLut.DEFAULT, null, defaultMapping(), 0, 255 );
+		loadIntoEditor( Palette.DEFAULT, null, defaultMapping(), 0, 255 );
 		snapshotBaseline();
 	}
 
@@ -804,7 +803,7 @@ public class LutEditorDialog extends JDialog
 	 * actually-applied state, and to reset the editor back to
 	 * {@link #baselinePalette} etc. when reverting.
 	 */
-	private void loadIntoEditor( final ColorTable palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
+	private void loadIntoEditor( final Palette palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
 	{
 		loadingControls = true;
 		try
@@ -946,7 +945,7 @@ public class LutEditorDialog extends JDialog
 	 */
 	private void applyEditorPreset( final EditorPreset preset )
 	{
-		final ColorTable palette = LutPalettes.load( preset.getPaletteName() );
+		final Palette palette = LutPalettes.load( preset.getPaletteName() );
 		if ( palette == null )
 		{
 			labelStatus.setText( "Setting's palette not found: " + preset.getPaletteName() );
@@ -958,7 +957,7 @@ public class LutEditorDialog extends JDialog
 		presetMapping.setRightBoundaryCondition( preset.getRightBoundaryCondition() );
 		presetMapping.setLeftSpecialColor( preset.getLeftSpecialColor() );
 		presetMapping.setRightSpecialColor( preset.getRightSpecialColor() );
-		presetMapping.setDiscrete( !ColorTableLut.isInterpolated( palette ) );
+		presetMapping.setDiscrete( !palette.isInterpolated() );
 		// Only the half of the saved shape the palette can actually use: a
 		// discrete palette maps through the step size and ignores the curve,
 		// a continuous one the other way round (see LutEditorMapping).
@@ -1085,7 +1084,7 @@ public class LutEditorDialog extends JDialog
 	 * goes to the setup (which also drives brightness/contrast), so it stays
 	 * the single owner of that range.
 	 */
-	private void pushToActiveConverter( final ColorTable palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
+	private void pushToActiveConverter( final Palette palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
 	{
 		if ( activeLutConv == null )
 			return;
@@ -1286,16 +1285,16 @@ public class LutEditorDialog extends JDialog
 	 */
 	private static class GradientPreviewPanel extends JPanel
 	{
-		private ColorTable colorTable = ColorTableLut.DEFAULT;
+		private Palette palette = Palette.DEFAULT;
 
 		public GradientPreviewPanel()
 		{
 			setPreferredSize( new Dimension( 300, 16 ) );
 		}
 
-		public void update( final ColorTable ct )
+		public void update( final Palette palette )
 		{
-			this.colorTable = ct;
+			this.palette = palette;
 			repaint();
 		}
 
@@ -1307,11 +1306,11 @@ public class LutEditorDialog extends JDialog
 			final int w = getWidth();
 			final int h = getHeight();
 
-			if ( colorTable != null )
+			if ( palette != null )
 			{
-				final ColorScheme scheme = ColorTableLut.isInterpolated( colorTable )
-						? new ContinuousColorScheme( colorTable )
-						: new DiscreteColorScheme( colorTable );
+				final ColorScheme scheme = palette.isInterpolated()
+						? new ContinuousColorScheme( palette )
+						: new DiscreteColorScheme( palette );
 				final int paletteRangeLength = scheme.getPaletteRangeLength();
 				for ( int i = 0; i < w; i++ )
 				{

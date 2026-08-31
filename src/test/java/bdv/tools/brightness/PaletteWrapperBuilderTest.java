@@ -32,10 +32,10 @@ import org.junit.Test;
 
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
+import bdv.tools.brightness.colorscheme.Palette;
 import bdv.tools.brightness.palette.BoundaryCondition;
 import bdv.tools.brightness.palette.PaletteWrapper;
 import bdv.tools.brightness.palette.PresetPaletteWrapper;
-import net.imglib2.display.ColorTable8;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
@@ -54,13 +54,10 @@ public class PaletteWrapperBuilderTest
 
 	private static final int BLUE = ARGBType.rgba( 0, 0, 255, 255 );
 
-	/** A 3-stop RGB palette (red, green, blue), no alpha component -- read as opaque. */
-	private static ColorTable8 threeStopPalette()
+	/** A 3-stop opaque palette (red, green, blue). */
+	private static Palette threeStopPalette()
 	{
-		final byte[] r = { ( byte ) 255, 0, 0 };
-		final byte[] g = { 0, ( byte ) 255, 0 };
-		final byte[] b = { 0, 0, ( byte ) 255 };
-		return new ColorTable8( r, g, b );
+		return new Palette( new int[] { RED, GREEN, BLUE }, true );
 	}
 
 	// -- color-scheme selection ----------------------------------------------

@@ -27,8 +27,6 @@
  */
 package bdv.tools.brightness.colorscheme;
 
-import net.imglib2.display.ColorTable;
-
 /**
  * A color scheme with {@code N} color stops, linearly interpolated between
  * neighboring stops -- suited to continuous palettes (e.g. viridis), where
@@ -51,10 +49,10 @@ public class ContinuousColorScheme extends AbstractColorScheme
 		super( argbStops );
 	}
 
-	/** See {@link AbstractColorScheme#AbstractColorScheme(ColorTable)}. */
-	public ContinuousColorScheme( final ColorTable colorTable )
+	/** See {@link AbstractColorScheme#AbstractColorScheme(Palette)}. */
+	public ContinuousColorScheme( final Palette palette )
 	{
-		super( colorTable );
+		super( palette );
 	}
 
 	@Override

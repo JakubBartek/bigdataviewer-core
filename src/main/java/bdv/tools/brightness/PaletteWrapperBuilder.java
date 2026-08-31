@@ -36,11 +36,11 @@ import bdv.tools.brightness.palette.PaletteWrapper;
 import bdv.tools.brightness.palette.PresetPaletteWrapper;
 import bdv.tools.brightness.presetfunc.CustomInterpPresetFunc;
 import bdv.tools.brightness.presetfunc.PresetFunc;
+import bdv.tools.brightness.colorscheme.Palette;
 import bdv.tools.brightness.presetfunc.StepPresetFunc;
-import net.imglib2.display.ColorTable;
 
 /**
- * Translates the LUT editor's {@link LutEditorMapping}-plus-{@link ColorTable}
+ * Translates the LUT editor's {@link LutEditorMapping}-plus-{@link Palette}
  * state into a {@link PaletteWrapper} of the color-mapping architecture that
  * actually renders (see {@link PaletteConverter}). The single bridge between
  * the editor's model and the render model, kept out of both the Swing dialog
@@ -74,7 +74,7 @@ public final class PaletteWrapperBuilder
 	}
 
 	/** Build the {@link PaletteWrapper} equivalent of {@code palette} + {@code mapping} over the display range {@code [min, max]}; see the class javadoc. */
-	public static PaletteWrapper build( final ColorTable palette, final LutEditorMapping mapping, final double min, final double max )
+	public static PaletteWrapper build( final Palette palette, final LutEditorMapping mapping, final double min, final double max )
 	{
 		final ColorScheme scheme = mapping.isDiscrete()
 				? new DiscreteColorScheme( palette )

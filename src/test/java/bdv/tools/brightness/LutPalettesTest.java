@@ -32,11 +32,13 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
-import net.imglib2.display.ColorTable;
+import bdv.tools.brightness.colorscheme.Palette;
+import net.imglib2.display.ColorTable8;
+import net.imglib2.type.numeric.ARGBType;
 
 /**
  * Test cases for {@link LutPalettes}, loading the actual bundled JSON LUT
- * resources (not just hand-built {@link ColorTableLut} instances).
+ * resources (not just hand-built {@link Palette} instances).
  */
 public class LutPalettesTest
 {
@@ -73,30 +75,33 @@ public class LutPalettesTest
 	@Test
 	public void testLoadParsesFixesRGBA()
 	{
-		final ColorTable lut = LutPalettes.load( "Accent" );
+		final Palette lut = LutPalettes.load( "Accent" );
 
 		Assert.assertNotNull( lut );
 		Assert.assertEquals( 8, lut.getLength() );
 
 		// index "0": [0.4980392156862745, 0.788235294117647, 0.4980392156862745, 1.0]
-		final int argb = lut.lookupARGB( 0, 255, 0 );
-		Assert.assertEquals( 127, ( argb >> 16 ) & 0xFF ); // red
-		Assert.assertEquals( 201, ( argb >> 8 ) & 0xFF );  // green
-		Assert.assertEquals( 127, argb & 0xFF );           // blue
-		Assert.assertEquals( 255, ( argb >> 24 ) & 0xFF );  // alpha
+		final int argb = lut.getStop( 0 );
+		Assert.assertEquals( 127, ARGBType.red( argb ) );
+		Assert.assertEquals( 201, ARGBType.green( argb ) );
+		Assert.assertEquals( 127, ARGBType.blue( argb ) );
+		Assert.assertEquals( 255, ARGBType.alpha( argb ) );
 	}
 
 	/**
-	 * Loading the same palette twice should not alias any shared mutable
-	 * state (each call parses the resource independently).
+	 * Loading the same palette twice yields equal palettes. Deliberately a
+	 * value comparison and not {@code assertNotSame}: a {@link Palette} is
+	 * immutable, so whether the two calls share an instance is no longer
+	 * something a caller can observe or needs protecting from (it was, back
+	 * when this handed out a mutable-in-principle {@code ColorTable}).
 	 */
 	@Test
-	public void testLoadIsIndependentAcrossCalls()
+	public void testLoadIsRepeatable()
 	{
-		final ColorTable first = LutPalettes.load( "tab10" );
-		final ColorTable second = LutPalettes.load( "tab10" );
+		final Palette first = LutPalettes.load( "tab10" );
+		final Palette second = LutPalettes.load( "tab10" );
 
-		Assert.assertNotSame( first, second );
+		Assert.assertEquals( first, second );
 		Assert.assertEquals( first.getLength(), second.getLength() );
 	}
 
@@ -107,7 +112,7 @@ public class LutPalettesTest
 	@Test
 	public void testLoadHandlesLargeContinuousPalette()
 	{
-		final ColorTable lut = LutPalettes.load( "viridis" );
+		final Palette lut = LutPalettes.load( "viridis" );
 
 		Assert.assertNotNull( lut );
 		Assert.assertEquals( 256, lut.getLength() );
@@ -117,24 +122,22 @@ public class LutPalettesTest
 	 * Accent.json declares {@code "color_interpolation": false} (it is a
 	 * qualitative/categorical palette); viridis.json declares {@code true}
 	 * (a continuous palette). {@link #load(String)} parses the file once and
-	 * carries the flag on the returned table itself (see
-	 * {@link ColorTableLut#isInterpolated()}), rather than requiring a
+	 * carries the flag on the returned palette itself (see
+	 * {@link Palette#isInterpolated()}), rather than requiring a
 	 * second, separate parse to find it out.
 	 */
 	@Test
 	public void testLoadReflectsColorInterpolationDeclaration()
 	{
-		Assert.assertFalse( ColorTableLut.isInterpolated( LutPalettes.load( "Accent" ) ) );
-		Assert.assertTrue( ColorTableLut.isInterpolated( LutPalettes.load( "viridis" ) ) );
+		Assert.assertFalse( LutPalettes.load( "Accent" ).isInterpolated() );
+		Assert.assertTrue( LutPalettes.load( "viridis" ).isInterpolated() );
 	}
 
 	/**
 	 * {@link LutPalettes#findName} is the reverse of {@link LutPalettes#load}:
-	 * given just a loaded table (as read back from a converter that doesn't
+	 * given just a loaded palette (as read back from a converter that doesn't
 	 * itself remember which resource it came from), it should recover the
-	 * same name -- even though {@link #testLoadIsIndependentAcrossCalls}
-	 * establishes that reloading never returns the *same* table instance, so
-	 * this can only work via a genuine value comparison, not identity.
+	 * same name -- by a genuine value comparison, not identity.
 	 */
 	@Test
 	public void testFindNameRecoversLoadedPalettesName()
@@ -144,46 +147,47 @@ public class LutPalettesTest
 	}
 
 	/**
-	 * A table that isn't one of the bundled resources at all (e.g. the
+	 * A palette that isn't one of the bundled resources at all (e.g. the
 	 * generic placeholder used before any real palette is chosen) has no
 	 * name to find.
 	 */
 	@Test
-	public void testFindNameReturnsNullForUnmatchedTable()
+	public void testFindNameReturnsNullForUnmatchedPalette()
 	{
-		Assert.assertNull( LutPalettes.findName( ColorTableLut.DEFAULT ) );
+		Assert.assertNull( LutPalettes.findName( Palette.DEFAULT ) );
 	}
 
 	/**
-	 * A non-{@link ColorTableLut} table (e.g. a plain {@link net.imglib2.display.ColorTable8})
-	 * can't match any bundled resource either, regardless of its colors.
+	 * A palette adapted from a foreign {@link net.imglib2.display.ColorTable}
+	 * is matched on its colors like any other. imglib2's default
+	 * {@link ColorTable8} is a 256-entry grayscale ramp, which is exactly the
+	 * bundled {@code gist_gray} resource, so that is the name it recovers.
+	 * <p>
+	 * This is a deliberate change: {@code findName} used to reject anything
+	 * that was not one of this project's own table instances outright, so the
+	 * grayscale palette BigDataViewer sets its default converter up with came
+	 * back unnamed even though a bundled resource matched it exactly. Matching
+	 * on colors is what the method is documented to do.
 	 */
 	@Test
-	public void testFindNameReturnsNullForNonColorTableLut()
+	public void testFindNameMatchesPaletteAdaptedFromForeignColorTable()
 	{
-		Assert.assertNull( LutPalettes.findName( new net.imglib2.display.ColorTable8() ) );
+		Assert.assertEquals( "gist_gray", LutPalettes.findName( Palette.of( new ColorTable8() ) ) );
 	}
 
 	/**
 	 * {@link LutPalettes#findName} caches the parsed palettes internally (it
 	 * is called on the EDT on every source change, and would otherwise
-	 * re-parse every bundled resource each time). That cache must not leak
-	 * into {@link LutPalettes#load}, which callers rely on to hand out an
-	 * independent instance per call -- see
-	 * {@link #testLoadIsIndependentAcrossCalls}, whose contract this pins
-	 * down again specifically after findName has populated the cache.
+	 * re-parse every bundled resource each time). This pins down that the
+	 * cache is actually reusable rather than consumed by the first call, and
+	 * that a freshly loaded palette still matches it afterwards.
 	 */
 	@Test
-	public void testFindNameCacheDoesNotAliasLoadedInstances()
+	public void testFindNameCacheIsReusable()
 	{
 		Assert.assertEquals( "tab10", LutPalettes.findName( LutPalettes.load( "tab10" ) ) );
 
-		final ColorTable first = LutPalettes.load( "tab10" );
-		final ColorTable second = LutPalettes.load( "tab10" );
-		Assert.assertNotSame( first, second );
-
-		// Repeated lookups keep working (i.e. the cache is actually reusable,
-		// not consumed by the first call).
+		final Palette first = LutPalettes.load( "tab10" );
 		Assert.assertEquals( "tab10", LutPalettes.findName( first ) );
 		Assert.assertEquals( "viridis", LutPalettes.findName( LutPalettes.load( "viridis" ) ) );
 	}

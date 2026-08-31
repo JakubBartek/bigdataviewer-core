@@ -31,8 +31,6 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import bdv.tools.brightness.LutPalettes;
-import net.imglib2.display.ColorTable;
-import net.imglib2.display.ColorTable8;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
@@ -145,47 +143,23 @@ public class ContinuousColorSchemeTest
 
 	/**
 	 * Reuses an actual bundled palette instead of a hand-built stop array,
-	 * exercising the {@link ContinuousColorScheme#ContinuousColorScheme(ColorTable)}
+	 * exercising the {@link ContinuousColorScheme#ContinuousColorScheme(Palette)}
 	 * constructor. viridis is a real 256-stop continuous palette -- a natural
 	 * fit for a continuous scheme.
 	 */
 	@Test
-	public void testConstructFromExistingColorTablePalette()
+	public void testConstructFromExistingPalette()
 	{
-		final ColorTable viridis = LutPalettes.load( "viridis" );
+		final Palette viridis = LutPalettes.load( "viridis" );
 		Assert.assertNotNull( viridis );
 
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( viridis );
 
 		Assert.assertEquals( viridis.getLength() - 1, scheme.getPaletteRangeLength() );
 
-		// Exact stops must reproduce the source table exactly, at both ends
+		// Exact stops must reproduce the source palette exactly, at both ends
 		// and in the middle.
 		for ( final int i : new int[] { 0, viridis.getLength() / 2, viridis.getLength() - 1 } )
-		{
-			final int expected = ARGBType.rgba(
-					viridis.get( ColorTable.RED, i ), viridis.get( ColorTable.GREEN, i ),
-					viridis.get( ColorTable.BLUE, i ), viridis.get( ColorTable.ALPHA, i ) );
-			Assert.assertEquals( "stop " + i, expected, scheme.getRGBA( i ) );
-		}
-	}
-
-	/**
-	 * A {@link ColorTable} that carries only RGB and no ALPHA component (the
-	 * default grayscale {@link ColorTable8}, which BigDataViewer feeds into a
-	 * scheme for every LUT source) must be read as fully opaque, not throw
-	 * reaching for a missing alpha component.
-	 */
-	@Test
-	public void testConstructFromColorTableWithoutAlphaComponentIsOpaque()
-	{
-		final ColorTable8 grayscale = new ColorTable8(); // 3 components (RGB), 256 grayscale stops
-		Assert.assertEquals( 3, grayscale.getComponentCount() );
-
-		final ContinuousColorScheme scheme = new ContinuousColorScheme( grayscale );
-
-		Assert.assertEquals( 0xff000000, scheme.getRGBA( 0 ) );   // black, opaque
-		Assert.assertEquals( 0xffffffff, scheme.getRGBA( grayscale.getLength() - 1 ) ); // white, opaque
-		Assert.assertEquals( 255, ARGBType.alpha( scheme.getRGBA( 128 ) ) );
+			Assert.assertEquals( "stop " + i, viridis.getStop( i ), scheme.getRGBA( i ) );
 	}
 }
