@@ -89,15 +89,19 @@ import net.imglib2.display.ColorConverter;
  * <li><b>Setting</b>: a saved, reusable combination of everything below
  * except the input value range (see {@link EditorPreset}), which can be
  * applied in one step or saved back under a name of the user's choosing.</li>
- * <li><b>Data</b>: which source/setup is being edited, and which color
- * palette (LUT) is used to render it.</li>
+ * <li><b>Data</b>: which color palette (LUT) is used to render the source.</li>
  * <li><b>Mapping</b>: how a raw source value is turned into an index into
  * that palette, via a user-editable curve over the source's display
  * range.</li>
  * </ul>
+ * Which source is being edited is not chosen here: this window follows the
+ * viewer's own current-source selection and names the source it is bound to in
+ * its title (see {@link #beginSession}). It is not modal, so it can be left
+ * open beside the viewer while sources are switched there.
+ * <p>
  * Edits take effect in the viewer immediately (see {@link #pushLiveEdits()});
- * "Apply" moves the revert-to baseline forward, and closing without it
- * restores that baseline (see {@link #setVisible(boolean)}).
+ * "Apply" moves the revert-to baseline forward, "Reset" goes back to it, and
+ * closing without applying restores it (see {@link #setVisible(boolean)}).
  */
 public class LutEditorDialog extends JDialog
 {
@@ -105,9 +109,6 @@ public class LutEditorDialog extends JDialog
 	private final ViewerState viewerState;
 	private final Runnable repaintAction;
 
-	private final List< SourceAndConverter< ? > > sources = new ArrayList<>();
-
-	private final JComboBox< String > comboSource;
 	private final JComboBox< Object > comboPalette;
 	private final JComboBox< Object > comboEditorPreset;
 	private final JButton buttonSaveEditorPreset;
@@ -176,18 +177,12 @@ public class LutEditorDialog extends JDialog
 	/**
 	 * Sources whose foreign converter the user has already declined to convert
 	 * (see {@link #offerConversion}), so that selecting one again -- which
-	 * happens on every pass through the sources with the 1..9 keys -- does not
-	 * ask a second time. Weakly held so it does not keep sources alive.
+	 * happens on every pass through the sources with the 1..9 keys in the
+	 * viewer -- does not ask a second time. Weakly held so it does not keep
+	 * sources alive.
 	 */
 	private final Set< SourceAndConverter< ? > > declinedConversion =
 			Collections.newSetFromMap( new WeakHashMap<>() );
-
-	/**
-	 * Guards {@link #comboSource} and the viewer's current source against
-	 * echoing each other: each is set from the other, and without this the
-	 * second assignment would start a redundant session.
-	 */
-	private boolean syncingSource = false;
 
 	/**
 	 * The editor-facing configuration ({@link Palette} + editable
@@ -244,7 +239,6 @@ public class LutEditorDialog extends JDialog
 		this.repaintAction = repaintAction;
 
 		// -- Widgets ---------------------------------------------------------
-		comboSource = new JComboBox<>();
 		comboPalette = createPaletteCombo();
 		comboEditorPreset = createEditorPresetCombo();
 		buttonSaveEditorPreset = new JButton( "Save..." );
@@ -292,21 +286,24 @@ public class LutEditorDialog extends JDialog
 		// -- Behavior --------------------------------------------------------
 		installControlListeners();
 		installViewerStateListener();
-		rebuildList();
+		beginSession( viewerState.getCurrentSource() );
 		packAndMatchGraphWidth( panelLeftColumn, panelMappingCurveColumn );
 	}
 
 	/**
-	 * Follow the viewer: selecting a different current source there starts a
-	 * new editing session here (see {@link #beginSession}), and adding or
-	 * removing sources rebuilds the chooser.
+	 * Follow the viewer: which source this window edits is the viewer's own
+	 * current-source selection, and changing it there starts a new editing
+	 * session here (see {@link #beginSession}).
 	 * <p>
-	 * Both are bounced onto the EDT, since a {@code ViewerState} change can be
-	 * made from any thread, and both are written to be no-ops when nothing
-	 * actually differs -- they can arrive after this dialog has already
-	 * reacted to the same change from its own side.
+	 * {@code CURRENT_SOURCE_CHANGED} is the only change worth listening for,
+	 * because it also covers the source list itself changing underneath:
+	 * {@code BasicViewerState} fires it when the first source arrives (there
+	 * was no current source before), when the current source is removed (the
+	 * first remaining one takes over), and when the sources are cleared (there
+	 * is no current source left).
 	 * <p>
-	 * The listener is never removed: it points at a dialog that is owned by
+	 * Bounced onto the EDT, since a {@code ViewerState} change can be made from
+	 * any thread. The listener is never removed: it points at a dialog owned by
 	 * the same viewer window as the state it listens to, so the two become
 	 * unreachable together.
 	 */
@@ -316,8 +313,6 @@ public class LutEditorDialog extends JDialog
 		{
 			if ( change == ViewerStateChange.CURRENT_SOURCE_CHANGED )
 				SwingUtilities.invokeLater( this::syncToCurrentSource );
-			else if ( change == ViewerStateChange.NUM_SOURCES_CHANGED )
-				SwingUtilities.invokeLater( this::rebuildList );
 		} );
 	}
 
@@ -377,21 +372,7 @@ public class LutEditorDialog extends JDialog
 		activeLutConv = null;
 		activeVolatileLutConv = null;
 		activeSetup = null;
-
-		final int index = sources.indexOf( viewerState.getCurrentSource() );
-		if ( index >= 0 && index != comboSource.getSelectedIndex() )
-		{
-			syncingSource = true;
-			try
-			{
-				comboSource.setSelectedIndex( index );
-			}
-			finally
-			{
-				syncingSource = false;
-			}
-		}
-		beginSession( selectedSource() );
+		beginSession( viewerState.getCurrentSource() );
 	}
 
 	/** Whether the editor currently differs from {@link #baselinePalette} etc., i.e. has edits since the last "Apply" (or load) that closing now would discard. */
@@ -601,8 +582,6 @@ public class LutEditorDialog extends JDialog
 		final JPanel panelData = new JPanel();
 		panelData.setLayout( new BoxLayout( panelData, BoxLayout.PAGE_AXIS ) );
 		panelData.setBorder( BorderFactory.createTitledBorder( "Data" ) );
-		panelData.add( labeledRow( "Source:", comboSource ) );
-		panelData.add( Box.createVerticalStrut( 8 ) );
 		panelData.add( labeledRow( "Color palette:", comboPalette ) );
 		panelData.add( Box.createVerticalStrut( 4 ) );
 		panelData.add( panelPaletteSwatch );
@@ -696,8 +675,6 @@ public class LutEditorDialog extends JDialog
 	 */
 	private void installControlListeners()
 	{
-		comboSource.addActionListener( e -> onSourceComboChanged() );
-
 		comboPalette.addActionListener( e ->
 		{
 			if ( loadingControls )
@@ -990,50 +967,16 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Adopt the viewer's current source as this window's, if it is not already.
-	 * Deliberately a no-op when it is, so that the change notification this
-	 * dialog provokes itself -- by setting the current source from
-	 * {@link #comboSource} -- does not restart the session it just started.
+	 * Adopt the viewer's current source as this window's. A no-op when it
+	 * already is, so that a notification arriving after this dialog has
+	 * already reacted -- the listener is dispatched asynchronously, see
+	 * {@link #installViewerStateListener()} -- does not restart the session.
 	 */
 	private void syncToCurrentSource()
 	{
 		final SourceAndConverter< ? > current = viewerState.getCurrentSource();
-		if ( current == sessionSource )
-			return;
-
-		syncingSource = true;
-		try
-		{
-			comboSource.setSelectedIndex( sources.indexOf( current ) );
-		}
-		finally
-		{
-			syncingSource = false;
-		}
-		beginSession( selectedSource() );
-	}
-
-	/**
-	 * The user picked a source here: make it the viewer's current source too,
-	 * so the two selections cannot drift apart, and start its session. The
-	 * resulting {@code CURRENT_SOURCE_CHANGED} then finds the session already
-	 * started and does nothing (see {@link #syncToCurrentSource()}).
-	 */
-	private void onSourceComboChanged()
-	{
-		if ( syncingSource )
-			return;
-		final SourceAndConverter< ? > soc = selectedSource();
-		if ( soc != null )
-			viewerState.setCurrentSource( soc );
-		beginSession( soc );
-	}
-
-	/** The source {@link #comboSource} currently selects, or {@code null} if it selects none. */
-	private SourceAndConverter< ? > selectedSource()
-	{
-		final int index = comboSource.getSelectedIndex();
-		return index >= 0 && index < sources.size() ? sources.get( index ) : null;
+		if ( current != sessionSource )
+			beginSession( current );
 	}
 
 	/** The source's own name, or its setup id if there is no source to ask. */
@@ -1414,47 +1357,6 @@ public class LutEditorDialog extends JDialog
 	{
 		revertActiveConverterToBaseline();
 		loadIntoEditor( baselinePalette, baselinePaletteName, baselineMapping, baselineRangeMin, baselineRangeMax );
-	}
-
-	/**
-	 * Repopulate the source chooser from the viewer's sources, and land on the
-	 * viewer's current source -- falling back to the first one, and to nothing
-	 * at all if no source has a {@link ConverterSetup} to edit.
-	 * <p>
-	 * Rebuilt rather than patched because this also runs when sources are
-	 * added or removed while the dialog is open, and the combo's items are
-	 * labels that carry the setup ids. The session is (re)started at the end
-	 * either way: the previously edited source may be one of the ones that has
-	 * just gone.
-	 */
-	private void rebuildList()
-	{
-		final SourceAndConverter< ? > wanted = viewerState.getCurrentSource();
-
-		syncingSource = true;
-		try
-		{
-			comboSource.removeAllItems();
-			sources.clear();
-			for ( final SourceAndConverter< ? > soc : viewerState.getSources() )
-			{
-				final ConverterSetup setup = converterSetups.getConverterSetup( soc );
-				if ( setup == null )
-					continue;
-				sources.add( soc );
-				comboSource.addItem( "[" + setup.getSetupId() + "] " + sourceName( soc ) );
-			}
-			if ( comboSource.getItemCount() > 0 )
-			{
-				final int index = sources.indexOf( wanted );
-				comboSource.setSelectedIndex( index >= 0 ? index : 0 );
-			}
-		}
-		finally
-		{
-			syncingSource = false;
-		}
-		beginSession( selectedSource() );
 	}
 
 	/**
