@@ -73,8 +73,18 @@ public final class PaletteWrapperBuilder
 	{
 	}
 
-	/** Build the {@link PaletteWrapper} equivalent of {@code palette} + {@code mapping} over the display range {@code [min, max]}; see the class javadoc. */
-	public static PaletteWrapper build( final Palette palette, final LutEditorMapping mapping, final double min, final double max )
+	/**
+	 * Build the {@link PaletteWrapper} equivalent of {@code palette} +
+	 * {@code mapping} over the display range {@code [min, max]}; see the class
+	 * javadoc.
+	 * <p>
+	 * Declared as the concrete {@link PresetPaletteWrapper} rather than the
+	 * interface, because the editor's preview draws the shape of the mapping
+	 * and not just its colors: it needs the {@code PresetFunc}'s own domain to
+	 * know where the palette runs out and the boundary condition takes over
+	 * (see {@code MappingCurvePanel}).
+	 */
+	public static PresetPaletteWrapper build( final Palette palette, final LutEditorMapping mapping, final double min, final double max )
 	{
 		final ColorScheme scheme = mapping.isDiscrete()
 				? new DiscreteColorScheme( palette )

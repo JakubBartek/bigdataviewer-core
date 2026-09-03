@@ -38,6 +38,7 @@ import java.awt.Frame;
 import java.awt.Graphics;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.awt.LayoutManager;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
@@ -63,10 +64,13 @@ import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
+import javax.swing.JTextArea;
 import javax.swing.JTextField;
-import javax.swing.JToggleButton;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.border.EmptyBorder;
 
 import bdv.tools.brightness.colorscheme.ColorScheme;
@@ -85,15 +89,27 @@ import net.imglib2.converter.Converter;
 import net.imglib2.display.ColorConverter;
 
 /**
- * A LUT editor dialog, laid out as three stacked panels:
+ * A LUT editor dialog, laid out as a header strip over two columns:
  * <ul>
- * <li><b>Setting</b>: a saved, reusable combination of everything below
- * except the input value range (see {@link EditorPreset}), which can be
- * applied in one step or saved back under a name of the user's choosing.</li>
- * <li><b>Data</b>: which color palette (LUT) is used to render the source.</li>
- * <li><b>Mapping</b>: how a raw source value is turned into an index into
- * that palette, via a user-editable curve over the source's display
- * range.</li>
+ * <li><b>Configuration</b>: the strip across the top -- a saved, reusable
+ * combination of everything below it except the input value range (see
+ * {@link EditorPreset}), which can be applied in one step or saved back under
+ * a name of the user's choosing. It sits at the top not because it is the
+ * control reached for most often, but because it is the one whose scope is
+ * the whole window; it is styled to read as subordinate to what it
+ * governs.</li>
+ * <li><b>Data</b>: which color palette (LUT) is used to render the source,
+ * and whether that palette is a smooth gradient or individually chosen
+ * colors.</li>
+ * <li><b>Function</b>: how a raw source value is turned into a position in
+ * that palette -- a transfer function for a continuous palette, a step size
+ * for a discrete one.</li>
+ * <li><b>Mapping</b>: what happens to raw values past either end of the
+ * input value range, independently for each end (see
+ * {@link BoundaryCondition}).</li>
+ * <li><b>Transfer function</b>: the graph, which also carries the controls
+ * whose meaning is positional -- the input range at the ends of the x axis,
+ * and the pencil beside the plot it edits (see {@link MappingCurvePanel}).</li>
  * </ul>
  * Which source is being edited is not chosen here: this window follows the
  * viewer's own current-source selection and names the source it is bound to in
@@ -127,6 +143,15 @@ public class LutEditorDialog extends JDialog
 	private final JButton buttonSaveEditorPreset;
 	private final JLabel labelStatus;
 
+	/** Whether the selected palette is used as a gradient or as individually chosen colors, and how many colors it has; see {@link #updateShapeControls}. */
+	private final JLabel labelPaletteKind;
+
+	/** How far the palette reaches at the current step size; see {@link #updateStepCoverageLabel}. */
+	private final JLabel labelStepCoverage;
+
+	/** What the graph is currently offering, if anything: how to edit the transfer function, or why it cannot be edited; see {@link #updateCurveHint()}. */
+	private final JLabel labelCurveHint;
+
 	private final GradientPreviewPanel panelPaletteSwatch;
 	private final MappingCurvePanel panelMappingCurve;
 
@@ -144,6 +169,12 @@ public class LutEditorDialog extends JDialog
 	private final CardLayout layoutShape = new CardLayout();
 	private static final String SHAPE_CARD_CONTINUOUS = "continuous";
 	private static final String SHAPE_CARD_DISCRETE = "discrete";
+
+	/** Height of the help window's scrolling text box; see {@link #showHelp()}. */
+	private static final int HELP_HEIGHT = 420;
+
+	/** Ceiling on the help window's width; see {@link #showHelp()}. */
+	private static final int MAX_HELP_WIDTH = 720;
 
 	private final JComboBox< PresetShape > comboMappingPreset;
 	private final JButton buttonInvertCurve;
@@ -254,7 +285,7 @@ public class LutEditorDialog extends JDialog
 		// -- Widgets ---------------------------------------------------------
 		comboPalette = createPaletteCombo();
 		comboEditorPreset = createEditorPresetCombo();
-		buttonSaveEditorPreset = new JButton( "Save..." );
+		buttonSaveEditorPreset = new JButton( "Save as..." );
 		buttonSaveEditorPreset.setFocusable( false );
 		panelPaletteSwatch = new GradientPreviewPanel();
 		panelPaletteSwatch.setPreferredSize( new Dimension( 200, 16 ) );
@@ -268,7 +299,7 @@ public class LutEditorDialog extends JDialog
 		buttonInvertCurve = new JButton( "Invert" );
 		buttonInvertCurve.setFocusable( false );
 		fieldStepSize = new JTextField();
-		panelShape = new JPanel( layoutShape );
+		panelShape = heightCapped( layoutShape );
 
 		panelMappingCurve = new MappingCurvePanel( mappingModel );
 		panelMappingCurve.setRangeChangeListener( ( min, max ) ->
@@ -282,6 +313,11 @@ public class LutEditorDialog extends JDialog
 		} );
 
 		labelStatus = new JLabel( "" );
+		labelPaletteKind = mutedLabel( "" );
+		labelStepCoverage = mutedLabel( "" );
+		labelCurveHint = mutedLabel( "" );
+
+		panelMappingCurve.setEditModeListener( editing -> updateCurveHint() );
 
 		// -- Layout ----------------------------------------------------------
 		setLayout( new BorderLayout( 0, 4 ) );
@@ -293,6 +329,7 @@ public class LutEditorDialog extends JDialog
 		final JPanel panelCenter = new JPanel( new BorderLayout( 12, 0 ) );
 		panelCenter.add( panelLeftColumn, BorderLayout.WEST );
 		panelCenter.add( hugContents( panelMappingCurveColumn ), BorderLayout.CENTER );
+		add( createConfigurationStrip(), BorderLayout.NORTH );
 		add( panelCenter, BorderLayout.CENTER );
 		add( createBottomBar(), BorderLayout.SOUTH );
 
@@ -455,6 +492,12 @@ public class LutEditorDialog extends JDialog
 	private JComboBox< Object > createPaletteCombo()
 	{
 		final JComboBox< Object > combo = createGroupedCombo( "Select Palette" );
+		// Without a prototype the combo is as wide as its widest item, which
+		// is one of the bold category headers ("Perceptually Uniform
+		// Sequential") rather than any palette -- and that width then set the
+		// width of the whole settings column. Sized for the longest bundled
+		// palette name instead; the popup is free to be wider than the box.
+		combo.setPrototypeDisplayValue( "twilight_shifted_r" );
 		final GroupedComboModel model = ( GroupedComboModel ) combo.getModel();
 		for ( final Map.Entry< String, List< String > > category : LutCategories.groupByCategory( LutPalettes.discoverNames() ).entrySet() )
 		{
@@ -472,7 +515,11 @@ public class LutEditorDialog extends JDialog
 	 */
 	private JComboBox< Object > createEditorPresetCombo()
 	{
-		final JComboBox< Object > combo = createGroupedCombo( "Select Preset" );
+		final JComboBox< Object > combo = createGroupedCombo( "Select Configuration" );
+		// As for the palette combo -- and configuration names are the user's
+		// own, so there is no longest one to size to. It is stretched to the
+		// width of the strip anyway.
+		combo.setPrototypeDisplayValue( "Select Configuration" );
 		refreshEditorPresetCombo( combo );
 		return combo;
 	}
@@ -607,89 +654,179 @@ public class LutEditorDialog extends JDialog
 		return button;
 	}
 
-	/** The "Setting", "Data" and "Mapping" panels, stacked. */
+	/**
+	 * The configuration strip across the top of the window: a saved
+	 * combination that can be applied in one step, or saved back under a name.
+	 * <p>
+	 * Full width, above both columns, because it governs everything below it
+	 * -- but deliberately understated (a muted label, no group box, a rule to
+	 * separate it) rather than presented as the window's headline control,
+	 * which it is not: the palette and the input range are what actually get
+	 * touched on most visits here.
+	 */
+	private JPanel createConfigurationStrip()
+	{
+		final JPanel row = new JPanel( new BorderLayout( 8, 0 ) );
+		row.add( mutedLabel( "Configuration" ), BorderLayout.WEST );
+		row.add( comboEditorPreset, BorderLayout.CENTER );
+		row.add( buttonSaveEditorPreset, BorderLayout.EAST );
+
+		final JPanel strip = new JPanel( new BorderLayout( 0, 6 ) );
+		strip.add( row, BorderLayout.CENTER );
+		strip.add( new JSeparator(), BorderLayout.SOUTH );
+		return strip;
+	}
+
+	/** The "Mapping" panel: what happens to raw values past either end of the input range, one labelled row per end. */
+	private JPanel createBoundaryGroup()
+	{
+		final JPanel panel = heightCapped( null );
+		panel.setLayout( new BoxLayout( panel, BoxLayout.PAGE_AXIS ) );
+		panel.setBorder( BorderFactory.createTitledBorder( "Mapping" ) );
+		panel.add( labeledRow( "Below range:", comboLeftBoundary, buttonLeftSpecialColor ) );
+		panel.add( Box.createVerticalStrut( 4 ) );
+		panel.add( labeledRow( "Above range:", comboRightBoundary, buttonRightSpecialColor ) );
+		panel.setAlignmentX( Component.LEFT_ALIGNMENT );
+		return panel;
+	}
+
+	/** The "Data", "Function" and "Mapping" panels, stacked. */
 	private JPanel createLeftColumn()
 	{
-		final JPanel panelSetting = new JPanel();
-		panelSetting.setLayout( new BoxLayout( panelSetting, BoxLayout.PAGE_AXIS ) );
-		final JPanel rowPresetSetting = new JPanel( new BorderLayout( 8, 0 ) );
-		rowPresetSetting.setBorder( BorderFactory.createEmptyBorder(0, 2, 0, 2) );
-		rowPresetSetting.add( comboEditorPreset, BorderLayout.CENTER );
-		rowPresetSetting.add( buttonSaveEditorPreset, BorderLayout.EAST );
-		rowPresetSetting.setMaximumSize( new Dimension( Integer.MAX_VALUE, rowPresetSetting.getPreferredSize().height ) );
-		rowPresetSetting.setAlignmentX( Component.LEFT_ALIGNMENT );
-		panelSetting.add( rowPresetSetting );
-		panelSetting.setAlignmentX( Component.LEFT_ALIGNMENT );
-		panelSetting.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelSetting.getPreferredSize().height ) );
-
-		final JPanel panelData = new JPanel();
+		final JPanel panelData = heightCapped( null );
 		panelData.setLayout( new BoxLayout( panelData, BoxLayout.PAGE_AXIS ) );
 		panelData.setBorder( BorderFactory.createTitledBorder( "Data" ) );
 		panelData.add( labeledRow( "Color palette:", comboPalette ) );
 		panelData.add( Box.createVerticalStrut( 4 ) );
+		// Left-aligned like every other row: a BoxLayout column asked to mix
+		// alignments reserves room for the widest child on BOTH sides of the
+		// alignment point, so one centered child was making the whole settings
+		// column about a hundred pixels wider than its widest row.
+		panelPaletteSwatch.setAlignmentX( Component.LEFT_ALIGNMENT );
 		panelData.add( panelPaletteSwatch );
+		panelData.add( Box.createVerticalStrut( 4 ) );
+		panelData.add( leftAligned( labelPaletteKind ) );
 		panelData.setAlignmentX( Component.LEFT_ALIGNMENT );
-		panelData.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelData.getPreferredSize().height ) );
 
 		// One card or the other, never both: which one is showing follows the
 		// palette's own kind (see #updateShapeControls). A CardLayout rather
 		// than swapping visibility so the panel keeps the taller card's height
 		// either way, and the dialog does not resize as the palette changes.
-		panelShape.add( labeledRow( "Mapping preset:", comboMappingPreset, buttonInvertCurve ), SHAPE_CARD_CONTINUOUS );
-		panelShape.add( labeledRow( "Step size:", fieldStepSize ), SHAPE_CARD_DISCRETE );
+		panelShape.add( continuousShapeCard(), SHAPE_CARD_CONTINUOUS );
+		panelShape.add( discreteShapeCard(), SHAPE_CARD_DISCRETE );
 		panelShape.setAlignmentX( Component.LEFT_ALIGNMENT );
-		panelShape.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelShape.getPreferredSize().height ) );
 
-		final JPanel panelMapping = new JPanel();
-		panelMapping.setLayout( new BoxLayout( panelMapping, BoxLayout.PAGE_AXIS ) );
-		panelMapping.setBorder( BorderFactory.createTitledBorder( "Mapping" ) );
-		panelMapping.add( Box.createVerticalStrut( 4 ) );
-		panelMapping.add( labeledRow( "Below range:", comboLeftBoundary, buttonLeftSpecialColor ) );
-		panelMapping.add( Box.createVerticalStrut( 4 ) );
-		panelMapping.add( labeledRow( "Above range:", comboRightBoundary, buttonRightSpecialColor ) );
-		panelMapping.add( Box.createVerticalStrut( 4 ) );
-		panelMapping.add( panelShape );
-		panelMapping.setAlignmentX( Component.LEFT_ALIGNMENT );
-		panelMapping.setMaximumSize( new Dimension( Integer.MAX_VALUE, panelMapping.getPreferredSize().height ) );
+		final JPanel panelShapeGroup = heightCapped( null );
+		panelShapeGroup.setLayout( new BoxLayout( panelShapeGroup, BoxLayout.PAGE_AXIS ) );
+		panelShapeGroup.setBorder( BorderFactory.createTitledBorder( "Function" ) );
+		panelShapeGroup.add( panelShape );
+		panelShapeGroup.setAlignmentX( Component.LEFT_ALIGNMENT );
 
 		final JPanel column = new JPanel();
 		column.setLayout( new BoxLayout( column, BoxLayout.PAGE_AXIS ) );
-		column.add( panelSetting );
-		column.add( Box.createVerticalStrut( 4 ) );
 		column.add( panelData );
 		column.add( Box.createVerticalStrut( 4 ) );
-		column.add( panelMapping );
+		column.add( panelShapeGroup );
+		column.add( Box.createVerticalStrut( 4 ) );
+		column.add( createBoundaryGroup() );
 		return column;
 	}
 
-	/** The titled "Mapping curve" panel around the interactive graph. */
+	/** A continuous palette's shape: a predefined transfer function, optionally flipped. */
+	private JPanel continuousShapeCard()
+	{
+		final JPanel card = new JPanel();
+		card.setLayout( new BoxLayout( card, BoxLayout.PAGE_AXIS ) );
+		card.add( labeledRow( "Preset:", comboMappingPreset ) );
+		card.add( Box.createVerticalStrut( 4 ) );
+		final JPanel invertRow = new JPanel( new FlowLayout( FlowLayout.RIGHT, 0, 0 ) );
+		invertRow.add( buttonInvertCurve );
+		invertRow.setAlignmentX( Component.LEFT_ALIGNMENT );
+		invertRow.setMaximumSize( new Dimension( Integer.MAX_VALUE, invertRow.getPreferredSize().height ) );
+		card.add( invertRow );
+		card.add( Box.createVerticalGlue() );
+		return card;
+	}
+
+	/** A discrete palette's shape: how many input values one color covers, and how far that takes the palette. */
+	private JPanel discreteShapeCard()
+	{
+		final JPanel card = new JPanel();
+		card.setLayout( new BoxLayout( card, BoxLayout.PAGE_AXIS ) );
+		card.add( labeledRow( "Step size:", fieldStepSize ) );
+		card.add( Box.createVerticalStrut( 4 ) );
+		card.add( leftAligned( labelStepCoverage ) );
+		card.add( Box.createVerticalGlue() );
+		return card;
+	}
+
+	/** Wrap {@code component} so a {@link BoxLayout} column leaves it at the left edge rather than centering it. */
+	private static JPanel leftAligned( final JComponent component )
+	{
+		final JPanel row = heightCapped( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
+		row.add( component );
+		row.setAlignmentX( Component.LEFT_ALIGNMENT );
+		return row;
+	}
+
+	/**
+	 * A panel that never grows taller than its contents need <em>now</em>.
+	 * <p>
+	 * A {@link BoxLayout} column stretches each child up to its maximum size,
+	 * so every child has to declare a ceiling -- but taking that ceiling once,
+	 * while the window is being built, silently freezes out anything with
+	 * nothing to show yet: an empty {@link JLabel} measures zero pixels high,
+	 * so a line that only gets its text when a palette is chosen would never
+	 * be given the room to appear. Computing the cap on demand is what lets
+	 * {@link #labelPaletteKind} and {@link #labelStepCoverage} turn up later.
+	 */
+	private static JPanel heightCapped( final LayoutManager layout )
+	{
+		return new JPanel( layout )
+		{
+			@Override
+			public Dimension getMaximumSize()
+			{
+				return new Dimension( Integer.MAX_VALUE, getPreferredSize().height );
+			}
+
+			private static final long serialVersionUID = 1L;
+		};
+	}
+
+	/** A label for something said <em>about</em> a control rather than by it: present, but not competing with the control itself. */
+	private static JLabel mutedLabel( final String text )
+	{
+		final JLabel label = new JLabel( text );
+		final Color disabled = UIManager.getColor( "Label.disabledForeground" );
+		label.setForeground( disabled != null ? disabled : Color.GRAY );
+		return label;
+	}
+
+	/** The titled "Transfer function" panel around the interactive graph. */
 	private JPanel createMappingCurveColumn()
 	{
 		final JPanel column = new JPanel( new BorderLayout() );
-		column.setBorder( BorderFactory.createTitledBorder( "Mapping curve" ) );
+		column.setBorder( BorderFactory.createTitledBorder( "Transfer function" ) );
 		column.add( hugContents( panelMappingCurve ), BorderLayout.CENTER );
 		return column;
 	}
 
-	/** Help/Edit Curve/status on the left, Reset/Cancel/Apply on the right. */
+	/** Help and whatever the graph currently has to say on the left, Reset/Cancel/Apply on the right. */
 	private JPanel createBottomBar()
 	{
-		final JButton buttonHelp = new JButton( "Help" );
+		final JButton buttonHelp = new JButton( "?" );
+		buttonHelp.setToolTipText( "Help (F1)" );
 		buttonHelp.setFocusable( false );
+		buttonHelp.setMargin( new Insets( 0, 0, 0, 0 ) );
+		buttonHelp.setPreferredSize( new Dimension( 24, 24 ) );
 		buttonHelp.addActionListener( e -> showHelp() );
 
-		final JToggleButton toggleEditCurve = new JToggleButton( "Edit Curve" );
-		toggleEditCurve.setFocusable( false );
-		toggleEditCurve.addActionListener( e ->
-		{
-			final boolean editMode = toggleEditCurve.isSelected();
-			panelMappingCurve.setEditMode( editMode );
-			labelStatus.setText( editMode ? "Edit mode activated." : "" );
-		} );
-
-		final JPanel panelLeftBottom = new JPanel( new FlowLayout( FlowLayout.LEFT, 8, 0 ) );
+		final JPanel panelLeftBottom = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
 		panelLeftBottom.add( buttonHelp );
-		panelLeftBottom.add( toggleEditCurve );
+		panelLeftBottom.add( Box.createHorizontalStrut( 8 ) );
+		panelLeftBottom.add( labelCurveHint );
+		panelLeftBottom.add( Box.createHorizontalStrut( 8 ) );
 		panelLeftBottom.add( labelStatus );
 
 		final JButton buttonReset = new JButton( "Reset" );
@@ -798,7 +935,7 @@ public class LutEditorDialog extends JDialog
 			final EditorPreset preset = EditorPresets.load( name );
 			if ( preset == null )
 			{
-				labelStatus.setText( "Failed to load setting: " + name );
+				labelStatus.setText( "Failed to load configuration: " + name );
 				return;
 			}
 			applyEditorPreset( preset );
@@ -829,10 +966,14 @@ public class LutEditorDialog extends JDialog
 
 		// Match the left column's actual rendered width (not just the Data
 		// panel's own preferred width: BoxLayout stretches it to the column's
-		// width, which is the widest of Data/Mapping), accounting for the
-		// curve column's own titled border insets so the two line up exactly.
+		// width, which is the widest of Data/Function/Mapping), accounting for
+		// the curve column's own titled border insets so the two line up
+		// exactly.
 		final Insets insets = panelMappingCurveColumn.getBorder().getBorderInsets( panelMappingCurveColumn );
-		final int targetGraphWidth = panelLeftColumn.getWidth() - insets.left - insets.right;
+		// Never narrower than the graph itself needs at minimum, in case the
+		// settings column should ever end up the narrower of the two.
+		final int targetGraphWidth = Math.max( panelLeftColumn.getWidth() - insets.left - insets.right,
+				panelMappingCurve.minimumGraphWidth() );
 		panelMappingCurve.setPreferredSize( new Dimension( targetGraphWidth, panelMappingCurve.getPreferredSize().height ) );
 
 		// Second pack() applies the corrected graph width to the final layout.
@@ -1101,6 +1242,7 @@ public class LutEditorDialog extends JDialog
 			buttonRightSpecialColor.setBackground( new Color( mappingModel.getRightSpecialColor(), false ) );
 			updateSpecialColorButtonStates();
 			updateShapeControls();
+			syncEditorPresetSelection();
 		}
 		finally
 		{
@@ -1118,6 +1260,25 @@ public class LutEditorDialog extends JDialog
 		layoutShape.show( panelShape, mappingModel.isDiscrete() ? SHAPE_CARD_DISCRETE : SHAPE_CARD_CONTINUOUS );
 		comboMappingPreset.setSelectedItem( mappingModel.getPreset() );
 		updateStepSizeField();
+		labelPaletteKind.setText( ( mappingModel.isDiscrete() ? "Discrete" : "Continuous" )
+				+ " \u00b7 " + currentPalette.getLength() + " colors" );
+		updateCurveHint();
+	}
+
+	/**
+	 * Say what the graph is currently offering: how to edit the transfer
+	 * function while that is switched on, or -- for a discrete palette, where
+	 * the pencil is disabled -- why there is nothing there to edit. Silent
+	 * otherwise, since a hint that is always on screen stops being read.
+	 */
+	private void updateCurveHint()
+	{
+		if ( mappingModel.isDiscrete() )
+			labelCurveHint.setText( "A discrete palette's shape comes from its step size" );
+		else if ( panelMappingCurve.isEditMode() )
+			labelCurveHint.setText( "Left-click adds or drags a point, right-click removes one" );
+		else
+			labelCurveHint.setText( "" );
 	}
 
 	/**
@@ -1159,8 +1320,27 @@ public class LutEditorDialog extends JDialog
 	 */
 	private void updateStepSizeField()
 	{
-		lastShownStepSize = formatValue( effectiveStepSize() );
+		final double stepSize = effectiveStepSize();
+		lastShownStepSize = formatValue( stepSize );
 		fieldStepSize.setText( lastShownStepSize );
+		updateStepCoverageLabel( stepSize );
+	}
+
+	/**
+	 * Say, under the step size, how far the palette actually reaches: its N
+	 * colors at that width cover {@code [min, min + stepSize * N]}, and that
+	 * is where the palette runs out and the "above range" condition takes over
+	 * -- the same edge the graph marks (see {@link MappingCurvePanel}). It is
+	 * deliberately not the display range's maximum: the two part company as
+	 * soon as a step size is typed in, and which of them the colors follow is
+	 * exactly what is easy to get wrong here.
+	 */
+	private void updateStepCoverageLabel( final double stepSize )
+	{
+		final int colors = new DiscreteColorScheme( currentPalette ).getPaletteRangeLength();
+		final double end = editedRangeMin + stepSize * colors;
+		labelStepCoverage.setText( colors + " colors \u00d7 " + formatValue( stepSize )
+				+ " covers " + formatValue( editedRangeMin ) + " \u2013 " + formatValue( end ) );
 	}
 
 	/** The step size {@link #mappingModel} currently maps through; see {@link #updateStepSizeField()}. */
@@ -1222,27 +1402,66 @@ public class LutEditorDialog extends JDialog
 		final Palette palette = LutPalettes.load( preset.getPaletteName() );
 		if ( palette == null )
 		{
-			labelStatus.setText( "Setting's palette not found: " + preset.getPaletteName() );
+			labelStatus.setText( "Configuration's palette not found: " + preset.getPaletteName() );
 			return;
 		}
 
-		final LutEditorMapping presetMapping = new LutEditorMapping();
-		presetMapping.setLeftBoundaryCondition( preset.getLeftBoundaryCondition() );
-		presetMapping.setRightBoundaryCondition( preset.getRightBoundaryCondition() );
-		presetMapping.setLeftSpecialColor( preset.getLeftSpecialColor() );
-		presetMapping.setRightSpecialColor( preset.getRightSpecialColor() );
-		presetMapping.setDiscrete( !palette.isInterpolated() );
-		// Only the half of the saved shape the palette can actually use: a
-		// discrete palette maps through the step size and ignores the curve,
-		// a continuous one the other way round (see LutEditorMapping).
-		if ( presetMapping.isDiscrete() )
-			presetMapping.setStepSize( preset.getStepSize() );
-		else
-			presetMapping.getCurve().setPoints( preset.getCurveXs(), preset.getCurveYs() );
+		final LutEditorMapping presetMapping = mappingFromPreset( preset, !palette.isInterpolated() );
 
 		loadIntoEditor( palette, preset.getPaletteName(), presetMapping, editedRangeMin, editedRangeMax );
 		pushLiveEdits();
 		labelStatus.setText( "" );
+	}
+
+	/**
+	 * The {@link LutEditorMapping} a saved {@link EditorPreset} describes, given
+	 * whether the palette it names is discrete -- shared by
+	 * {@link #applyEditorPreset} (which resolves {@code discrete} from the
+	 * palette it just loaded) and {@link #matchesEditorPreset} (which resolves
+	 * it from {@link #mappingModel}, without re-loading the palette).
+	 */
+	private static LutEditorMapping mappingFromPreset( final EditorPreset preset, final boolean discrete )
+	{
+		final LutEditorMapping mapping = new LutEditorMapping();
+		mapping.setLeftBoundaryCondition( preset.getLeftBoundaryCondition() );
+		mapping.setRightBoundaryCondition( preset.getRightBoundaryCondition() );
+		mapping.setLeftSpecialColor( preset.getLeftSpecialColor() );
+		mapping.setRightSpecialColor( preset.getRightSpecialColor() );
+		mapping.setDiscrete( discrete );
+		// Only the half of the saved shape the palette can actually use: a
+		// discrete palette maps through the step size and ignores the curve,
+		// a continuous one the other way round (see LutEditorMapping).
+		if ( discrete )
+			mapping.setStepSize( preset.getStepSize() );
+		else
+			mapping.getCurve().setPoints( preset.getCurveXs(), preset.getCurveYs() );
+		return mapping;
+	}
+
+	/**
+	 * Deselect the configuration combo when it no longer describes what is
+	 * actually loaded -- e.g. after switching to a source whose applied
+	 * palette/mapping is not the one the previously selected configuration
+	 * saves. Called after every {@link #loadIntoEditor}, so the combo cannot
+	 * go on claiming a configuration is in effect once the editor state has
+	 * moved on from it.
+	 */
+	private void syncEditorPresetSelection()
+	{
+		final Object selected = comboEditorPreset.getSelectedItem();
+		if ( selected instanceof String && !matchesEditorPreset( ( String ) selected ) )
+			comboEditorPreset.setSelectedItem( null );
+	}
+
+	/** Whether {@link #currentPalette}/{@link #currentPaletteName} and {@link #mappingModel} are exactly what {@code presetName} saves. */
+	private boolean matchesEditorPreset( final String presetName )
+	{
+		if ( currentPaletteName == null )
+			return false;
+		final EditorPreset preset = EditorPresets.load( presetName );
+		if ( preset == null || !currentPaletteName.equals( preset.getPaletteName() ) )
+			return false;
+		return mappingModel.hasSameState( mappingFromPreset( preset, mappingModel.isDiscrete() ) );
 	}
 
 	/**
@@ -1258,12 +1477,12 @@ public class LutEditorDialog extends JDialog
 		// only waste their time.
 		if ( currentPaletteName == null )
 		{
-			labelStatus.setText( "Select a named palette before saving a setting." );
+			labelStatus.setText( "Select a named palette before saving a configuration." );
 			return;
 		}
 
 		final Object selected = comboEditorPreset.getSelectedItem();
-		final Object input = JOptionPane.showInputDialog( this, "Setting name:", "Save Setting",
+		final Object input = JOptionPane.showInputDialog( this, "Configuration name:", "Save Configuration",
 				JOptionPane.PLAIN_MESSAGE, null, null, selected instanceof String ? selected : "" );
 		if ( input == null )
 			return;
@@ -1274,13 +1493,13 @@ public class LutEditorDialog extends JDialog
 		final String name = EditorPresets.canonicalName( ( String ) input );
 		if ( name.isEmpty() )
 		{
-			labelStatus.setText( "Setting name cannot be empty." );
+			labelStatus.setText( "Configuration name cannot be empty." );
 			return;
 		}
 		if ( EditorPresets.discoverNames().contains( name ) )
 		{
 			final int choice = JOptionPane.showConfirmDialog( this,
-					"A setting named \"" + name + "\" already exists. Overwrite it?", "Overwrite Setting",
+					"A configuration named \"" + name + "\" already exists. Overwrite it?", "Overwrite Configuration",
 					JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE );
 			if ( choice != JOptionPane.YES_OPTION )
 				return;
@@ -1313,7 +1532,7 @@ public class LutEditorDialog extends JDialog
 		{
 			loadingControls = false;
 		}
-		labelStatus.setText( "Saved setting \"" + name + "\"." );
+		labelStatus.setText( "Saved configuration \"" + name + "\"." );
 	}
 
 	/**
@@ -1454,52 +1673,74 @@ public class LutEditorDialog extends JDialog
 		}
 	}
 
+	/**
+	 * The help text, in a box of its own rather than handed straight to a
+	 * {@link JOptionPane}: passed as a string it becomes a stack of labels as
+	 * tall as the text, which by now is taller than the screen. A fixed height
+	 * with a scroll bar keeps the window a sensible size however much the text
+	 * grows.
+	 */
 	private void showHelp()
 	{
 		final String message = String.join( "\n",
 				"LUT Editor help:",
 				"",
-				"Setting:",
-				"- Applies a saved combination of palette, range mode, background handling",
-				"  and curve (see EditorPreset) -- built-in ones ship with the app, and",
-				"  \"Save...\" stores the current combination (under a name you choose) for",
-				"  reuse later, next to the built-in ones under \"My Settings\". Applying one",
-				"  leaves the current input value range alone, since that is specific to",
-				"  whatever source's data you are editing, not part of the saved look.",
+				"Configuration (the strip across the top):",
+				"- Applies a saved combination of palette, boundary handling and transfer",
+				"  function (see EditorPreset) -- built-in ones ship with the app, and",
+				"  \"Save as...\" stores the current combination (under a name you choose)",
+				"  for reuse later, next to the built-in ones under \"My Settings\".",
+				"  Applying one leaves the current input value range alone, since that is",
+				"  specific to whatever source's data you are editing, not part of the",
+				"  saved look.",
 				"",
 				"Data:",
-				"- Source selects which setup you are editing.",
 				"- Color palette selects the LUT colors the mapped value is looked up in.",
+				"- Whether those colors blend smoothly or are used as individually chosen",
+				"  colors follows the chosen palette file's own declared kind, not a",
+				"  setting here. The line under the swatch says which one it is, and it",
+				"  decides which shape control you get.",
+				"",
+				"Function:",
+				"- For a smooth (continuous) palette, Preset replaces the transfer",
+				"  function with a predefined shape (Linear, Percentile Stretch, Log, Exp,",
+				"  Sigmoid, \u03b1-Sigmoid, Tan, Atan). It can still be adjusted afterwards,",
+				"  and Invert flips it vertically on top of whatever shape/edits it has.",
+				"- For a discrete (categorical) palette, Step size replaces it: it is how",
+				"  many input values one color covers. Set it to 1 to give every integer",
+				"  label its own color. The line below it says how far the palette reaches",
+				"  at that step size -- past there, the \"above range\" condition takes over,",
+				"  so a Cycle there is what repeats the palette across the rest of the",
+				"  range. The field starts out showing the step size that spreads the",
+				"  palette exactly once.",
 				"",
 				"Mapping:",
-				"- Whether a mapped value blends smoothly between palette colors or snaps",
-				"  to one of them follows the chosen palette's own file: it is not a",
-				"  separate setting here. It does decide which shape control you get,",
-				"  below.",
-				"- \"Below range\" and \"Above range\" each choose what happens to input",
-				"  values past that end of [min, max], independently:",
+				"- Below range / Above range choose what happens to input values past that",
+				"  end of the range, independently:",
 				"    Clamp       holds that end's palette color.",
-				"    Cycle       wraps back around the range, so the palette repeats.",
+				"    Cycle       wraps back around, so the palette repeats.",
 				"    Fixed color paints one chosen color instead of any palette color --",
 				"                e.g. a dedicated background for a label image's 0. Click",
 				"                the swatch beside the dropdown to pick it.",
-				"- For a smooth (continuous) palette, Mapping preset replaces the curve with",
-				"  a predefined shape (Linear, Percentile Stretch, Log, Exp, Sigmoid,",
-				"  α-Sigmoid, Tan, Atan). The curve can still be adjusted afterwards, and",
-				"  Invert flips it vertically on top of whatever shape/edits it has.",
-				"- For a discrete (categorical) palette, Step size replaces the curve: it is",
-				"  how many input values one color covers. Set it to 1 to give every integer",
-				"  label its own color. Once the palette runs out of colors it starts over,",
-				"  so a small step size repeats the palette across the range. The field",
-				"  starts out showing the step size that spreads the palette exactly once.",
 				"",
-				"Mapping curve:",
+				"Transfer function (the graph):",
 				"- The color bar to the left previews the palette itself; the one below the",
 				"  graph (\"after transform\") previews the color actually produced for each",
 				"  input value.",
 				"- The boxes at the left/right ends of the x axis set the input value range.",
-				"- Click \"Edit Curve\" to show and edit the curve's control points:",
-				"  left-click to add or drag a point, right-click a point to remove it.",
+				"- Click the pencil beside the graph's top-right corner to show and edit",
+				"  the control points: left-click to add or drag a point, right-click a",
+				"  point to remove it. Hovering or dragging one shows its input value and",
+				"  the palette color it maps to, with guides running out to both color",
+				"  bars. The pencil is disabled for a discrete palette, whose shape comes",
+				"  from its step size rather than from a curve.",
+				"- For a discrete palette the line is drawn as the straight ramp it really",
+				"  is -- snapping to a color is the palette's doing, not the function's.",
+				"  The grid it crosses is the palette's own stops, a tick under the color",
+				"  bar marks every color change, and the dashed vertical marks where the",
+				"  palette runs out.",
+				"- Past either end of the palette's domain the line is dashed, because",
+				"  there its shape is the boundary condition's doing.",
 				"",
 				"- Edits here take effect in the viewer immediately, as you make them.",
 				"- Apply keeps the current edits as the new fallback to revert to.",
@@ -1509,7 +1750,27 @@ public class LutEditorDialog extends JDialog
 				"Shortcut:",
 				"- Press F1 anywhere in this dialog to open this help." );
 
-		JOptionPane.showMessageDialog( this, message, "LUT Editor Help", JOptionPane.INFORMATION_MESSAGE );
+		final JTextArea text = new JTextArea( message );
+		text.setEditable( false );
+		// Monospaced on purpose: the text is hand-wrapped, and the boundary
+		// conditions are laid out in columns that only line up in a fixed-width
+		// font. Sized from the look and feel's own label font, so it still
+		// follows a UI scale change.
+		final Font labelFont = UIManager.getFont( "Label.font" );
+		text.setFont( new Font( Font.MONOSPACED, Font.PLAIN, labelFont != null ? labelFont.getSize() : 12 ) );
+		text.setBackground( UIManager.getColor( "Panel.background" ) );
+		text.setBorder( new EmptyBorder( 4, 6, 4, 6 ) );
+		text.setCaretPosition( 0 );
+
+		final JScrollPane scroll = new JScrollPane( text );
+		// Wide enough for the longest line, so that only the vertical bar is
+		// ever needed -- but capped, since one stray long line should not push
+		// the window off the side of the screen.
+		final int width = Math.min( text.getPreferredSize().width + 24, MAX_HELP_WIDTH );
+		scroll.setPreferredSize( new Dimension( width, HELP_HEIGHT ) );
+		scroll.getVerticalScrollBar().setUnitIncrement( 16 );
+
+		JOptionPane.showMessageDialog( this, scroll, "LUT Editor Help", JOptionPane.INFORMATION_MESSAGE );
 	}
 
 	/**
