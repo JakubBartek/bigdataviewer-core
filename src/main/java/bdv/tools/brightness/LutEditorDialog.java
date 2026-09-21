@@ -1261,7 +1261,7 @@ public class LutEditorDialog extends JDialog
 		comboMappingPreset.setSelectedItem( mappingModel.getPreset() );
 		updateStepSizeField();
 		labelPaletteKind.setText( ( mappingModel.isDiscrete() ? "Discrete" : "Continuous" )
-				+ " \u00b7 " + currentPalette.getLength() + " colors" );
+				+ " \u00b7 " + currentPalette.getLength() + ( mappingModel.isDiscrete() ? " colors" : " color fixes" ) );
 		updateCurveHint();
 	}
 
