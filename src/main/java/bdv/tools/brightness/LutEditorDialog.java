@@ -46,7 +46,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.WeakHashMap;
 
@@ -116,9 +115,10 @@ import net.imglib2.display.ColorConverter;
  * its title (see {@link #beginSession}). It is not modal, so it can be left
  * open beside the viewer while sources are switched there.
  * <p>
- * Edits take effect in the viewer immediately (see {@link #pushLiveEdits()});
- * "Apply" moves the revert-to baseline forward, "Reset" goes back to it, and
- * closing without applying restores it (see {@link #setVisible(boolean)}).
+ * Edits take effect in the viewer immediately (see {@link #pushLiveEdits()})
+ * and stay in effect -- there is nothing to confirm them with, and closing the
+ * window keeps them. The one way back is "Reset", which restores the baseline
+ * taken when the session's source was selected (see {@link #beginSession}).
  */
 public class LutEditorDialog extends JDialog
 {
@@ -183,7 +183,7 @@ public class LutEditorDialog extends JDialog
 	/**
 	 * The palette and mapping currently being edited. Edits are pushed live
 	 * to {@link #activeLutConv} as they happen (see {@link #pushLiveEdits()}),
-	 * so they are visible in the viewer immediately, not just after "Apply".
+	 * so they are visible in the viewer immediately.
 	 */
 	private Palette currentPalette = Palette.DEFAULT;
 
@@ -259,9 +259,9 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Snapshot of {@link #activeLutConv}'s state as of the last "Apply" (or,
-	 * absent that, as loaded by {@link #onSourceChanged()}) -- what
-	 * {@link #revertLiveEdits()} restores unapplied live edits back to.
+	 * Snapshot of {@link #activeLutConv}'s state as loaded by
+	 * {@link #beginSession} -- what {@link #revertLiveEdits()} restores the
+	 * live edits back to.
 	 */
 	private Palette baselinePalette = Palette.DEFAULT;
 	private String baselinePaletteName = null;
@@ -275,6 +275,9 @@ public class LutEditorDialog extends JDialog
 	/** The text {@link #updateStepSizeField()} last put in {@link #fieldStepSize}; see {@link #commitStepSizeField()} for why it is remembered. */
 	private String lastShownStepSize = "";
 
+	/**
+	Instantiate the editor dialog with empty/placeholder values
+	 */
 	public LutEditorDialog( final Frame owner, final ConverterSetups converterSetups, final ViewerState viewerState, final Runnable repaintAction )
 	{
 		super( owner, "LUT Editor", false );
@@ -340,6 +343,56 @@ public class LutEditorDialog extends JDialog
 		packAndMatchGraphWidth( panelLeftColumn, panelMappingCurveColumn );
 	}
 
+	// -- Window lifecycle and following the viewer -------------------------
+
+	/**
+	 * Hiding the dialog -- via "Close", the window's own close button, or
+	 * toggling it closed with its keyboard shortcut, all of which just call
+	 * this -- leaves the live-pushed edits in place (see
+	 * {@link #pushLiveEdits()}); only "Reset" reverts them.
+	 * <p>
+	 * Becoming visible opens a new session (see {@link #restartSession()}), so
+	 * the window always shows the source the viewer is on and takes its
+	 * baseline from what is on screen now, not from whenever it was last
+	 * closed.
+	 */
+	@Override
+	public void setVisible( final boolean visible )
+	{
+		final boolean showing = visible && !isVisible();
+		super.setVisible( visible );
+		if ( showing )
+			restartSession();
+	}
+
+	/**
+	 * Stop following the viewer, then dispose the window as usual.
+	 * <p>
+	 * Both halves are needed, because unregistering the listener does not
+	 * recall the notifications it has already turned into queued EDT work:
+	 * {@code BdvHandle.close()} disposes this dialog and then drops the viewer,
+	 * so a {@link #syncToCurrentSource()} still sitting on the queue would come
+	 * to run afterwards and drive a repaint of a viewer that is no longer
+	 * there. {@link #disposed} is what those queued runnables check.
+	 * <p>
+	 * This is teardown, not hiding -- closing the window with "Close", its
+	 * close button or the keyboard shortcut goes through
+	 * {@link #setVisible(boolean)} and leaves the dialog reusable. A disposed
+	 * dialog is done: showing it again would give a window that no longer
+	 * follows the viewer's source selection.
+	 */
+	@Override
+	public void dispose()
+	{
+		disposed = true;
+		if ( viewerStateListener != null )
+		{
+			viewerState.changeListeners().remove( viewerStateListener );
+			viewerStateListener = null;
+		}
+		super.dispose();
+	}
+
 	/**
 	 * Follow the viewer: which source this window edits is the viewer's own
 	 * current-source selection, and changing it there starts a new editing
@@ -369,67 +422,23 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Stop following the viewer, then dispose the window as usual.
-	 * <p>
-	 * Both halves are needed, because unregistering the listener does not
-	 * recall the notifications it has already turned into queued EDT work:
-	 * {@code BdvHandle.close()} disposes this dialog and then drops the viewer,
-	 * so a {@link #syncToCurrentSource()} still sitting on the queue would come
-	 * to run afterwards and drive a repaint of a viewer that is no longer
-	 * there. {@link #disposed} is what those queued runnables check.
-	 * <p>
-	 * This is teardown, not hiding -- closing the window with "Cancel", its
-	 * close button or the keyboard shortcut goes through
-	 * {@link #setVisible(boolean)} and leaves the dialog reusable. A disposed
-	 * dialog is done: showing it again would give a window that no longer
-	 * follows the viewer's source selection.
+	 * Adopt the viewer's current source as this window's. A no-op when it
+	 * already is, so that a notification arriving after this dialog has
+	 * already reacted -- the listener is dispatched asynchronously, see
+	 * {@link #installViewerStateListener()} -- does not restart the session.
+	 * Also a no-op once {@link #dispose()} has run, which is the same
+	 * asynchrony arriving after the viewer itself has gone.
 	 */
-	@Override
-	public void dispose()
+	private void syncToCurrentSource()
 	{
-		disposed = true;
-		if ( viewerStateListener != null )
-		{
-			viewerState.changeListeners().remove( viewerStateListener );
-			viewerStateListener = null;
-		}
-		super.dispose();
+		if ( disposed )
+			return;
+		final SourceAndConverter< ? > current = viewerState.getCurrentSource();
+		if ( current != sessionSource )
+			beginSession( current );
 	}
 
-	/**
-	 * Edits are pushed live to the viewer as they are made (see
-	 * {@link #pushLiveEdits()}); hiding the dialog without having pressed
-	 * "Apply" since the last edit would otherwise leave those edits in place
-	 * with no way back. So: whenever this dialog transitions from visible to
-	 * hidden -- via "Cancel", the window's own close button, or toggling it
-	 * closed with its keyboard shortcut, all of which just call this -- first
-	 * confirm with the user if there are unapplied edits to discard, then
-	 * revert to the last-applied (or, absent that, originally loaded) state.
-	 * <p>
-	 * Becoming visible is the other half of the same idea: it opens a new
-	 * session (see {@link #restartSession()}), so the window always shows the
-	 * source the viewer is on and takes its backup from what is on screen now,
-	 * not from whenever it was last closed.
-	 */
-	@Override
-	public void setVisible( final boolean visible )
-	{
-		if ( !visible && isVisible() && isDirty() )
-		{
-			final int choice = JOptionPane.showConfirmDialog( this,
-					"Discard unapplied changes?", "Unapplied Changes",
-					JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE );
-			if ( choice != JOptionPane.YES_OPTION )
-				return;
-		}
-		if ( !visible && isVisible() )
-			revertLiveEdits();
-
-		final boolean showing = visible && !isVisible();
-		super.setVisible( visible );
-		if ( showing )
-			restartSession();
-	}
+	// -- Editing session ---------------------------------------------------
 
 	/**
 	 * Open a session for the source the viewer is currently on, now that the
@@ -442,10 +451,10 @@ public class LutEditorDialog extends JDialog
 	 * constructed with the viewer and only shown later, so without this the
 	 * warning would never appear for the source the user opens it on.
 	 * <p>
-	 * The previous session is dropped rather than reverted: hiding the window
-	 * already reverted whatever was outstanding, and forgetting it here is what
-	 * stops {@link #beginSession} from pushing a stale display range back over
-	 * one the brightness controls changed while this window was closed.
+	 * The previous session is dropped rather than reverted: its edits were
+	 * kept when the window was hidden, and the new baseline is taken from the
+	 * source as it is now, including any display range the brightness controls
+	 * changed while this window was closed.
 	 */
 	private void restartSession()
 	{
@@ -455,35 +464,898 @@ public class LutEditorDialog extends JDialog
 		beginSession( viewerState.getCurrentSource() );
 	}
 
-	/** Whether the editor currently differs from {@link #baselinePalette} etc., i.e. has edits since the last "Apply" (or load) that closing now would discard. */
-	private boolean isDirty()
+	/**
+	 * Start a new editing session on {@code soc}: bind the window to that
+	 * source, take the baseline that {@link #resetToSessionBaseline()}
+	 * restores, and load the source's current palette and mapping into the
+	 * controls.
+	 * <p>
+	 * A source rendered by some other kind of converter cannot be edited here;
+	 * the user is warned and offered a conversion (see
+	 * {@link #offerConversion}), and if that comes to nothing the editor falls
+	 * back to a neutral state pushed nowhere.
+	 */
+	private void beginSession( final SourceAndConverter< ? > soc )
 	{
-		return !samePaletteAsBaseline()
-				|| editedRangeMin != baselineRangeMin
-				|| editedRangeMax != baselineRangeMax
-				|| !mappingModel.hasSameState( baselineMapping );
+		sessionSource = soc;
+		activeLutConv = null;
+		activeVolatileLutConv = null;
+		activeSetup = null;
+		updateTitle();
+
+		if ( soc == null )
+		{
+			resetEditorToDefaults();
+			labelStatus.setText( "no setup selected" );
+			return;
+		}
+
+		PaletteConverter< ? > lutConv = asPaletteConverter( soc.getConverter() );
+		if ( lutConv == null )
+			lutConv = offerConversion( soc );
+		if ( lutConv == null )
+		{
+			resetEditorToDefaults();
+			labelStatus.setText( "Converter does not use a LUT." );
+			return;
+		}
+		labelStatus.setText( "" );
+
+		activeLutConv = lutConv;
+		activeVolatileLutConv = soc.asVolatile() == null ? null : asPaletteConverter( soc.asVolatile().getConverter() );
+		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
+		activeSetup = setup;
+
+		// The converter renders through a PaletteWrapper, which cannot be read
+		// back into the editor's palette-plus-curve terms; restore what the
+		// editor last pushed for this converter instead (see converterStates),
+		// falling back to a neutral default for one set up outside this dialog.
+		final EditorState state = converterStates.get( lutConv );
+		final Palette palette = state != null ? state.palette : Palette.DEFAULT;
+		final String paletteName = state != null ? state.paletteName : LutPalettes.findName( palette );
+		final LutEditorMapping loaded = state != null ? state.mapping : defaultMapping();
+
+		final double min = setup != null ? setup.getDisplayRangeMin() : 0;
+		final double max = setup != null ? setup.getDisplayRangeMax() : 255;
+		loadIntoEditor( palette, paletteName, loaded, min, max );
+
+		// The session backup. Deep exactly where it has to be: a Palette is
+		// immutable and safe to share, but a mapping is not -- baselineMapping
+		// is a separate object whose copyFrom clones the curve's control point
+		// arrays, so editing the live mapping cannot reach into the backup.
+		snapshotBaseline();
+	}
+
+	/** {@code converter} as a {@link PaletteConverter}, or {@code null} if it is some other implementation. */
+	private static PaletteConverter< ? > asPaletteConverter( final Converter< ?, ? > converter )
+	{
+		return converter instanceof PaletteConverter ? ( PaletteConverter< ? > ) converter : null;
 	}
 
 	/**
-	 * Whether {@link #currentPalette} is the same palette as
-	 * {@link #baselinePalette} -- deliberately not object identity:
-	 * {@link LutPalettes#load} returns a fresh instance per call, so
-	 * re-picking the palette that is already selected would otherwise count
-	 * as an edit and pop the "Discard unapplied changes?" prompt on close.
+	 * Warn that {@code soc} is rendered by a converter this editor does not
+	 * understand, and offer to re-render it through one that it does -- see
+	 * {@link PaletteConverterFactory}, which spells out how much of the
+	 * original setup survives that translation. Returns the converter now
+	 * rendering the source, or {@code null} if it was not converted.
 	 * <p>
-	 * Named palettes compare by name (two different names are two different
-	 * palettes, even in the unlikely case their colors coincide); an unnamed
-	 * one -- e.g. loaded from a converter set up elsewhere, see
-	 * {@link #loadIntoEditor} -- has only its colors to go on.
+	 * Only asked while the dialog is actually on screen, and only once per
+	 * source: this runs on every source switch, and a modal prompt appearing
+	 * behind the user's back, or again every time they cycle past the same
+	 * source with the 1..9 keys, would cost more than the warning is worth.
 	 */
-	private boolean samePaletteAsBaseline()
+	private PaletteConverter< ? > offerConversion( final SourceAndConverter< ? > soc )
 	{
-		if ( currentPalette == baselinePalette )
-			return true;
-		if ( currentPaletteName != null || baselinePaletteName != null )
-			return Objects.equals( currentPaletteName, baselinePaletteName );
-		return Objects.equals( currentPalette, baselinePalette );
+		if ( !isVisible() || !declinedConversion.add( soc ) )
+			return null;
+
+		final Converter< ?, ? > conv = soc.getConverter();
+		final String kind = conv == null ? "no converter" : conv.getClass().getSimpleName();
+		final String preamble = "Source \"" + sourceName( soc ) + "\" is rendered by " + kind + ",\n"
+				+ "which this LUT editor cannot edit.";
+
+		if ( !PaletteConverterFactory.canApproximate( soc ) )
+		{
+			JOptionPane.showMessageDialog( this,
+					preamble + "\n\nIt cannot be converted to a palette-based converter either.",
+					"Unsupported Converter", JOptionPane.WARNING_MESSAGE );
+			return null;
+		}
+
+		final int choice = JOptionPane.showConfirmDialog( this,
+				preamble + "\n\nConvert it to a palette-based converter?\n"
+						+ "Its display range is kept and mapped linearly; its color\n"
+						+ "becomes the closest sequential palette, so the image will\n"
+						+ "look similar but not identical.",
+				"Unsupported Converter", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE );
+		if ( choice != JOptionPane.YES_OPTION )
+			return null;
+
+		final PaletteConverter< ? > converted = PaletteConverterFactory.approximateInPlace( soc );
+		if ( converted == null )
+			return null;
+
+		// Editable from here on, so no longer a source to stop asking about.
+		declinedConversion.remove( soc );
+		repointConverterSetup( soc );
+		if ( repaintAction != null )
+			repaintAction.run();
+		return converted;
 	}
+
+	/**
+	 * Re-point {@code soc}'s {@link ConverterSetup} at the converters now
+	 * rendering it, after {@link PaletteConverterFactory} swapped them: it
+	 * would otherwise go on reading and writing the display range of a
+	 * converter that renders nothing, and the brightness/contrast controls
+	 * would appear to do nothing.
+	 * <p>
+	 * Done in place where the setup allows it, because a {@code ConverterSetup}
+	 * is an identity that {@link SetupAssignments}, the brightness dialog and
+	 * {@code ConverterSetupBounds} all hold on to and would not follow to a
+	 * substitute. A setup of some other implementation has to be replaced
+	 * instead, which those holders do not see -- brightness for that source
+	 * keeps working through this dialog and the source table, but a group it
+	 * was put in by {@code SetupAssignments} will not follow it.
+	 */
+	private void repointConverterSetup( final SourceAndConverter< ? > soc )
+	{
+		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
+		if ( setup == null )
+			return;
+		final List< ColorConverter > converters = PaletteConverterFactory.colorConvertersOf( soc );
+		if ( converters.isEmpty() )
+			return;
+		if ( setup instanceof RealARGBColorConverterSetup )
+			( ( RealARGBColorConverterSetup ) setup ).setConverters( converters );
+		else
+			converterSetups.put( soc, new RealARGBColorConverterSetup( setup.getSetupId(), converters ) );
+	}
+
+	/** The source's own name, or its setup id if there is no source to ask. */
+	private String sourceName( final SourceAndConverter< ? > soc )
+	{
+		if ( soc.getSpimSource() != null )
+			return soc.getSpimSource().getName();
+		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
+		return setup != null ? Integer.toString( setup.getSetupId() ) : "?";
+	}
+
+	/**
+	 * Name the source being edited in the window title. This dialog is not
+	 * modal and is meant to be left open beside the viewer, where it can
+	 * easily end up looking at a source other than the one the user has their
+	 * eye on -- the title is what says which.
+	 */
+	private void updateTitle()
+	{
+		setTitle( sessionSource == null ? "LUT Editor" : "LUT Editor - " + sourceName( sessionSource ) );
+	}
+
+	/**
+	 * Reset the editor to a neutral default state (as if freshly created),
+	 * used whenever there is no valid LUT-backed source/setup to actually
+	 * load -- otherwise every control would keep showing whatever the
+	 * previously selected source left behind, which is misleading (e.g. the
+	 * mapping preset combo still showing "Linear" for a source that isn't
+	 * even LUT-based).
+	 */
+	private void resetEditorToDefaults()
+	{
+		loadIntoEditor( Palette.DEFAULT, null, defaultMapping(), 0, 255 );
+		snapshotBaseline();
+	}
+
+	/** A neutral mapping (linear, both ends clamped, interpolated) -- the editor's starting point for a source with no remembered state. */
+	private static LutEditorMapping defaultMapping()
+	{
+		final LutEditorMapping defaults = new LutEditorMapping();
+		defaults.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
+		defaults.setRightBoundaryCondition( BoundaryCondition.CLAMP );
+		defaults.setDiscrete( false );
+		defaults.applyPreset( PresetShape.LINEAR );
+		return defaults;
+	}
+
+	// -- Editor state and live edits ---------------------------------------
+
+	/**
+	 * Load a palette/mapping/range into the editor's own controls, without
+	 * touching {@link #activeLutConv} itself (callers decide separately
+	 * whether/what to push there). Used both for a newly selected source's
+	 * actually-applied state, and to reset the editor back to
+	 * {@link #baselinePalette} etc. when reverting.
+	 */
+	private void loadIntoEditor( final Palette palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
+	{
+		loadingControls = true;
+		try
+		{
+			currentPalette = palette;
+			currentPaletteName = paletteName;
+			editedRangeMin = min;
+			editedRangeMax = max;
+
+			panelPaletteSwatch.update( palette );
+			panelMappingCurve.setRange( min, max );
+			panelMappingCurve.setPalette( palette );
+			comboPalette.setSelectedItem( paletteName );
+
+			mappingModel.copyFrom( mapping );
+
+			comboLeftBoundary.setSelectedItem( mappingModel.getLeftBoundaryCondition() );
+			comboRightBoundary.setSelectedItem( mappingModel.getRightBoundaryCondition() );
+			buttonLeftSpecialColor.setBackground( new Color( mappingModel.getLeftSpecialColor(), false ) );
+			buttonRightSpecialColor.setBackground( new Color( mappingModel.getRightSpecialColor(), false ) );
+			updateSpecialColorButtonStates();
+			updateShapeControls();
+			syncEditorPresetSelection();
+		}
+		finally
+		{
+			loadingControls = false;
+		}
+	}
+
+	/** Snapshot the editor's current state as the new {@link #baselinePalette} etc. to revert edits to. */
+	private void snapshotBaseline()
+	{
+		baselinePalette = currentPalette;
+		baselinePaletteName = currentPaletteName;
+		baselineMapping.copyFrom( mappingModel );
+		baselineRangeMin = editedRangeMin;
+		baselineRangeMax = editedRangeMax;
+	}
+
+	/**
+	 * Put the session's baseline back: whatever the source looked like when
+	 * {@link #beginSession} bound it to this window. The only way to undo
+	 * edits, since they are live and closing the window keeps them.
+	 */
+	private void resetToSessionBaseline()
+	{
+		revertLiveEdits();
+		labelStatus.setText( activeLutConv == null ? "" : "Reset." );
+	}
+
+	/**
+	 * Push {@link #currentPalette}/{@link #mappingModel}/{@link #editedRangeMin}/
+	 * {@link #editedRangeMax} to {@link #activeLutConv} so edits are visible
+	 * in the viewer immediately. Wired as {@link #mappingModel}'s change
+	 * listener; also called directly wherever the range fields change, since
+	 * {@link #mappingModel} itself doesn't track those.
+	 */
+	private void pushLiveEdits()
+	{
+		if ( loadingControls )
+			return;
+		pushToActiveConverter( currentPalette, currentPaletteName, mappingModel, editedRangeMin, editedRangeMax );
+	}
+
+	/** Push {@link #baselinePalette}/{@link #baselineMapping}/{@link #baselineRangeMin}/{@link #baselineRangeMax} to {@link #activeLutConv}, discarding any live-pushed edits made since. */
+	private void revertActiveConverterToBaseline()
+	{
+		pushToActiveConverter( baselinePalette, baselinePaletteName, baselineMapping, baselineRangeMin, baselineRangeMax );
+	}
+
+	/**
+	 * Translate the editor's palette + mapping + range into a
+	 * {@link PaletteWrapper} and hand it to {@link #activeLutConv} to render
+	 * through, remembering the editor-facing terms in {@link #converterStates}
+	 * so re-selecting this source can restore them. The display range still
+	 * goes to the setup (which also drives brightness/contrast), so it stays
+	 * the single owner of that range.
+	 * <p>
+	 * The same wrapper instance also goes to
+	 * {@link #activeVolatileLutConv}, which is what renders the source until
+	 * its data has finished loading; it can be shared because the two
+	 * converters describe the same mapping of the same pixels.
+	 */
+	private void pushToActiveConverter( final Palette palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
+	{
+		if ( activeLutConv == null )
+			return;
+		final PaletteWrapper wrapper = PaletteWrapperBuilder.build( palette, mapping, min, max );
+		activeLutConv.setWrapper( wrapper );
+		if ( activeVolatileLutConv != null )
+			activeVolatileLutConv.setWrapper( wrapper );
+
+		final LutEditorMapping remembered = new LutEditorMapping();
+		remembered.copyFrom( mapping );
+		converterStates.put( activeLutConv, new EditorState( palette, paletteName, remembered ) );
+
+		if ( activeSetup != null )
+			activeSetup.setDisplayRange( min, max );
+		if ( repaintAction != null )
+			repaintAction.run();
+	}
+
+	/**
+	 * Discard the session's live edits: revert {@link #activeLutConv} to
+	 * {@link #baselinePalette} etc., and reset the editor's own controls to
+	 * match.
+	 */
+	private void revertLiveEdits()
+	{
+		revertActiveConverterToBaseline();
+		loadIntoEditor( baselinePalette, baselinePaletteName, baselineMapping, baselineRangeMin, baselineRangeMax );
+	}
+
+	// -- Configurations (saved presets) ------------------------------------
+
+	/**
+	 * Apply a saved {@link EditorPreset} (see {@link #comboEditorPreset}):
+	 * its palette, range mode, background handling and curve, live and
+	 * immediately, same as any other edit here. Deliberately leaves
+	 * {@link #editedRangeMin}/{@link #editedRangeMax} alone -- a preset is a
+	 * reusable "look", not tied to any particular source's data range.
+	 */
+	private void applyEditorPreset( final EditorPreset preset )
+	{
+		final Palette palette = LutPalettes.load( preset.getPaletteName() );
+		if ( palette == null )
+		{
+			labelStatus.setText( "Configuration's palette not found: " + preset.getPaletteName() );
+			return;
+		}
+
+		final LutEditorMapping presetMapping = mappingFromPreset( preset, !palette.isInterpolated() );
+
+		loadIntoEditor( palette, preset.getPaletteName(), presetMapping, editedRangeMin, editedRangeMax );
+		pushLiveEdits();
+		labelStatus.setText( "" );
+	}
+
+	/**
+	 * The {@link LutEditorMapping} a saved {@link EditorPreset} describes, given
+	 * whether the palette it names is discrete -- shared by
+	 * {@link #applyEditorPreset} (which resolves {@code discrete} from the
+	 * palette it just loaded) and {@link #matchesEditorPreset} (which resolves
+	 * it from {@link #mappingModel}, without re-loading the palette).
+	 */
+	private static LutEditorMapping mappingFromPreset( final EditorPreset preset, final boolean discrete )
+	{
+		final LutEditorMapping mapping = new LutEditorMapping();
+		mapping.setLeftBoundaryCondition( preset.getLeftBoundaryCondition() );
+		mapping.setRightBoundaryCondition( preset.getRightBoundaryCondition() );
+		mapping.setLeftSpecialColor( preset.getLeftSpecialColor() );
+		mapping.setRightSpecialColor( preset.getRightSpecialColor() );
+		mapping.setDiscrete( discrete );
+		// Only the half of the saved shape the palette can actually use: a
+		// discrete palette maps through the step size and ignores the curve,
+		// a continuous one the other way round (see LutEditorMapping).
+		if ( discrete )
+			mapping.setStepSize( preset.getStepSize() );
+		else
+			mapping.getCurve().setPoints( preset.getCurveXs(), preset.getCurveYs() );
+		return mapping;
+	}
+
+	/**
+	 * Deselect the configuration combo when it no longer describes what is
+	 * actually loaded -- e.g. after switching to a source whose applied
+	 * palette/mapping is not the one the previously selected configuration
+	 * saves. Called after every {@link #loadIntoEditor}, so the combo cannot
+	 * go on claiming a configuration is in effect once the editor state has
+	 * moved on from it.
+	 */
+	private void syncEditorPresetSelection()
+	{
+		final Object selected = comboEditorPreset.getSelectedItem();
+		if ( selected instanceof String && !matchesEditorPreset( ( String ) selected ) )
+			comboEditorPreset.setSelectedItem( null );
+	}
+
+	/** Whether {@link #currentPalette}/{@link #currentPaletteName} and {@link #mappingModel} are exactly what {@code presetName} saves. */
+	private boolean matchesEditorPreset( final String presetName )
+	{
+		if ( currentPaletteName == null )
+			return false;
+		final EditorPreset preset = EditorPresets.load( presetName );
+		if ( preset == null || !currentPaletteName.equals( preset.getPaletteName() ) )
+			return false;
+		return mappingModel.hasSameState( mappingFromPreset( preset, mappingModel.isDiscrete() ) );
+	}
+
+	/**
+	 * Ask the user for a name and save the editor's current palette, range
+	 * mode, background handling and curve as a reusable {@link EditorPreset}
+	 * (see {@link #applyEditorPreset}) under it, confirming first if that
+	 * would overwrite an existing one.
+	 */
+	private void promptAndSaveEditorPreset()
+	{
+		// Checked before prompting: nothing the user could type would make a
+		// palette-less setting saveable, so asking for a name first would
+		// only waste their time.
+		if ( currentPaletteName == null )
+		{
+			labelStatus.setText( "Select a named palette before saving a configuration." );
+			return;
+		}
+
+		final Object selected = comboEditorPreset.getSelectedItem();
+		final Object input = JOptionPane.showInputDialog( this, "Configuration name:", "Save Configuration",
+				JOptionPane.PLAIN_MESSAGE, null, null, selected instanceof String ? selected : "" );
+		if ( input == null )
+			return;
+		// Canonicalize up front: a preset is identified by its file name, so
+		// this is the name it will actually be stored and listed under -- and
+		// the only form that can be meaningfully compared against
+		// discoverNames() just below.
+		final String name = EditorPresets.canonicalName( ( String ) input );
+		if ( name.isEmpty() )
+		{
+			labelStatus.setText( "Configuration name cannot be empty." );
+			return;
+		}
+		if ( EditorPresets.discoverNames().contains( name ) )
+		{
+			final int choice = JOptionPane.showConfirmDialog( this,
+					"A configuration named \"" + name + "\" already exists. Overwrite it?", "Overwrite Configuration",
+					JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE );
+			if ( choice != JOptionPane.YES_OPTION )
+				return;
+		}
+
+		try
+		{
+			EditorPresets.save( new EditorPreset( name, currentPaletteName,
+					mappingModel.getLeftBoundaryCondition(), mappingModel.getRightBoundaryCondition(),
+					mappingModel.getLeftSpecialColor(), mappingModel.getRightSpecialColor(),
+					mappingModel.getStepSize(),
+					mappingModel.getCurve().xsArray(), mappingModel.getCurve().ysArray() ) );
+		}
+		catch ( final RuntimeException e )
+		{
+			// Saving is the one preset operation that can't degrade silently
+			// (see EditorPresets#save) -- report it here rather than letting
+			// it escape into the button's action listener.
+			labelStatus.setText( "Failed to save setting: " + e.getMessage() );
+			return;
+		}
+
+		refreshEditorPresetCombo( comboEditorPreset );
+		loadingControls = true;
+		try
+		{
+			comboEditorPreset.setSelectedItem( name );
+		}
+		finally
+		{
+			loadingControls = false;
+		}
+		labelStatus.setText( "Saved configuration \"" + name + "\"." );
+	}
+
+	// -- Syncing controls to the model -------------------------------------
+
+	/**
+	 * Sync the shape controls to {@link #mappingModel}: which card is showing
+	 * -- a continuous palette is shaped by a preset curve, a discrete one by a
+	 * step size (see {@link LutEditorMapping}) -- and that card's own value.
+	 */
+	private void updateShapeControls()
+	{
+		layoutShape.show( panelShape, mappingModel.isDiscrete() ? SHAPE_CARD_DISCRETE : SHAPE_CARD_CONTINUOUS );
+		comboMappingPreset.setSelectedItem( mappingModel.getPreset() );
+		updateStepSizeField();
+		labelPaletteKind.setText( ( mappingModel.isDiscrete() ? "Discrete" : "Continuous" )
+				+ " \u00b7 " + currentPalette.getLength() + ( mappingModel.isDiscrete() ? " colors" : " color fixes" ) );
+		updateCurveHint();
+	}
+
+	/**
+	 * Say what the graph is currently offering: how to edit the transfer
+	 * function while that is switched on, or -- for a discrete palette, where
+	 * the pencil is disabled -- why there is nothing there to edit. Silent
+	 * otherwise, since a hint that is always on screen stops being read.
+	 */
+	private void updateCurveHint()
+	{
+		if ( mappingModel.isDiscrete() )
+			labelCurveHint.setText( "A discrete palette's shape comes from its step size" );
+		else if ( panelMappingCurve.isEditMode() )
+			labelCurveHint.setText( "Left-click adds or drags a point, right-click removes one" );
+		else
+			labelCurveHint.setText( "" );
+	}
+
+	/**
+	 * A boundary's color swatch is only live while that end is set to
+	 * {@link BoundaryCondition#SPECIAL}; under the other conditions the color
+	 * comes from the palette, so there is nothing to pick.
+	 */
+	private void updateSpecialColorButtonStates()
+	{
+		buttonLeftSpecialColor.setEnabled( mappingModel.getLeftBoundaryCondition() == BoundaryCondition.SPECIAL );
+		buttonRightSpecialColor.setEnabled( mappingModel.getRightBoundaryCondition() == BoundaryCondition.SPECIAL );
+	}
+
+	/**
+	 * Ask for one end's {@link BoundaryCondition#SPECIAL} color and store it.
+	 * Forced opaque: {@link JColorChooser} has no alpha channel to offer here.
+	 */
+	private void chooseSpecialColor( final boolean left )
+	{
+		final JButton button = left ? buttonLeftSpecialColor : buttonRightSpecialColor;
+		final Color chosen = JColorChooser.showDialog( this,
+				left ? "Color Below Range" : "Color Above Range", button.getBackground() );
+		if ( chosen == null )
+			return;
+		final int argb = 0xff000000 | ( chosen.getRGB() & 0xffffff );
+		button.setBackground( new Color( argb, false ) );
+		if ( left )
+			mappingModel.setLeftSpecialColor( argb );
+		else
+			mappingModel.setRightSpecialColor( argb );
+	}
+
+	/**
+	 * Show the step size actually in effect -- the chosen one, or whatever
+	 * {@link PaletteWrapperBuilder} resolves {@link LutEditorMapping#AUTO_STEP_SIZE}
+	 * to for the current palette and range. Showing the resolved number rather
+	 * than an empty field means the user always starts editing from the value
+	 * they are actually looking at.
+	 */
+	private void updateStepSizeField()
+	{
+		final double stepSize = effectiveStepSize();
+		lastShownStepSize = formatValue( stepSize );
+		fieldStepSize.setText( lastShownStepSize );
+		updateStepCoverageLabel( stepSize );
+	}
+
+	/**
+	 * Say, under the step size, how far the palette actually reaches: its N
+	 * colors at that width cover {@code [min, min + stepSize * N]}, and that
+	 * is where the palette runs out and the "above range" condition takes over
+	 * -- the same edge the graph marks (see {@link MappingCurvePanel}). It is
+	 * deliberately not the display range's maximum: the two part company as
+	 * soon as a step size is typed in, and which of them the colors follow is
+	 * exactly what is easy to get wrong here.
+	 */
+	private void updateStepCoverageLabel( final double stepSize )
+	{
+		final int colors = new DiscreteColorScheme( currentPalette ).getPaletteRangeLength();
+		final double end = editedRangeMin + stepSize * colors;
+		labelStepCoverage.setText( colors + " colors \u00d7 " + formatValue( stepSize )
+				+ " covers " + formatValue( editedRangeMin ) + " \u2013 " + formatValue( end ) );
+	}
+
+	/** The step size {@link #mappingModel} currently maps through; see {@link #updateStepSizeField()}. */
+	private double effectiveStepSize()
+	{
+		final double chosen = mappingModel.getStepSize();
+		if ( chosen > 0.0 )
+			return chosen;
+		final double lo = editedRangeMin;
+		final double hi = editedRangeMax > editedRangeMin ? editedRangeMax : editedRangeMin + 1;
+		return StepPresetFunc.defaultStepSize( lo, hi, new DiscreteColorScheme( currentPalette ).getPaletteRangeLength() );
+	}
+
+	/**
+	 * Take a hand-typed step size, keeping the last good value if it does not
+	 * parse or is not positive. Text we put there ourselves is ignored: the
+	 * field shows the <em>resolved</em> value of an automatic step size, so
+	 * committing it back on a mere focus traversal would silently pin it down
+	 * as an explicit choice -- and leave the editor looking dirty.
+	 */
+	private void commitStepSizeField()
+	{
+		if ( loadingControls )
+			return;
+		final String text = fieldStepSize.getText().trim();
+		if ( text.equals( lastShownStepSize ) )
+			return;
+		try
+		{
+			final double v = Double.parseDouble( text );
+			if ( v > 0.0 )
+				mappingModel.setStepSize( v );
+		}
+		catch ( final NumberFormatException ignored )
+		{
+		}
+		updateStepSizeField();
+	}
+
+	/**
+	 * Format a range value the same way {@link MappingCurvePanel} formats
+	 * its min/max fields: as a plain integer when it is (numerically) one,
+	 * otherwise to 2 decimal places.
+	 */
+	private static String formatValue( final double value )
+	{
+		if ( Math.abs( value - Math.round( value ) ) < 1e-6 )
+			return Long.toString( Math.round( value ) );
+		return String.format( "%.2f", value );
+	}
+
+	// -- Layout ------------------------------------------------------------
+
+	/**
+	 * The configuration strip across the top of the window: a saved
+	 * combination that can be applied in one step, or saved back under a name.
+	 * <p>
+	 * Full width, above both columns, because it governs everything below it
+	 * -- but deliberately understated (a muted label, no group box, a rule to
+	 * separate it) rather than presented as the window's headline control,
+	 * which it is not: the palette and the input range are what actually get
+	 * touched on most visits here.
+	 */
+	private JPanel createConfigurationStrip()
+	{
+		final JPanel row = new JPanel( new BorderLayout( 8, 0 ) );
+		row.add( mutedLabel( "Configuration" ), BorderLayout.WEST );
+		row.add( comboEditorPreset, BorderLayout.CENTER );
+		row.add( buttonSaveEditorPreset, BorderLayout.EAST );
+
+		final JPanel strip = new JPanel( new BorderLayout( 0, 6 ) );
+		strip.add( row, BorderLayout.CENTER );
+		strip.add( new JSeparator(), BorderLayout.SOUTH );
+		return strip;
+	}
+
+	/** The "Data", "Function" and "Mapping" panels, stacked. */
+	private JPanel createLeftColumn()
+	{
+		final JPanel panelData = heightCapped( null );
+		panelData.setLayout( new BoxLayout( panelData, BoxLayout.PAGE_AXIS ) );
+		panelData.setBorder( BorderFactory.createTitledBorder( "Data" ) );
+		panelData.add( labeledRow( "Color palette:", comboPalette ) );
+		panelData.add( Box.createVerticalStrut( 4 ) );
+		// Left-aligned like every other row: a BoxLayout column asked to mix
+		// alignments reserves room for the widest child on BOTH sides of the
+		// alignment point, so one centered child was making the whole settings
+		// column about a hundred pixels wider than its widest row.
+		panelPaletteSwatch.setAlignmentX( Component.LEFT_ALIGNMENT );
+		panelData.add( panelPaletteSwatch );
+		panelData.add( Box.createVerticalStrut( 4 ) );
+		panelData.add( leftAligned( labelPaletteKind ) );
+		panelData.setAlignmentX( Component.LEFT_ALIGNMENT );
+
+		// One card or the other, never both: which one is showing follows the
+		// palette's own kind (see #updateShapeControls). A CardLayout rather
+		// than swapping visibility so the panel keeps the taller card's height
+		// either way, and the dialog does not resize as the palette changes.
+		panelShape.add( continuousShapeCard(), SHAPE_CARD_CONTINUOUS );
+		panelShape.add( discreteShapeCard(), SHAPE_CARD_DISCRETE );
+		panelShape.setAlignmentX( Component.LEFT_ALIGNMENT );
+
+		final JPanel panelShapeGroup = heightCapped( null );
+		panelShapeGroup.setLayout( new BoxLayout( panelShapeGroup, BoxLayout.PAGE_AXIS ) );
+		panelShapeGroup.setBorder( BorderFactory.createTitledBorder( "Function" ) );
+		panelShapeGroup.add( panelShape );
+		panelShapeGroup.setAlignmentX( Component.LEFT_ALIGNMENT );
+
+		final JPanel column = new JPanel();
+		column.setLayout( new BoxLayout( column, BoxLayout.PAGE_AXIS ) );
+		column.add( panelData );
+		column.add( Box.createVerticalStrut( 4 ) );
+		column.add( panelShapeGroup );
+		column.add( Box.createVerticalStrut( 4 ) );
+		column.add( createBoundaryGroup() );
+		return column;
+	}
+
+	/** A continuous palette's shape: a predefined transfer function, optionally flipped. */
+	private JPanel continuousShapeCard()
+	{
+		final JPanel card = new JPanel();
+		card.setLayout( new BoxLayout( card, BoxLayout.PAGE_AXIS ) );
+		card.add( labeledRow( "Preset:", comboMappingPreset ) );
+		card.add( Box.createVerticalStrut( 4 ) );
+		final JPanel invertRow = new JPanel( new FlowLayout( FlowLayout.RIGHT, 0, 0 ) );
+		invertRow.add( buttonInvertCurve );
+		invertRow.setAlignmentX( Component.LEFT_ALIGNMENT );
+		invertRow.setMaximumSize( new Dimension( Integer.MAX_VALUE, invertRow.getPreferredSize().height ) );
+		card.add( invertRow );
+		card.add( Box.createVerticalGlue() );
+		return card;
+	}
+
+	/** A discrete palette's shape: how many input values one color covers, and how far that takes the palette. */
+	private JPanel discreteShapeCard()
+	{
+		final JPanel card = new JPanel();
+		card.setLayout( new BoxLayout( card, BoxLayout.PAGE_AXIS ) );
+		card.add( labeledRow( "Step size:", fieldStepSize ) );
+		card.add( Box.createVerticalStrut( 4 ) );
+		card.add( leftAligned( labelStepCoverage ) );
+		card.add( Box.createVerticalGlue() );
+		return card;
+	}
+
+	/** The "Mapping" panel: what happens to raw values past either end of the input range, one labelled row per end. */
+	private JPanel createBoundaryGroup()
+	{
+		final JPanel panel = heightCapped( null );
+		panel.setLayout( new BoxLayout( panel, BoxLayout.PAGE_AXIS ) );
+		panel.setBorder( BorderFactory.createTitledBorder( "Mapping" ) );
+		panel.add( labeledRow( "Below range:", comboLeftBoundary, buttonLeftSpecialColor ) );
+		panel.add( Box.createVerticalStrut( 4 ) );
+		panel.add( labeledRow( "Above range:", comboRightBoundary, buttonRightSpecialColor ) );
+		panel.setAlignmentX( Component.LEFT_ALIGNMENT );
+		return panel;
+	}
+
+	/** The titled "Transfer function" panel around the interactive graph. */
+	private JPanel createMappingCurveColumn()
+	{
+		final JPanel column = new JPanel( new BorderLayout() );
+		column.setBorder( BorderFactory.createTitledBorder( "Transfer function" ) );
+		column.add( hugContents( panelMappingCurve ), BorderLayout.CENTER );
+		return column;
+	}
+
+	/** Help and whatever the graph currently has to say on the left, Reset/Close on the right. */
+	private JPanel createBottomBar()
+	{
+		final JButton buttonHelp = new JButton( "?" );
+		buttonHelp.setToolTipText( "Help (F1)" );
+		buttonHelp.setFocusable( false );
+		buttonHelp.setMargin( new Insets( 0, 0, 0, 0 ) );
+		buttonHelp.setPreferredSize( new Dimension( 24, 24 ) );
+		buttonHelp.addActionListener( e -> showHelp() );
+
+		final JPanel panelLeftBottom = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
+		panelLeftBottom.add( buttonHelp );
+		panelLeftBottom.add( Box.createHorizontalStrut( 8 ) );
+		panelLeftBottom.add( labelCurveHint );
+		panelLeftBottom.add( Box.createHorizontalStrut( 8 ) );
+		panelLeftBottom.add( labelStatus );
+
+		final JButton buttonReset = new JButton( "Reset" );
+		buttonReset.addActionListener( e -> resetToSessionBaseline() );
+		final JButton buttonClose = new JButton( "Close" );
+		buttonClose.addActionListener( e -> setVisible( false ) );
+		normalizeButtonSizes( buttonReset, buttonClose );
+
+		final JPanel panelRightBottom = new JPanel( new GridLayout( 1, 2, 8, 0 ) );
+		panelRightBottom.add( buttonReset );
+		panelRightBottom.add( buttonClose );
+
+		final JPanel panelBottom = new JPanel( new BorderLayout() );
+		panelBottom.add( panelLeftBottom, BorderLayout.WEST );
+		panelBottom.add( panelRightBottom, BorderLayout.EAST );
+		return panelBottom;
+	}
+
+	/**
+	 * Wire up the persistent controls (the bottom bar's buttons wire
+	 * themselves, in {@link #createBottomBar()}, since nothing else refers to
+	 * them).
+	 */
+	private void installControlListeners()
+	{
+		comboPalette.addActionListener( e ->
+		{
+			if ( loadingControls )
+				return;
+			final Object selected = comboPalette.getSelectedItem();
+			if ( !( selected instanceof String ) )
+				return;
+			final String name = ( String ) selected;
+			final Palette ct = LutPalettes.load( name );
+			if ( ct == null )
+			{
+				labelStatus.setText( "Failed to load LUT: " + name );
+				return;
+			}
+			currentPalette = ct;
+			currentPaletteName = name;
+			panelPaletteSwatch.update( ct );
+			panelMappingCurve.setPalette( ct );
+			labelStatus.setText( "" );
+
+			// Value matching always follows the palette file's own declared
+			// mode, not a user choice: a palette that declares itself
+			// non-interpolated (e.g. a qualitative/categorical palette like
+			// tab10) is meant to be used as discrete colors, not blended --
+			// Truncate is the closest match to how such palettes are
+			// typically read (each raw value holds the color of the control
+			// point at or before it).
+			mappingModel.setDiscrete( !ct.isInterpolated() );
+			updateShapeControls();
+		} );
+
+		comboLeftBoundary.addActionListener( e ->
+		{
+			if ( loadingControls )
+				return;
+			mappingModel.setLeftBoundaryCondition( ( BoundaryCondition ) comboLeftBoundary.getSelectedItem() );
+			updateSpecialColorButtonStates();
+		} );
+
+		comboRightBoundary.addActionListener( e ->
+		{
+			if ( loadingControls )
+				return;
+			mappingModel.setRightBoundaryCondition( ( BoundaryCondition ) comboRightBoundary.getSelectedItem() );
+			updateSpecialColorButtonStates();
+		} );
+
+		buttonLeftSpecialColor.addActionListener( e -> chooseSpecialColor( true ) );
+		buttonRightSpecialColor.addActionListener( e -> chooseSpecialColor( false ) );
+
+		comboMappingPreset.addActionListener( e ->
+		{
+			if ( loadingControls )
+				return;
+			mappingModel.applyPreset( ( PresetShape ) comboMappingPreset.getSelectedItem() );
+		} );
+
+		fieldStepSize.addActionListener( e -> commitStepSizeField() );
+		fieldStepSize.addFocusListener( new FocusAdapter()
+		{
+			@Override
+			public void focusLost( final FocusEvent e )
+			{
+				commitStepSizeField();
+			}
+		} );
+
+		buttonInvertCurve.addActionListener( e -> mappingModel.invertCurve() );
+
+		comboEditorPreset.addActionListener( e ->
+		{
+			if ( loadingControls )
+				return;
+			final Object selected = comboEditorPreset.getSelectedItem();
+			if ( !( selected instanceof String ) )
+				return;
+			final String name = ( String ) selected;
+			final EditorPreset preset = EditorPresets.load( name );
+			if ( preset == null )
+			{
+				labelStatus.setText( "Failed to load configuration: " + name );
+				return;
+			}
+			applyEditorPreset( preset );
+		} );
+
+		buttonSaveEditorPreset.addActionListener( e -> promptAndSaveEditorPreset() );
+
+		getRootPane().registerKeyboardAction( e -> showHelp(), KeyStroke.getKeyStroke( KeyEvent.VK_F1, 0 ), JComponent.WHEN_IN_FOCUSED_WINDOW );
+
+		mappingModel.addChangeListener( panelMappingCurve::repaint );
+		mappingModel.addChangeListener( panelPaletteSwatch::repaint );
+		mappingModel.addChangeListener( this::pushLiveEdits );
+	}
+
+	/**
+	 * Size the window to its contents, with the graph widened to line up with
+	 * the left column's titled panels.
+	 */
+	private void packAndMatchGraphWidth( final JPanel panelLeftColumn, final JPanel panelMappingCurveColumn )
+	{
+		// A first pack() is needed before we can trust any preferred-size
+		// measurements below: JComboBox (and text components generally)
+		// under-measure their preferred width until the component hierarchy
+		// is actually realized (addNotify()) and real font metrics become
+		// available, so measuring panelLeftColumn's width before this point can
+		// be significantly too narrow.
+		pack();
+
+		// Match the left column's actual rendered width (not just the Data
+		// panel's own preferred width: BoxLayout stretches it to the column's
+		// width, which is the widest of Data/Function/Mapping), accounting for
+		// the curve column's own titled border insets so the two line up
+		// exactly.
+		final Insets insets = panelMappingCurveColumn.getBorder().getBorderInsets( panelMappingCurveColumn );
+		// Never narrower than the graph itself needs at minimum, in case the
+		// settings column should ever end up the narrower of the two.
+		final int targetGraphWidth = Math.max( panelLeftColumn.getWidth() - insets.left - insets.right,
+				panelMappingCurve.minimumGraphWidth() );
+		panelMappingCurve.setPreferredSize( new Dimension( targetGraphWidth, panelMappingCurve.getPreferredSize().height ) );
+
+		// Second pack() applies the corrected graph width to the final layout.
+		pack();
+		setMinimumSize( getPreferredSize() );
+	}
+
+	// -- Widget factories --------------------------------------------------
 
 	/**
 	 * The color palette chooser: every discovered palette, grouped under a
@@ -654,111 +1526,7 @@ public class LutEditorDialog extends JDialog
 		return button;
 	}
 
-	/**
-	 * The configuration strip across the top of the window: a saved
-	 * combination that can be applied in one step, or saved back under a name.
-	 * <p>
-	 * Full width, above both columns, because it governs everything below it
-	 * -- but deliberately understated (a muted label, no group box, a rule to
-	 * separate it) rather than presented as the window's headline control,
-	 * which it is not: the palette and the input range are what actually get
-	 * touched on most visits here.
-	 */
-	private JPanel createConfigurationStrip()
-	{
-		final JPanel row = new JPanel( new BorderLayout( 8, 0 ) );
-		row.add( mutedLabel( "Configuration" ), BorderLayout.WEST );
-		row.add( comboEditorPreset, BorderLayout.CENTER );
-		row.add( buttonSaveEditorPreset, BorderLayout.EAST );
-
-		final JPanel strip = new JPanel( new BorderLayout( 0, 6 ) );
-		strip.add( row, BorderLayout.CENTER );
-		strip.add( new JSeparator(), BorderLayout.SOUTH );
-		return strip;
-	}
-
-	/** The "Mapping" panel: what happens to raw values past either end of the input range, one labelled row per end. */
-	private JPanel createBoundaryGroup()
-	{
-		final JPanel panel = heightCapped( null );
-		panel.setLayout( new BoxLayout( panel, BoxLayout.PAGE_AXIS ) );
-		panel.setBorder( BorderFactory.createTitledBorder( "Mapping" ) );
-		panel.add( labeledRow( "Below range:", comboLeftBoundary, buttonLeftSpecialColor ) );
-		panel.add( Box.createVerticalStrut( 4 ) );
-		panel.add( labeledRow( "Above range:", comboRightBoundary, buttonRightSpecialColor ) );
-		panel.setAlignmentX( Component.LEFT_ALIGNMENT );
-		return panel;
-	}
-
-	/** The "Data", "Function" and "Mapping" panels, stacked. */
-	private JPanel createLeftColumn()
-	{
-		final JPanel panelData = heightCapped( null );
-		panelData.setLayout( new BoxLayout( panelData, BoxLayout.PAGE_AXIS ) );
-		panelData.setBorder( BorderFactory.createTitledBorder( "Data" ) );
-		panelData.add( labeledRow( "Color palette:", comboPalette ) );
-		panelData.add( Box.createVerticalStrut( 4 ) );
-		// Left-aligned like every other row: a BoxLayout column asked to mix
-		// alignments reserves room for the widest child on BOTH sides of the
-		// alignment point, so one centered child was making the whole settings
-		// column about a hundred pixels wider than its widest row.
-		panelPaletteSwatch.setAlignmentX( Component.LEFT_ALIGNMENT );
-		panelData.add( panelPaletteSwatch );
-		panelData.add( Box.createVerticalStrut( 4 ) );
-		panelData.add( leftAligned( labelPaletteKind ) );
-		panelData.setAlignmentX( Component.LEFT_ALIGNMENT );
-
-		// One card or the other, never both: which one is showing follows the
-		// palette's own kind (see #updateShapeControls). A CardLayout rather
-		// than swapping visibility so the panel keeps the taller card's height
-		// either way, and the dialog does not resize as the palette changes.
-		panelShape.add( continuousShapeCard(), SHAPE_CARD_CONTINUOUS );
-		panelShape.add( discreteShapeCard(), SHAPE_CARD_DISCRETE );
-		panelShape.setAlignmentX( Component.LEFT_ALIGNMENT );
-
-		final JPanel panelShapeGroup = heightCapped( null );
-		panelShapeGroup.setLayout( new BoxLayout( panelShapeGroup, BoxLayout.PAGE_AXIS ) );
-		panelShapeGroup.setBorder( BorderFactory.createTitledBorder( "Function" ) );
-		panelShapeGroup.add( panelShape );
-		panelShapeGroup.setAlignmentX( Component.LEFT_ALIGNMENT );
-
-		final JPanel column = new JPanel();
-		column.setLayout( new BoxLayout( column, BoxLayout.PAGE_AXIS ) );
-		column.add( panelData );
-		column.add( Box.createVerticalStrut( 4 ) );
-		column.add( panelShapeGroup );
-		column.add( Box.createVerticalStrut( 4 ) );
-		column.add( createBoundaryGroup() );
-		return column;
-	}
-
-	/** A continuous palette's shape: a predefined transfer function, optionally flipped. */
-	private JPanel continuousShapeCard()
-	{
-		final JPanel card = new JPanel();
-		card.setLayout( new BoxLayout( card, BoxLayout.PAGE_AXIS ) );
-		card.add( labeledRow( "Preset:", comboMappingPreset ) );
-		card.add( Box.createVerticalStrut( 4 ) );
-		final JPanel invertRow = new JPanel( new FlowLayout( FlowLayout.RIGHT, 0, 0 ) );
-		invertRow.add( buttonInvertCurve );
-		invertRow.setAlignmentX( Component.LEFT_ALIGNMENT );
-		invertRow.setMaximumSize( new Dimension( Integer.MAX_VALUE, invertRow.getPreferredSize().height ) );
-		card.add( invertRow );
-		card.add( Box.createVerticalGlue() );
-		return card;
-	}
-
-	/** A discrete palette's shape: how many input values one color covers, and how far that takes the palette. */
-	private JPanel discreteShapeCard()
-	{
-		final JPanel card = new JPanel();
-		card.setLayout( new BoxLayout( card, BoxLayout.PAGE_AXIS ) );
-		card.add( labeledRow( "Step size:", fieldStepSize ) );
-		card.add( Box.createVerticalStrut( 4 ) );
-		card.add( leftAligned( labelStepCoverage ) );
-		card.add( Box.createVerticalGlue() );
-		return card;
-	}
+	// -- Layout helpers ----------------------------------------------------
 
 	/** Wrap {@code component} so a {@link BoxLayout} column leaves it at the left edge rather than centering it. */
 	private static JPanel leftAligned( final JComponent component )
@@ -803,184 +1571,6 @@ public class LutEditorDialog extends JDialog
 		return label;
 	}
 
-	/** The titled "Transfer function" panel around the interactive graph. */
-	private JPanel createMappingCurveColumn()
-	{
-		final JPanel column = new JPanel( new BorderLayout() );
-		column.setBorder( BorderFactory.createTitledBorder( "Transfer function" ) );
-		column.add( hugContents( panelMappingCurve ), BorderLayout.CENTER );
-		return column;
-	}
-
-	/** Help and whatever the graph currently has to say on the left, Reset/Cancel/Apply on the right. */
-	private JPanel createBottomBar()
-	{
-		final JButton buttonHelp = new JButton( "?" );
-		buttonHelp.setToolTipText( "Help (F1)" );
-		buttonHelp.setFocusable( false );
-		buttonHelp.setMargin( new Insets( 0, 0, 0, 0 ) );
-		buttonHelp.setPreferredSize( new Dimension( 24, 24 ) );
-		buttonHelp.addActionListener( e -> showHelp() );
-
-		final JPanel panelLeftBottom = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
-		panelLeftBottom.add( buttonHelp );
-		panelLeftBottom.add( Box.createHorizontalStrut( 8 ) );
-		panelLeftBottom.add( labelCurveHint );
-		panelLeftBottom.add( Box.createHorizontalStrut( 8 ) );
-		panelLeftBottom.add( labelStatus );
-
-		final JButton buttonReset = new JButton( "Reset" );
-		buttonReset.addActionListener( e -> resetToSessionBaseline() );
-		final JButton buttonCancel = new JButton( "Cancel" );
-		buttonCancel.addActionListener( e -> setVisible( false ) );
-		final JButton buttonApply = new JButton( "Apply" );
-		buttonApply.addActionListener( e -> applyCurrent() );
-		normalizeButtonSizes( buttonReset, buttonCancel, buttonApply );
-
-		final JPanel panelRightBottom = new JPanel( new GridLayout( 1, 3, 8, 0 ) );
-		panelRightBottom.add( buttonReset );
-		panelRightBottom.add( buttonCancel );
-		panelRightBottom.add( buttonApply );
-
-		final JPanel panelBottom = new JPanel( new BorderLayout() );
-		panelBottom.add( panelLeftBottom, BorderLayout.WEST );
-		panelBottom.add( panelRightBottom, BorderLayout.EAST );
-		return panelBottom;
-	}
-
-	/**
-	 * Wire up the persistent controls (the bottom bar's buttons wire
-	 * themselves, in {@link #createBottomBar()}, since nothing else refers to
-	 * them).
-	 */
-	private void installControlListeners()
-	{
-		comboPalette.addActionListener( e ->
-		{
-			if ( loadingControls )
-				return;
-			final Object selected = comboPalette.getSelectedItem();
-			if ( !( selected instanceof String ) )
-				return;
-			final String name = ( String ) selected;
-			final Palette ct = LutPalettes.load( name );
-			if ( ct == null )
-			{
-				labelStatus.setText( "Failed to load LUT: " + name );
-				return;
-			}
-			currentPalette = ct;
-			currentPaletteName = name;
-			panelPaletteSwatch.update( ct );
-			panelMappingCurve.setPalette( ct );
-			labelStatus.setText( "" );
-
-			// Value matching always follows the palette file's own declared
-			// mode, not a user choice: a palette that declares itself
-			// non-interpolated (e.g. a qualitative/categorical palette like
-			// tab10) is meant to be used as discrete colors, not blended --
-			// Truncate is the closest match to how such palettes are
-			// typically read (each raw value holds the color of the control
-			// point at or before it).
-			mappingModel.setDiscrete( !ct.isInterpolated() );
-			updateShapeControls();
-		} );
-
-		comboLeftBoundary.addActionListener( e ->
-		{
-			if ( loadingControls )
-				return;
-			mappingModel.setLeftBoundaryCondition( ( BoundaryCondition ) comboLeftBoundary.getSelectedItem() );
-			updateSpecialColorButtonStates();
-		} );
-
-		comboRightBoundary.addActionListener( e ->
-		{
-			if ( loadingControls )
-				return;
-			mappingModel.setRightBoundaryCondition( ( BoundaryCondition ) comboRightBoundary.getSelectedItem() );
-			updateSpecialColorButtonStates();
-		} );
-
-		buttonLeftSpecialColor.addActionListener( e -> chooseSpecialColor( true ) );
-		buttonRightSpecialColor.addActionListener( e -> chooseSpecialColor( false ) );
-
-		comboMappingPreset.addActionListener( e ->
-		{
-			if ( loadingControls )
-				return;
-			mappingModel.applyPreset( ( PresetShape ) comboMappingPreset.getSelectedItem() );
-		} );
-
-		fieldStepSize.addActionListener( e -> commitStepSizeField() );
-		fieldStepSize.addFocusListener( new FocusAdapter()
-		{
-			@Override
-			public void focusLost( final FocusEvent e )
-			{
-				commitStepSizeField();
-			}
-		} );
-
-		buttonInvertCurve.addActionListener( e -> mappingModel.invertCurve() );
-
-		comboEditorPreset.addActionListener( e ->
-		{
-			if ( loadingControls )
-				return;
-			final Object selected = comboEditorPreset.getSelectedItem();
-			if ( !( selected instanceof String ) )
-				return;
-			final String name = ( String ) selected;
-			final EditorPreset preset = EditorPresets.load( name );
-			if ( preset == null )
-			{
-				labelStatus.setText( "Failed to load configuration: " + name );
-				return;
-			}
-			applyEditorPreset( preset );
-		} );
-
-		buttonSaveEditorPreset.addActionListener( e -> promptAndSaveEditorPreset() );
-
-		getRootPane().registerKeyboardAction( e -> showHelp(), KeyStroke.getKeyStroke( KeyEvent.VK_F1, 0 ), JComponent.WHEN_IN_FOCUSED_WINDOW );
-
-		mappingModel.addChangeListener( panelMappingCurve::repaint );
-		mappingModel.addChangeListener( panelPaletteSwatch::repaint );
-		mappingModel.addChangeListener( this::pushLiveEdits );
-	}
-
-	/**
-	 * Size the window to its contents, with the graph widened to line up with
-	 * the left column's titled panels.
-	 */
-	private void packAndMatchGraphWidth( final JPanel panelLeftColumn, final JPanel panelMappingCurveColumn )
-	{
-		// A first pack() is needed before we can trust any preferred-size
-		// measurements below: JComboBox (and text components generally)
-		// under-measure their preferred width until the component hierarchy
-		// is actually realized (addNotify()) and real font metrics become
-		// available, so measuring panelLeftColumn's width before this point can
-		// be significantly too narrow.
-		pack();
-
-		// Match the left column's actual rendered width (not just the Data
-		// panel's own preferred width: BoxLayout stretches it to the column's
-		// width, which is the widest of Data/Function/Mapping), accounting for
-		// the curve column's own titled border insets so the two line up
-		// exactly.
-		final Insets insets = panelMappingCurveColumn.getBorder().getBorderInsets( panelMappingCurveColumn );
-		// Never narrower than the graph itself needs at minimum, in case the
-		// settings column should ever end up the narrower of the two.
-		final int targetGraphWidth = Math.max( panelLeftColumn.getWidth() - insets.left - insets.right,
-				panelMappingCurve.minimumGraphWidth() );
-		panelMappingCurve.setPreferredSize( new Dimension( targetGraphWidth, panelMappingCurve.getPreferredSize().height ) );
-
-		// Second pack() applies the corrected graph width to the final layout.
-		pack();
-		setMinimumSize( getPreferredSize() );
-	}
-
 	/**
 	 * Wrap {@code component} so it renders at its own preferred size instead
 	 * of being stretched to fill whatever slot it lands in (e.g. a
@@ -994,648 +1584,6 @@ public class LutEditorDialog extends JDialog
 		return wrapper;
 	}
 
-	/**
-	 * Start a new editing session on {@code soc}: bind the window to that
-	 * source, take the backup that {@link #resetToSessionBaseline()} and
-	 * closing the dialog restore, and load the source's applied palette and
-	 * mapping into the controls.
-	 * <p>
-	 * Any live-pushed edits still outstanding on the previous session's
-	 * source/converter are first reverted back to <em>its</em> baseline, the
-	 * same as closing the dialog without pressing "Apply" would have done --
-	 * so leaving a source behind never silently commits what was being tried
-	 * out on it.
-	 * <p>
-	 * A source rendered by some other kind of converter cannot be edited here;
-	 * the user is warned and offered a conversion (see
-	 * {@link #offerConversion}), and if that comes to nothing the editor falls
-	 * back to a neutral state that is pushed nowhere.
-	 */
-	private void beginSession( final SourceAndConverter< ? > soc )
-	{
-		revertActiveConverterToBaseline();
-
-		sessionSource = soc;
-		activeLutConv = null;
-		activeVolatileLutConv = null;
-		activeSetup = null;
-		updateTitle();
-
-		if ( soc == null )
-		{
-			resetEditorToDefaults();
-			labelStatus.setText( "no setup selected" );
-			return;
-		}
-
-		PaletteConverter< ? > lutConv = asPaletteConverter( soc.getConverter() );
-		if ( lutConv == null )
-			lutConv = offerConversion( soc );
-		if ( lutConv == null )
-		{
-			resetEditorToDefaults();
-			labelStatus.setText( "Converter does not use a LUT." );
-			return;
-		}
-		labelStatus.setText( "" );
-
-		activeLutConv = lutConv;
-		activeVolatileLutConv = soc.asVolatile() == null ? null : asPaletteConverter( soc.asVolatile().getConverter() );
-		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
-		activeSetup = setup;
-
-		// The converter renders through a PaletteWrapper, which cannot be read
-		// back into the editor's palette-plus-curve terms; restore what the
-		// editor last pushed for this converter instead (see converterStates),
-		// falling back to a neutral default for one set up outside this dialog.
-		final EditorState state = converterStates.get( lutConv );
-		final Palette palette = state != null ? state.palette : Palette.DEFAULT;
-		final String paletteName = state != null ? state.paletteName : LutPalettes.findName( palette );
-		final LutEditorMapping loaded = state != null ? state.mapping : defaultMapping();
-
-		final double min = setup != null ? setup.getDisplayRangeMin() : 0;
-		final double max = setup != null ? setup.getDisplayRangeMax() : 255;
-		loadIntoEditor( palette, paletteName, loaded, min, max );
-
-		// The session backup. Deep exactly where it has to be: a Palette is
-		// immutable and safe to share, but a mapping is not -- baselineMapping
-		// is a separate object whose copyFrom clones the curve's control point
-		// arrays, so editing the live mapping cannot reach into the backup.
-		snapshotBaseline();
-	}
-
-	/** {@code converter} as a {@link PaletteConverter}, or {@code null} if it is some other implementation. */
-	private static PaletteConverter< ? > asPaletteConverter( final Converter< ?, ? > converter )
-	{
-		return converter instanceof PaletteConverter ? ( PaletteConverter< ? > ) converter : null;
-	}
-
-	/**
-	 * Warn that {@code soc} is rendered by a converter this editor does not
-	 * understand, and offer to re-render it through one that it does -- see
-	 * {@link PaletteConverterFactory}, which spells out how much of the
-	 * original setup survives that translation. Returns the converter now
-	 * rendering the source, or {@code null} if it was not converted.
-	 * <p>
-	 * Only asked while the dialog is actually on screen, and only once per
-	 * source: this runs on every source switch, and a modal prompt appearing
-	 * behind the user's back, or again every time they cycle past the same
-	 * source with the 1..9 keys, would cost more than the warning is worth.
-	 */
-	private PaletteConverter< ? > offerConversion( final SourceAndConverter< ? > soc )
-	{
-		if ( !isVisible() || !declinedConversion.add( soc ) )
-			return null;
-
-		final Converter< ?, ? > conv = soc.getConverter();
-		final String kind = conv == null ? "no converter" : conv.getClass().getSimpleName();
-		final String preamble = "Source \"" + sourceName( soc ) + "\" is rendered by " + kind + ",\n"
-				+ "which this LUT editor cannot edit.";
-
-		if ( !PaletteConverterFactory.canApproximate( soc ) )
-		{
-			JOptionPane.showMessageDialog( this,
-					preamble + "\n\nIt cannot be converted to a palette-based converter either.",
-					"Unsupported Converter", JOptionPane.WARNING_MESSAGE );
-			return null;
-		}
-
-		final int choice = JOptionPane.showConfirmDialog( this,
-				preamble + "\n\nConvert it to a palette-based converter?\n"
-						+ "Its display range is kept and mapped linearly; its color\n"
-						+ "becomes the closest sequential palette, so the image will\n"
-						+ "look similar but not identical.",
-				"Unsupported Converter", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE );
-		if ( choice != JOptionPane.YES_OPTION )
-			return null;
-
-		final PaletteConverter< ? > converted = PaletteConverterFactory.approximateInPlace( soc );
-		if ( converted == null )
-			return null;
-
-		// Editable from here on, so no longer a source to stop asking about.
-		declinedConversion.remove( soc );
-		repointConverterSetup( soc );
-		if ( repaintAction != null )
-			repaintAction.run();
-		return converted;
-	}
-
-	/**
-	 * Re-point {@code soc}'s {@link ConverterSetup} at the converters now
-	 * rendering it, after {@link PaletteConverterFactory} swapped them: it
-	 * would otherwise go on reading and writing the display range of a
-	 * converter that renders nothing, and the brightness/contrast controls
-	 * would appear to do nothing.
-	 * <p>
-	 * Done in place where the setup allows it, because a {@code ConverterSetup}
-	 * is an identity that {@link SetupAssignments}, the brightness dialog and
-	 * {@code ConverterSetupBounds} all hold on to and would not follow to a
-	 * substitute. A setup of some other implementation has to be replaced
-	 * instead, which those holders do not see -- brightness for that source
-	 * keeps working through this dialog and the source table, but a group it
-	 * was put in by {@code SetupAssignments} will not follow it.
-	 */
-	private void repointConverterSetup( final SourceAndConverter< ? > soc )
-	{
-		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
-		if ( setup == null )
-			return;
-		final List< ColorConverter > converters = PaletteConverterFactory.colorConvertersOf( soc );
-		if ( converters.isEmpty() )
-			return;
-		if ( setup instanceof RealARGBColorConverterSetup )
-			( ( RealARGBColorConverterSetup ) setup ).setConverters( converters );
-		else
-			converterSetups.put( soc, new RealARGBColorConverterSetup( setup.getSetupId(), converters ) );
-	}
-
-	/**
-	 * Adopt the viewer's current source as this window's. A no-op when it
-	 * already is, so that a notification arriving after this dialog has
-	 * already reacted -- the listener is dispatched asynchronously, see
-	 * {@link #installViewerStateListener()} -- does not restart the session.
-	 * Also a no-op once {@link #dispose()} has run, which is the same
-	 * asynchrony arriving after the viewer itself has gone.
-	 */
-	private void syncToCurrentSource()
-	{
-		if ( disposed )
-			return;
-		final SourceAndConverter< ? > current = viewerState.getCurrentSource();
-		if ( current != sessionSource )
-			beginSession( current );
-	}
-
-	/** The source's own name, or its setup id if there is no source to ask. */
-	private String sourceName( final SourceAndConverter< ? > soc )
-	{
-		if ( soc.getSpimSource() != null )
-			return soc.getSpimSource().getName();
-		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
-		return setup != null ? Integer.toString( setup.getSetupId() ) : "?";
-	}
-
-	/**
-	 * Name the source being edited in the window title. This dialog is not
-	 * modal and is meant to be left open beside the viewer, where it can
-	 * easily end up looking at a source other than the one the user has their
-	 * eye on -- the title is what says which.
-	 */
-	private void updateTitle()
-	{
-		setTitle( sessionSource == null ? "LUT Editor" : "LUT Editor - " + sourceName( sessionSource ) );
-	}
-
-	/**
-	 * Reset the editor to a neutral default state (as if freshly created),
-	 * used whenever there is no valid LUT-backed source/setup to actually
-	 * load -- otherwise every control would keep showing whatever the
-	 * previously selected source left behind, which is misleading (e.g. the
-	 * mapping preset combo still showing "Linear" for a source that isn't
-	 * even LUT-based).
-	 */
-	private void resetEditorToDefaults()
-	{
-		loadIntoEditor( Palette.DEFAULT, null, defaultMapping(), 0, 255 );
-		snapshotBaseline();
-	}
-
-	/** A neutral mapping (linear, both ends clamped, interpolated) -- the editor's starting point for a source with no remembered state. */
-	private static LutEditorMapping defaultMapping()
-	{
-		final LutEditorMapping defaults = new LutEditorMapping();
-		defaults.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
-		defaults.setRightBoundaryCondition( BoundaryCondition.CLAMP );
-		defaults.setDiscrete( false );
-		defaults.applyPreset( PresetShape.LINEAR );
-		return defaults;
-	}
-
-	/**
-	 * Load a palette/mapping/range into the editor's own controls, without
-	 * touching {@link #activeLutConv} itself (callers decide separately
-	 * whether/what to push there). Used both for a newly selected source's
-	 * actually-applied state, and to reset the editor back to
-	 * {@link #baselinePalette} etc. when reverting.
-	 */
-	private void loadIntoEditor( final Palette palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
-	{
-		loadingControls = true;
-		try
-		{
-			currentPalette = palette;
-			currentPaletteName = paletteName;
-			editedRangeMin = min;
-			editedRangeMax = max;
-
-			panelPaletteSwatch.update( palette );
-			panelMappingCurve.setRange( min, max );
-			panelMappingCurve.setPalette( palette );
-			comboPalette.setSelectedItem( paletteName );
-
-			mappingModel.copyFrom( mapping );
-
-			comboLeftBoundary.setSelectedItem( mappingModel.getLeftBoundaryCondition() );
-			comboRightBoundary.setSelectedItem( mappingModel.getRightBoundaryCondition() );
-			buttonLeftSpecialColor.setBackground( new Color( mappingModel.getLeftSpecialColor(), false ) );
-			buttonRightSpecialColor.setBackground( new Color( mappingModel.getRightSpecialColor(), false ) );
-			updateSpecialColorButtonStates();
-			updateShapeControls();
-			syncEditorPresetSelection();
-		}
-		finally
-		{
-			loadingControls = false;
-		}
-	}
-
-	/**
-	 * Sync the shape controls to {@link #mappingModel}: which card is showing
-	 * -- a continuous palette is shaped by a preset curve, a discrete one by a
-	 * step size (see {@link LutEditorMapping}) -- and that card's own value.
-	 */
-	private void updateShapeControls()
-	{
-		layoutShape.show( panelShape, mappingModel.isDiscrete() ? SHAPE_CARD_DISCRETE : SHAPE_CARD_CONTINUOUS );
-		comboMappingPreset.setSelectedItem( mappingModel.getPreset() );
-		updateStepSizeField();
-		labelPaletteKind.setText( ( mappingModel.isDiscrete() ? "Discrete" : "Continuous" )
-				+ " \u00b7 " + currentPalette.getLength() + ( mappingModel.isDiscrete() ? " colors" : " color fixes" ) );
-		updateCurveHint();
-	}
-
-	/**
-	 * Say what the graph is currently offering: how to edit the transfer
-	 * function while that is switched on, or -- for a discrete palette, where
-	 * the pencil is disabled -- why there is nothing there to edit. Silent
-	 * otherwise, since a hint that is always on screen stops being read.
-	 */
-	private void updateCurveHint()
-	{
-		if ( mappingModel.isDiscrete() )
-			labelCurveHint.setText( "A discrete palette's shape comes from its step size" );
-		else if ( panelMappingCurve.isEditMode() )
-			labelCurveHint.setText( "Left-click adds or drags a point, right-click removes one" );
-		else
-			labelCurveHint.setText( "" );
-	}
-
-	/**
-	 * A boundary's color swatch is only live while that end is set to
-	 * {@link BoundaryCondition#SPECIAL}; under the other conditions the color
-	 * comes from the palette, so there is nothing to pick.
-	 */
-	private void updateSpecialColorButtonStates()
-	{
-		buttonLeftSpecialColor.setEnabled( mappingModel.getLeftBoundaryCondition() == BoundaryCondition.SPECIAL );
-		buttonRightSpecialColor.setEnabled( mappingModel.getRightBoundaryCondition() == BoundaryCondition.SPECIAL );
-	}
-
-	/**
-	 * Ask for one end's {@link BoundaryCondition#SPECIAL} color and store it.
-	 * Forced opaque: {@link JColorChooser} has no alpha channel to offer here.
-	 */
-	private void chooseSpecialColor( final boolean left )
-	{
-		final JButton button = left ? buttonLeftSpecialColor : buttonRightSpecialColor;
-		final Color chosen = JColorChooser.showDialog( this,
-				left ? "Color Below Range" : "Color Above Range", button.getBackground() );
-		if ( chosen == null )
-			return;
-		final int argb = 0xff000000 | ( chosen.getRGB() & 0xffffff );
-		button.setBackground( new Color( argb, false ) );
-		if ( left )
-			mappingModel.setLeftSpecialColor( argb );
-		else
-			mappingModel.setRightSpecialColor( argb );
-	}
-
-	/**
-	 * Show the step size actually in effect -- the chosen one, or whatever
-	 * {@link PaletteWrapperBuilder} resolves {@link LutEditorMapping#AUTO_STEP_SIZE}
-	 * to for the current palette and range. Showing the resolved number rather
-	 * than an empty field means the user always starts editing from the value
-	 * they are actually looking at.
-	 */
-	private void updateStepSizeField()
-	{
-		final double stepSize = effectiveStepSize();
-		lastShownStepSize = formatValue( stepSize );
-		fieldStepSize.setText( lastShownStepSize );
-		updateStepCoverageLabel( stepSize );
-	}
-
-	/**
-	 * Say, under the step size, how far the palette actually reaches: its N
-	 * colors at that width cover {@code [min, min + stepSize * N]}, and that
-	 * is where the palette runs out and the "above range" condition takes over
-	 * -- the same edge the graph marks (see {@link MappingCurvePanel}). It is
-	 * deliberately not the display range's maximum: the two part company as
-	 * soon as a step size is typed in, and which of them the colors follow is
-	 * exactly what is easy to get wrong here.
-	 */
-	private void updateStepCoverageLabel( final double stepSize )
-	{
-		final int colors = new DiscreteColorScheme( currentPalette ).getPaletteRangeLength();
-		final double end = editedRangeMin + stepSize * colors;
-		labelStepCoverage.setText( colors + " colors \u00d7 " + formatValue( stepSize )
-				+ " covers " + formatValue( editedRangeMin ) + " \u2013 " + formatValue( end ) );
-	}
-
-	/** The step size {@link #mappingModel} currently maps through; see {@link #updateStepSizeField()}. */
-	private double effectiveStepSize()
-	{
-		final double chosen = mappingModel.getStepSize();
-		if ( chosen > 0.0 )
-			return chosen;
-		final double lo = editedRangeMin;
-		final double hi = editedRangeMax > editedRangeMin ? editedRangeMax : editedRangeMin + 1;
-		return StepPresetFunc.defaultStepSize( lo, hi, new DiscreteColorScheme( currentPalette ).getPaletteRangeLength() );
-	}
-
-	/**
-	 * Take a hand-typed step size, keeping the last good value if it does not
-	 * parse or is not positive. Text we put there ourselves is ignored: the
-	 * field shows the <em>resolved</em> value of an automatic step size, so
-	 * committing it back on a mere focus traversal would silently pin it down
-	 * as an explicit choice -- and leave the editor looking dirty.
-	 */
-	private void commitStepSizeField()
-	{
-		if ( loadingControls )
-			return;
-		final String text = fieldStepSize.getText().trim();
-		if ( text.equals( lastShownStepSize ) )
-			return;
-		try
-		{
-			final double v = Double.parseDouble( text );
-			if ( v > 0.0 )
-				mappingModel.setStepSize( v );
-		}
-		catch ( final NumberFormatException ignored )
-		{
-		}
-		updateStepSizeField();
-	}
-
-	/** Snapshot the editor's current state as the new {@link #baselinePalette} etc. to revert unapplied edits back to. */
-	private void snapshotBaseline()
-	{
-		baselinePalette = currentPalette;
-		baselinePaletteName = currentPaletteName;
-		baselineMapping.copyFrom( mappingModel );
-		baselineRangeMin = editedRangeMin;
-		baselineRangeMax = editedRangeMax;
-	}
-
-	/**
-	 * Apply a saved {@link EditorPreset} (see {@link #comboEditorPreset}):
-	 * its palette, range mode, background handling and curve, live and
-	 * immediately, same as any other edit here. Deliberately leaves
-	 * {@link #editedRangeMin}/{@link #editedRangeMax} alone -- a preset is a
-	 * reusable "look", not tied to any particular source's data range.
-	 */
-	private void applyEditorPreset( final EditorPreset preset )
-	{
-		final Palette palette = LutPalettes.load( preset.getPaletteName() );
-		if ( palette == null )
-		{
-			labelStatus.setText( "Configuration's palette not found: " + preset.getPaletteName() );
-			return;
-		}
-
-		final LutEditorMapping presetMapping = mappingFromPreset( preset, !palette.isInterpolated() );
-
-		loadIntoEditor( palette, preset.getPaletteName(), presetMapping, editedRangeMin, editedRangeMax );
-		pushLiveEdits();
-		labelStatus.setText( "" );
-	}
-
-	/**
-	 * The {@link LutEditorMapping} a saved {@link EditorPreset} describes, given
-	 * whether the palette it names is discrete -- shared by
-	 * {@link #applyEditorPreset} (which resolves {@code discrete} from the
-	 * palette it just loaded) and {@link #matchesEditorPreset} (which resolves
-	 * it from {@link #mappingModel}, without re-loading the palette).
-	 */
-	private static LutEditorMapping mappingFromPreset( final EditorPreset preset, final boolean discrete )
-	{
-		final LutEditorMapping mapping = new LutEditorMapping();
-		mapping.setLeftBoundaryCondition( preset.getLeftBoundaryCondition() );
-		mapping.setRightBoundaryCondition( preset.getRightBoundaryCondition() );
-		mapping.setLeftSpecialColor( preset.getLeftSpecialColor() );
-		mapping.setRightSpecialColor( preset.getRightSpecialColor() );
-		mapping.setDiscrete( discrete );
-		// Only the half of the saved shape the palette can actually use: a
-		// discrete palette maps through the step size and ignores the curve,
-		// a continuous one the other way round (see LutEditorMapping).
-		if ( discrete )
-			mapping.setStepSize( preset.getStepSize() );
-		else
-			mapping.getCurve().setPoints( preset.getCurveXs(), preset.getCurveYs() );
-		return mapping;
-	}
-
-	/**
-	 * Deselect the configuration combo when it no longer describes what is
-	 * actually loaded -- e.g. after switching to a source whose applied
-	 * palette/mapping is not the one the previously selected configuration
-	 * saves. Called after every {@link #loadIntoEditor}, so the combo cannot
-	 * go on claiming a configuration is in effect once the editor state has
-	 * moved on from it.
-	 */
-	private void syncEditorPresetSelection()
-	{
-		final Object selected = comboEditorPreset.getSelectedItem();
-		if ( selected instanceof String && !matchesEditorPreset( ( String ) selected ) )
-			comboEditorPreset.setSelectedItem( null );
-	}
-
-	/** Whether {@link #currentPalette}/{@link #currentPaletteName} and {@link #mappingModel} are exactly what {@code presetName} saves. */
-	private boolean matchesEditorPreset( final String presetName )
-	{
-		if ( currentPaletteName == null )
-			return false;
-		final EditorPreset preset = EditorPresets.load( presetName );
-		if ( preset == null || !currentPaletteName.equals( preset.getPaletteName() ) )
-			return false;
-		return mappingModel.hasSameState( mappingFromPreset( preset, mappingModel.isDiscrete() ) );
-	}
-
-	/**
-	 * Ask the user for a name and save the editor's current palette, range
-	 * mode, background handling and curve as a reusable {@link EditorPreset}
-	 * (see {@link #applyEditorPreset}) under it, confirming first if that
-	 * would overwrite an existing one.
-	 */
-	private void promptAndSaveEditorPreset()
-	{
-		// Checked before prompting: nothing the user could type would make a
-		// palette-less setting saveable, so asking for a name first would
-		// only waste their time.
-		if ( currentPaletteName == null )
-		{
-			labelStatus.setText( "Select a named palette before saving a configuration." );
-			return;
-		}
-
-		final Object selected = comboEditorPreset.getSelectedItem();
-		final Object input = JOptionPane.showInputDialog( this, "Configuration name:", "Save Configuration",
-				JOptionPane.PLAIN_MESSAGE, null, null, selected instanceof String ? selected : "" );
-		if ( input == null )
-			return;
-		// Canonicalize up front: a preset is identified by its file name, so
-		// this is the name it will actually be stored and listed under -- and
-		// the only form that can be meaningfully compared against
-		// discoverNames() just below.
-		final String name = EditorPresets.canonicalName( ( String ) input );
-		if ( name.isEmpty() )
-		{
-			labelStatus.setText( "Configuration name cannot be empty." );
-			return;
-		}
-		if ( EditorPresets.discoverNames().contains( name ) )
-		{
-			final int choice = JOptionPane.showConfirmDialog( this,
-					"A configuration named \"" + name + "\" already exists. Overwrite it?", "Overwrite Configuration",
-					JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE );
-			if ( choice != JOptionPane.YES_OPTION )
-				return;
-		}
-
-		try
-		{
-			EditorPresets.save( new EditorPreset( name, currentPaletteName,
-					mappingModel.getLeftBoundaryCondition(), mappingModel.getRightBoundaryCondition(),
-					mappingModel.getLeftSpecialColor(), mappingModel.getRightSpecialColor(),
-					mappingModel.getStepSize(),
-					mappingModel.getCurve().xsArray(), mappingModel.getCurve().ysArray() ) );
-		}
-		catch ( final RuntimeException e )
-		{
-			// Saving is the one preset operation that can't degrade silently
-			// (see EditorPresets#save) -- report it here rather than letting
-			// it escape into the button's action listener.
-			labelStatus.setText( "Failed to save setting: " + e.getMessage() );
-			return;
-		}
-
-		refreshEditorPresetCombo( comboEditorPreset );
-		loadingControls = true;
-		try
-		{
-			comboEditorPreset.setSelectedItem( name );
-		}
-		finally
-		{
-			loadingControls = false;
-		}
-		labelStatus.setText( "Saved configuration \"" + name + "\"." );
-	}
-
-	/**
-	 * Put the session's backup back: whatever the source looked like when
-	 * {@link #beginSession} bound it to this window, or when "Apply" last
-	 * moved that baseline forward. Unlike "Cancel" this leaves the window
-	 * open, which is the point of it -- the dialog is not modal and is meant
-	 * to be kept around while trying things out.
-	 */
-	private void resetToSessionBaseline()
-	{
-		revertLiveEdits();
-		labelStatus.setText( activeLutConv == null ? "" : "Reset." );
-	}
-
-	/**
-	 * Move the "revert to" baseline forward to the currently edited state,
-	 * which is already live-pushed to the converter as it was edited (see
-	 * {@link #pushLiveEdits()}) -- so closing the dialog, or switching to
-	 * another source and back, no longer discards it.
-	 */
-	private void applyCurrent()
-	{
-		if ( activeLutConv == null )
-			return;
-		snapshotBaseline();
-		labelStatus.setText( "Applied." );
-	}
-
-	/**
-	 * Push {@link #currentPalette}/{@link #mappingModel}/{@link #editedRangeMin}/
-	 * {@link #editedRangeMax} to {@link #activeLutConv} so edits are visible
-	 * in the viewer immediately. Wired as {@link #mappingModel}'s change
-	 * listener; also called directly wherever the range fields change, since
-	 * {@link #mappingModel} itself doesn't track those.
-	 */
-	private void pushLiveEdits()
-	{
-		if ( loadingControls )
-			return;
-		pushToActiveConverter( currentPalette, currentPaletteName, mappingModel, editedRangeMin, editedRangeMax );
-	}
-
-	/** Push {@link #baselinePalette}/{@link #baselineMapping}/{@link #baselineRangeMin}/{@link #baselineRangeMax} to {@link #activeLutConv}, discarding any live-pushed edits made since. */
-	private void revertActiveConverterToBaseline()
-	{
-		pushToActiveConverter( baselinePalette, baselinePaletteName, baselineMapping, baselineRangeMin, baselineRangeMax );
-	}
-
-	/**
-	 * Translate the editor's palette + mapping + range into a
-	 * {@link PaletteWrapper} and hand it to {@link #activeLutConv} to render
-	 * through, remembering the editor-facing terms in {@link #converterStates}
-	 * so re-selecting this source can restore them. The display range still
-	 * goes to the setup (which also drives brightness/contrast), so it stays
-	 * the single owner of that range.
-	 * <p>
-	 * The same wrapper instance also goes to
-	 * {@link #activeVolatileLutConv}, which is what renders the source until
-	 * its data has finished loading; it can be shared because the two
-	 * converters describe the same mapping of the same pixels.
-	 */
-	private void pushToActiveConverter( final Palette palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
-	{
-		if ( activeLutConv == null )
-			return;
-		final PaletteWrapper wrapper = PaletteWrapperBuilder.build( palette, mapping, min, max );
-		activeLutConv.setWrapper( wrapper );
-		if ( activeVolatileLutConv != null )
-			activeVolatileLutConv.setWrapper( wrapper );
-
-		final LutEditorMapping remembered = new LutEditorMapping();
-		remembered.copyFrom( mapping );
-		converterStates.put( activeLutConv, new EditorState( palette, paletteName, remembered ) );
-
-		if ( activeSetup != null )
-			activeSetup.setDisplayRange( min, max );
-		if ( repaintAction != null )
-			repaintAction.run();
-	}
-
-	/**
-	 * Discard unapplied live edits: revert {@link #activeLutConv} to
-	 * {@link #baselinePalette} etc., and reset the editor's own controls to
-	 * match, so this dialog doesn't reopen showing the discarded edits.
-	 */
-	private void revertLiveEdits()
-	{
-		revertActiveConverterToBaseline();
-		loadIntoEditor( baselinePalette, baselinePaletteName, baselineMapping, baselineRangeMin, baselineRangeMax );
-	}
-
-	/**
-	 * Format a range value the same way {@link MappingCurvePanel} formats
-	 * its min/max fields: as a plain integer when it is (numerically) one,
-	 * otherwise to 2 decimal places.
-	 */
-	private static String formatValue( final double value )
-	{
-		if ( Math.abs( value - Math.round( value ) ) < 1e-6 )
-			return Long.toString( Math.round( value ) );
-		return String.format( "%.2f", value );
-	}
 	private static JPanel labeledRow( final String label, final JComponent component )
 	{
 		return labeledRow( label, component, null );
@@ -1672,6 +1620,8 @@ public class LutEditorDialog extends JDialog
 			component.setMinimumSize( fixedSize );
 		}
 	}
+
+	// -- Help --------------------------------------------------------------
 
 	/**
 	 * The help text, in a box of its own rather than handed straight to a
@@ -1743,9 +1693,9 @@ public class LutEditorDialog extends JDialog
 				"  there its shape is the boundary condition's doing.",
 				"",
 				"- Edits here take effect in the viewer immediately, as you make them.",
-				"- Apply keeps the current edits as the new fallback to revert to.",
-				"- Cancel (or closing the dialog, or switching source without Apply)",
-				"  reverts to that fallback, discarding edits made since.",
+				"  They stay in effect when the dialog is closed.",
+				"- Reset reverts to how the source looked when it was selected (or when",
+				"  this dialog was opened on it), discarding edits made since.",
 				"",
 				"Shortcut:",
 				"- Press F1 anywhere in this dialog to open this help." );
@@ -1772,6 +1722,8 @@ public class LutEditorDialog extends JDialog
 
 		JOptionPane.showMessageDialog( this, scroll, "LUT Editor Help", JOptionPane.INFORMATION_MESSAGE );
 	}
+
+	// -- Nested classes ----------------------------------------------------
 
 	/**
 	 * A non-selectable row in a {@link #createGroupedCombo grouped combo},

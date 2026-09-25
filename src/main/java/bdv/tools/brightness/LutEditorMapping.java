@@ -277,8 +277,8 @@ public class LutEditorMapping
 
 	/**
 	 * Whether {@code other} represents the same mapping as this one -- used to
-	 * detect unapplied edits worth warning about before discarding them, rather
-	 * than a general-purpose {@code equals}.
+	 * tell whether the editor still matches a saved configuration, rather than
+	 * a general-purpose {@code equals}.
 	 */
 	public boolean hasSameState( final LutEditorMapping other )
 	{
