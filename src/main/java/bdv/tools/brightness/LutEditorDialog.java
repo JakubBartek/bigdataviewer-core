@@ -36,7 +36,6 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
 import java.awt.Graphics;
-import java.awt.GridLayout;
 import java.awt.Insets;
 import java.awt.LayoutManager;
 import java.awt.event.FocusAdapter;
@@ -1189,9 +1188,15 @@ public class LutEditorDialog extends JDialog
 		return column;
 	}
 
-	/** Help and whatever the graph currently has to say on the left, Reset/Close on the right. */
+	/** Reset, help and whatever the graph currently has to say on the left, Close on the right. */
 	private JPanel createBottomBar()
 	{
+		final JButton buttonReset = new JButton( "Reset" );
+		buttonReset.addActionListener( e -> resetToSessionBaseline() );
+		final JButton buttonClose = new JButton( "Close" );
+		buttonClose.addActionListener( e -> setVisible( false ) );
+		normalizeButtonSizes( buttonReset, buttonClose );
+
 		final JButton buttonHelp = new JButton( "?" );
 		buttonHelp.setToolTipText( "Help (F1)" );
 		buttonHelp.setFocusable( false );
@@ -1200,25 +1205,17 @@ public class LutEditorDialog extends JDialog
 		buttonHelp.addActionListener( e -> showHelp() );
 
 		final JPanel panelLeftBottom = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
+		panelLeftBottom.add( buttonReset );
+		panelLeftBottom.add( Box.createHorizontalStrut( 8 ) );
 		panelLeftBottom.add( buttonHelp );
 		panelLeftBottom.add( Box.createHorizontalStrut( 8 ) );
 		panelLeftBottom.add( labelCurveHint );
 		panelLeftBottom.add( Box.createHorizontalStrut( 8 ) );
 		panelLeftBottom.add( labelStatus );
 
-		final JButton buttonReset = new JButton( "Reset" );
-		buttonReset.addActionListener( e -> resetToSessionBaseline() );
-		final JButton buttonClose = new JButton( "Close" );
-		buttonClose.addActionListener( e -> setVisible( false ) );
-		normalizeButtonSizes( buttonReset, buttonClose );
-
-		final JPanel panelRightBottom = new JPanel( new GridLayout( 1, 2, 8, 0 ) );
-		panelRightBottom.add( buttonReset );
-		panelRightBottom.add( buttonClose );
-
 		final JPanel panelBottom = new JPanel( new BorderLayout() );
 		panelBottom.add( panelLeftBottom, BorderLayout.WEST );
-		panelBottom.add( panelRightBottom, BorderLayout.EAST );
+		panelBottom.add( buttonClose, BorderLayout.EAST );
 		return panelBottom;
 	}
 
