@@ -125,17 +125,29 @@ public class LutEditorDialog extends JDialog
 	private final ViewerState viewerState;
 	private final Runnable repaintAction;
 
-	/** Kept so {@link #dispose()} can unregister it again; see {@link #installViewerStateListener()}. */
-	private ViewerStateChangeListener viewerStateListener;
-
 	/**
-	 * Set by {@link #dispose()}, after which this dialog must not touch the
-	 * viewer again. Volatile because {@link #dispose()} is not guaranteed to
-	 * run on the EDT -- {@code BdvHandle.close()} is routinely called from
-	 * whichever thread closes the window -- while what it stops runs on the
-	 * EDT.
+	 * Follow the viewer: which source this window edits is the viewer's own
+	 * current-source selection, and changing it there starts a new editing
+	 * session here (see {@link #syncToCurrentSource()}).
+	 * <p>
+	 * {@code CURRENT_SOURCE_CHANGED} is the only change worth listening for,
+	 * because it also covers the source list itself changing underneath:
+	 * {@code BasicViewerState} fires it when the first source arrives (there
+	 * was no current source before), when the current source is removed (the
+	 * first remaining one takes over), and when the sources are cleared (there
+	 * is no current source left).
+	 * <p>
+	 * Bounced onto the EDT, since a {@code ViewerState} change can be made from
+	 * any thread. Registered for the dialog's whole life and unregistered in
+	 * {@link #dispose()} rather than left to be collected with the window: the
+	 * {@code ViewerState} usually outlives this dialog, and would otherwise
+	 * keep it and everything it edits alive.
 	 */
-	private volatile boolean disposed = false;
+	private final ViewerStateChangeListener viewerStateListener = change ->
+	{
+		if ( change == ViewerStateChange.CURRENT_SOURCE_CHANGED )
+			SwingUtilities.invokeLater( this::syncToCurrentSource );
+	};
 
 	private final JComboBox< Object > comboPalette;
 	private final JComboBox< Object > comboEditorPreset;
@@ -236,37 +248,43 @@ public class LutEditorDialog extends JDialog
 	 * renders through (which cannot be read back into the editor's richer
 	 * palette-plus-curve terms); this remembers those terms instead. Weakly
 	 * keyed so it does not keep converters (hence sources) alive. The display
-	 * range is deliberately not stored here -- it lives on the setup and is
-	 * always read back fresh, so brightness/contrast changes made outside this
-	 * dialog are not clobbered.
+	 * range stored alongside is never read back from here -- it lives on the
+	 * setup and is always read back fresh (see {@link #beginSession}), so
+	 * brightness/contrast changes made outside this dialog are not clobbered.
 	 */
 	private final Map< PaletteConverter< ? >, EditorState > converterStates = new WeakHashMap<>();
 
-	/** The editor-facing palette + mapping remembered per converter; see {@link #converterStates}. */
+	/**
+	 * Everything the editor shows, as one immutable snapshot: what
+	 * {@link #converterStates} remembers per converter and what
+	 * {@link #baseline} restores. Taken with {@link #captureEditorState()},
+	 * which copies the mapping so later edits cannot reach into it; the
+	 * palette is immutable and safe to share.
+	 */
 	private static final class EditorState
 	{
 		final Palette palette;
 		final String paletteName;
 		final LutEditorMapping mapping;
+		final double rangeMin;
+		final double rangeMax;
 
-		EditorState( final Palette palette, final String paletteName, final LutEditorMapping mapping )
+		EditorState( final Palette palette, final String paletteName, final LutEditorMapping mapping, final double rangeMin, final double rangeMax )
 		{
 			this.palette = palette;
 			this.paletteName = paletteName;
 			this.mapping = mapping;
+			this.rangeMin = rangeMin;
+			this.rangeMax = rangeMax;
 		}
 	}
 
 	/**
-	 * Snapshot of {@link #activeLutConv}'s state as loaded by
-	 * {@link #beginSession} -- what {@link #revertLiveEdits()} restores the
-	 * live edits back to.
+	 * What the editor showed when {@link #beginSession} bound the current
+	 * source -- what "Reset" (see {@link #resetToSessionBaseline()}) restores
+	 * the live edits back to.
 	 */
-	private Palette baselinePalette = Palette.DEFAULT;
-	private String baselinePaletteName = null;
-	private final LutEditorMapping baselineMapping = new LutEditorMapping();
-	private double baselineRangeMin = 0;
-	private double baselineRangeMax = 255;
+	private EditorState baseline;
 
 	/** Guards against control listeners (including the live-push one) firing while we are programmatically syncing them. */
 	private boolean loadingControls = false;
@@ -337,7 +355,7 @@ public class LutEditorDialog extends JDialog
 
 		// -- Behavior --------------------------------------------------------
 		installControlListeners();
-		installViewerStateListener();
+		viewerState.changeListeners().add( viewerStateListener );
 		beginSession( viewerState.getCurrentSource() );
 		packAndMatchGraphWidth( panelLeftColumn, panelMappingCurveColumn );
 	}
@@ -350,10 +368,20 @@ public class LutEditorDialog extends JDialog
 	 * this -- leaves the live-pushed edits in place (see
 	 * {@link #pushLiveEdits()}); only "Reset" reverts them.
 	 * <p>
-	 * Becoming visible opens a new session (see {@link #restartSession()}), so
-	 * the window always shows the source the viewer is on and takes its
-	 * baseline from what is on screen now, not from whenever it was last
-	 * closed.
+	 * Becoming visible opens a new session (see {@link #beginSession}), so the
+	 * window always shows the source the viewer is on and takes its baseline
+	 * from what is on screen now -- including any display range the brightness
+	 * controls changed while this window was closed -- not from whenever it
+	 * was last closed. The previous session is dropped rather than reverted:
+	 * its edits were kept when the window was hidden.
+	 * <p>
+	 * The session has to be (re)started only once the window is on screen,
+	 * because a session started while it was hidden cannot warn about a
+	 * converter it is unable to edit (see {@link #offerConversion}) -- there
+	 * would be a modal prompt with nothing behind it to explain where it came
+	 * from. The dialog is constructed with the viewer and only shown later, so
+	 * without this the warning would never appear for the source the user
+	 * opens it on.
 	 */
 	@Override
 	public void setVisible( final boolean visible )
@@ -361,18 +389,20 @@ public class LutEditorDialog extends JDialog
 		final boolean showing = visible && !isVisible();
 		super.setVisible( visible );
 		if ( showing )
-			restartSession();
+			beginSession( viewerState.getCurrentSource() );
 	}
 
 	/**
 	 * Stop following the viewer, then dispose the window as usual.
 	 * <p>
-	 * Both halves are needed, because unregistering the listener does not
-	 * recall the notifications it has already turned into queued EDT work:
-	 * {@code BdvHandle.close()} disposes this dialog and then drops the viewer,
-	 * so a {@link #syncToCurrentSource()} still sitting on the queue would come
-	 * to run afterwards and drive a repaint of a viewer that is no longer
-	 * there. {@link #disposed} is what those queued runnables check.
+	 * Unregistering the listener does not recall the notifications it has
+	 * already turned into queued EDT work, and {@code BdvHandle.close()}
+	 * disposes this dialog and then drops the viewer. A
+	 * {@link #syncToCurrentSource()} still sitting on the queue is stopped by
+	 * the window being hidden instead: {@code Window.dispose()} hides it on the
+	 * EDT and waits for that before returning, so any queued sync either runs
+	 * before this returns, while the viewer is still there, or finds the
+	 * window hidden.
 	 * <p>
 	 * This is teardown, not hiding -- closing the window with "Close", its
 	 * close button or the keyboard shortcut goes through
@@ -383,54 +413,26 @@ public class LutEditorDialog extends JDialog
 	@Override
 	public void dispose()
 	{
-		disposed = true;
-		if ( viewerStateListener != null )
-		{
-			viewerState.changeListeners().remove( viewerStateListener );
-			viewerStateListener = null;
-		}
+		viewerState.changeListeners().remove( viewerStateListener );
 		super.dispose();
-	}
-
-	/**
-	 * Follow the viewer: which source this window edits is the viewer's own
-	 * current-source selection, and changing it there starts a new editing
-	 * session here (see {@link #beginSession}).
-	 * <p>
-	 * {@code CURRENT_SOURCE_CHANGED} is the only change worth listening for,
-	 * because it also covers the source list itself changing underneath:
-	 * {@code BasicViewerState} fires it when the first source arrives (there
-	 * was no current source before), when the current source is removed (the
-	 * first remaining one takes over), and when the sources are cleared (there
-	 * is no current source left).
-	 * <p>
-	 * Bounced onto the EDT, since a {@code ViewerState} change can be made from
-	 * any thread. That hand-off is why the listener has to be unregistered in
-	 * {@link #dispose()} rather than left to be collected with the window: a
-	 * notification can outlive the viewer it came from, and the work it queues
-	 * would then run against a viewer that has already been torn down.
-	 */
-	private void installViewerStateListener()
-	{
-		viewerStateListener = change ->
-		{
-			if ( change == ViewerStateChange.CURRENT_SOURCE_CHANGED )
-				SwingUtilities.invokeLater( this::syncToCurrentSource );
-		};
-		viewerState.changeListeners().add( viewerStateListener );
 	}
 
 	/**
 	 * Adopt the viewer's current source as this window's. A no-op when it
 	 * already is, so that a notification arriving after this dialog has
 	 * already reacted -- the listener is dispatched asynchronously, see
-	 * {@link #installViewerStateListener()} -- does not restart the session.
-	 * Also a no-op once {@link #dispose()} has run, which is the same
-	 * asynchrony arriving after the viewer itself has gone.
+	 * {@link #viewerStateListener} -- does not restart the session.
+	 * <p>
+	 * Also a no-op while the window is hidden: nobody would see that session,
+	 * and showing the window starts a fresh one anyway (see
+	 * {@link #setVisible(boolean)}). Until then the controls keep showing the
+	 * source the window was last open on. A disposed window is hidden too, so
+	 * this is also what stops a notification that arrives after the viewer
+	 * itself has gone (see {@link #dispose()}).
 	 */
 	private void syncToCurrentSource()
 	{
-		if ( disposed )
+		if ( !isVisible() )
 			return;
 		final SourceAndConverter< ? > current = viewerState.getCurrentSource();
 		if ( current != sessionSource )
@@ -440,89 +442,54 @@ public class LutEditorDialog extends JDialog
 	// -- Editing session ---------------------------------------------------
 
 	/**
-	 * Open a session for the source the viewer is currently on, now that the
-	 * window is actually on screen.
-	 * <p>
-	 * Needed as its own entry point because a session started while the window
-	 * was hidden cannot warn about a converter it is unable to edit (see
-	 * {@link #offerConversion}) -- there would be a modal prompt on screen with
-	 * nothing behind it to explain where it came from. The dialog is
-	 * constructed with the viewer and only shown later, so without this the
-	 * warning would never appear for the source the user opens it on.
-	 * <p>
-	 * The previous session is dropped rather than reverted: its edits were
-	 * kept when the window was hidden, and the new baseline is taken from the
-	 * source as it is now, including any display range the brightness controls
-	 * changed while this window was closed.
-	 */
-	private void restartSession()
-	{
-		activeLutConv = null;
-		activeVolatileLutConv = null;
-		activeSetup = null;
-		beginSession( viewerState.getCurrentSource() );
-	}
-
-	/**
 	 * Start a new editing session on {@code soc}: bind the window to that
-	 * source, take the baseline that {@link #resetToSessionBaseline()}
-	 * restores, and load the source's current palette and mapping into the
-	 * controls.
+	 * source, load the source's current palette and mapping into the
+	 * controls, and take the baseline that {@link #resetToSessionBaseline()}
+	 * restores.
 	 * <p>
 	 * A source rendered by some other kind of converter cannot be edited here;
 	 * the user is warned and offered a conversion (see
-	 * {@link #offerConversion}), and if that comes to nothing the editor falls
-	 * back to a neutral state pushed nowhere.
+	 * {@link #offerConversion}), and if that comes to nothing -- or there is
+	 * no source at all -- the editor shows a neutral state pushed nowhere,
+	 * rather than whatever the previous source left behind.
 	 */
 	private void beginSession( final SourceAndConverter< ? > soc )
 	{
 		sessionSource = soc;
-		activeLutConv = null;
-		activeVolatileLutConv = null;
-		activeSetup = null;
 		updateTitle();
 
-		if ( soc == null )
+		PaletteConverter< ? > lutConv = null;
+		if ( soc != null )
 		{
-			resetEditorToDefaults();
-			labelStatus.setText( "no setup selected" );
-			return;
+			lutConv = asPaletteConverter( soc.getConverter() );
+			if ( lutConv == null )
+				lutConv = offerConversion( soc );
 		}
-
-		PaletteConverter< ? > lutConv = asPaletteConverter( soc.getConverter() );
-		if ( lutConv == null )
-			lutConv = offerConversion( soc );
-		if ( lutConv == null )
-		{
-			resetEditorToDefaults();
-			labelStatus.setText( "Converter does not use a LUT." );
-			return;
-		}
-		labelStatus.setText( "" );
-
+		final boolean editable = lutConv != null;
 		activeLutConv = lutConv;
-		activeVolatileLutConv = soc.asVolatile() == null ? null : asPaletteConverter( soc.asVolatile().getConverter() );
-		final ConverterSetup setup = converterSetups.getConverterSetup( soc );
-		activeSetup = setup;
+		activeVolatileLutConv = editable && soc.asVolatile() != null ? asPaletteConverter( soc.asVolatile().getConverter() ) : null;
+		activeSetup = editable ? converterSetups.getConverterSetup( soc ) : null;
+
+		if ( soc == null )
+			labelStatus.setText( "no setup selected" );
+		else if ( !editable )
+			labelStatus.setText( "Converter does not use a LUT." );
+		else
+			labelStatus.setText( "" );
 
 		// The converter renders through a PaletteWrapper, which cannot be read
 		// back into the editor's palette-plus-curve terms; restore what the
 		// editor last pushed for this converter instead (see converterStates),
 		// falling back to a neutral default for one set up outside this dialog.
-		final EditorState state = converterStates.get( lutConv );
+		final EditorState state = editable ? converterStates.get( lutConv ) : null;
 		final Palette palette = state != null ? state.palette : Palette.DEFAULT;
 		final String paletteName = state != null ? state.paletteName : LutPalettes.findName( palette );
-		final LutEditorMapping loaded = state != null ? state.mapping : defaultMapping();
+		final LutEditorMapping mapping = state != null ? state.mapping : defaultMapping();
+		final double min = activeSetup != null ? activeSetup.getDisplayRangeMin() : 0;
+		final double max = activeSetup != null ? activeSetup.getDisplayRangeMax() : 255;
+		loadIntoEditor( palette, paletteName, mapping, min, max );
 
-		final double min = setup != null ? setup.getDisplayRangeMin() : 0;
-		final double max = setup != null ? setup.getDisplayRangeMax() : 255;
-		loadIntoEditor( palette, paletteName, loaded, min, max );
-
-		// The session backup. Deep exactly where it has to be: a Palette is
-		// immutable and safe to share, but a mapping is not -- baselineMapping
-		// is a separate object whose copyFrom clones the curve's control point
-		// arrays, so editing the live mapping cannot reach into the backup.
-		snapshotBaseline();
+		baseline = captureEditorState();
 	}
 
 	/** {@code converter} as a {@link PaletteConverter}, or {@code null} if it is some other implementation. */
@@ -631,20 +598,6 @@ public class LutEditorDialog extends JDialog
 		setTitle( sessionSource == null ? "LUT Editor" : "LUT Editor - " + sourceName( sessionSource ) );
 	}
 
-	/**
-	 * Reset the editor to a neutral default state (as if freshly created),
-	 * used whenever there is no valid LUT-backed source/setup to actually
-	 * load -- otherwise every control would keep showing whatever the
-	 * previously selected source left behind, which is misleading (e.g. the
-	 * mapping preset combo still showing "Linear" for a source that isn't
-	 * even LUT-based).
-	 */
-	private void resetEditorToDefaults()
-	{
-		loadIntoEditor( Palette.DEFAULT, null, defaultMapping(), 0, 255 );
-		snapshotBaseline();
-	}
-
 	/** A neutral mapping (linear, both ends clamped, interpolated) -- the editor's starting point for a source with no remembered state. */
 	private static LutEditorMapping defaultMapping()
 	{
@@ -661,9 +614,9 @@ public class LutEditorDialog extends JDialog
 	/**
 	 * Load a palette/mapping/range into the editor's own controls, without
 	 * touching {@link #activeLutConv} itself (callers decide separately
-	 * whether/what to push there). Used both for a newly selected source's
-	 * actually-applied state, and to reset the editor back to
-	 * {@link #baselinePalette} etc. when reverting.
+	 * whether to push it there with {@link #pushLiveEdits()}). Used for a
+	 * newly selected source's actually-applied state, a saved configuration,
+	 * and the {@link #baseline} when resetting.
 	 */
 	private void loadIntoEditor( final Palette palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
 	{
@@ -696,14 +649,12 @@ public class LutEditorDialog extends JDialog
 		}
 	}
 
-	/** Snapshot the editor's current state as the new {@link #baselinePalette} etc. to revert edits to. */
-	private void snapshotBaseline()
+	/** What the editor currently shows, with the mapping copied so later edits cannot reach into the snapshot; see {@link EditorState}. */
+	private EditorState captureEditorState()
 	{
-		baselinePalette = currentPalette;
-		baselinePaletteName = currentPaletteName;
-		baselineMapping.copyFrom( mappingModel );
-		baselineRangeMin = editedRangeMin;
-		baselineRangeMax = editedRangeMax;
+		final LutEditorMapping mapping = new LutEditorMapping();
+		mapping.copyFrom( mappingModel );
+		return new EditorState( currentPalette, currentPaletteName, mapping, editedRangeMin, editedRangeMax );
 	}
 
 	/**
@@ -713,71 +664,45 @@ public class LutEditorDialog extends JDialog
 	 */
 	private void resetToSessionBaseline()
 	{
-		revertLiveEdits();
+		loadIntoEditor( baseline.palette, baseline.paletteName, baseline.mapping, baseline.rangeMin, baseline.rangeMax );
+		pushLiveEdits();
 		labelStatus.setText( activeLutConv == null ? "" : "Reset." );
 	}
 
 	/**
-	 * Push {@link #currentPalette}/{@link #mappingModel}/{@link #editedRangeMin}/
-	 * {@link #editedRangeMax} to {@link #activeLutConv} so edits are visible
-	 * in the viewer immediately. Wired as {@link #mappingModel}'s change
-	 * listener; also called directly wherever the range fields change, since
-	 * {@link #mappingModel} itself doesn't track those.
+	 * Translate what the editor shows -- {@link #currentPalette},
+	 * {@link #mappingModel}, {@link #editedRangeMin}/{@link #editedRangeMax}
+	 * -- into a {@link PaletteWrapper} and hand it to {@link #activeLutConv}
+	 * to render through, so edits are visible in the viewer immediately.
+	 * Wired as {@link #mappingModel}'s change listener; also called directly
+	 * wherever the range fields change, since {@link #mappingModel} itself
+	 * doesn't track those.
+	 * <p>
+	 * The editor-facing terms are remembered in {@link #converterStates} so
+	 * re-selecting this source can restore them. The display range still goes
+	 * to the setup (which also drives brightness/contrast), so it stays the
+	 * single owner of that range.
+	 * <p>
+	 * The same wrapper instance also goes to {@link #activeVolatileLutConv},
+	 * which is what renders the source until its data has finished loading;
+	 * it can be shared because the two converters describe the same mapping
+	 * of the same pixels.
 	 */
 	private void pushLiveEdits()
 	{
-		if ( loadingControls )
+		if ( loadingControls || activeLutConv == null )
 			return;
-		pushToActiveConverter( currentPalette, currentPaletteName, mappingModel, editedRangeMin, editedRangeMax );
-	}
-
-	/** Push {@link #baselinePalette}/{@link #baselineMapping}/{@link #baselineRangeMin}/{@link #baselineRangeMax} to {@link #activeLutConv}, discarding any live-pushed edits made since. */
-	private void revertActiveConverterToBaseline()
-	{
-		pushToActiveConverter( baselinePalette, baselinePaletteName, baselineMapping, baselineRangeMin, baselineRangeMax );
-	}
-
-	/**
-	 * Translate the editor's palette + mapping + range into a
-	 * {@link PaletteWrapper} and hand it to {@link #activeLutConv} to render
-	 * through, remembering the editor-facing terms in {@link #converterStates}
-	 * so re-selecting this source can restore them. The display range still
-	 * goes to the setup (which also drives brightness/contrast), so it stays
-	 * the single owner of that range.
-	 * <p>
-	 * The same wrapper instance also goes to
-	 * {@link #activeVolatileLutConv}, which is what renders the source until
-	 * its data has finished loading; it can be shared because the two
-	 * converters describe the same mapping of the same pixels.
-	 */
-	private void pushToActiveConverter( final Palette palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
-	{
-		if ( activeLutConv == null )
-			return;
-		final PaletteWrapper wrapper = PaletteWrapperBuilder.build( palette, mapping, min, max );
+		final PaletteWrapper wrapper = PaletteWrapperBuilder.build( currentPalette, mappingModel, editedRangeMin, editedRangeMax );
 		activeLutConv.setWrapper( wrapper );
 		if ( activeVolatileLutConv != null )
 			activeVolatileLutConv.setWrapper( wrapper );
 
-		final LutEditorMapping remembered = new LutEditorMapping();
-		remembered.copyFrom( mapping );
-		converterStates.put( activeLutConv, new EditorState( palette, paletteName, remembered ) );
+		converterStates.put( activeLutConv, captureEditorState() );
 
 		if ( activeSetup != null )
-			activeSetup.setDisplayRange( min, max );
+			activeSetup.setDisplayRange( editedRangeMin, editedRangeMax );
 		if ( repaintAction != null )
 			repaintAction.run();
-	}
-
-	/**
-	 * Discard the session's live edits: revert {@link #activeLutConv} to
-	 * {@link #baselinePalette} etc., and reset the editor's own controls to
-	 * match.
-	 */
-	private void revertLiveEdits()
-	{
-		revertActiveConverterToBaseline();
-		loadIntoEditor( baselinePalette, baselinePaletteName, baselineMapping, baselineRangeMin, baselineRangeMax );
 	}
 
 	// -- Configurations (saved presets) ------------------------------------
