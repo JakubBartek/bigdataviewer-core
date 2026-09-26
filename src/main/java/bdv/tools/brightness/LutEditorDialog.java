@@ -123,6 +123,7 @@ public class LutEditorDialog extends JDialog
 {
 	private final ConverterSetups converterSetups;
 	private final ViewerState viewerState;
+	/** Never {@code null}: the constructor replaces a missing one with a no-op. */
 	private final Runnable repaintAction;
 
 	/**
@@ -280,13 +281,24 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
+	 * The default palette, mapped through {@link #defaultMapping()} over
+	 * {@code [0, 255]}: what the editor shows when it has nothing better to go
+	 * on. One instance shared by every dialog, which is safe for the same
+	 * reason {@link #baseline} can be reset to repeatedly: an
+	 * {@link EditorState} is only ever read, and {@link #loadIntoEditor}
+	 * copies its mapping rather than editing it.
+	 */
+	private static final EditorState NEUTRAL_STATE =
+			new EditorState( Palette.DEFAULT, LutPalettes.findName( Palette.DEFAULT ), defaultMapping(), 0, 255 );
+
+	/**
 	 * What the editor showed when {@link #beginSession} bound the current
 	 * source -- what "Reset" (see {@link #resetToSessionBaseline()}) restores
 	 * the live edits back to.
 	 */
 	private EditorState baseline;
 
-	/** Guards against control listeners (including the live-push one) firing while we are programmatically syncing them. */
+	/** Guards against control listeners (including the live-push one) firing while we are programmatically syncing them; set only by {@link #withoutFeedback}. */
 	private boolean loadingControls = false;
 
 	/** The text {@link #updateStepSizeField()} last put in {@link #fieldStepSize}; see {@link #commitStepSizeField()} for why it is remembered. */
@@ -300,7 +312,7 @@ public class LutEditorDialog extends JDialog
 		super( owner, "LUT Editor", false );
 		this.converterSetups = converterSetups;
 		this.viewerState = viewerState;
-		this.repaintAction = repaintAction;
+		this.repaintAction = repaintAction != null ? repaintAction : () -> {};
 
 		// -- Widgets ---------------------------------------------------------
 		comboPalette = createPaletteCombo();
@@ -359,7 +371,7 @@ public class LutEditorDialog extends JDialog
 		// Sessions begin only when the window is shown (see setVisible), but
 		// pack() needs filled-in controls to measure -- an empty label has no
 		// height -- so size the window around the neutral state.
-		loadIntoEditor( Palette.DEFAULT, LutPalettes.findName( Palette.DEFAULT ), defaultMapping(), 0, 255 );
+		loadIntoEditor( NEUTRAL_STATE );
 		packAndMatchGraphWidth( panelLeftColumn, panelMappingCurveColumn );
 	}
 
@@ -455,22 +467,20 @@ public class LutEditorDialog extends JDialog
 	 * {@link #offerConversion}), and if that comes to nothing -- or there is
 	 * no source at all -- the editor shows a neutral state pushed nowhere,
 	 * rather than whatever the previous source left behind.
+	 * <p>
+	 * Only ever called while the window is showing (see
+	 * {@link #setVisible(boolean)} and {@link #syncToCurrentSource()}): the
+	 * conversion prompt this may raise would otherwise appear with no editor
+	 * on screen behind it to explain where it came from.
 	 */
 	private void beginSession( final SourceAndConverter< ? > soc )
 	{
 		sessionSource = soc;
 		updateTitle();
 
-		PaletteConverter< ? > lutConv = null;
-		if ( soc != null )
-		{
-			lutConv = asPaletteConverter( soc.getConverter() );
-			if ( lutConv == null )
-				lutConv = offerConversion( soc );
-		}
-		final boolean editable = lutConv != null;
-		activeLutConv = lutConv;
-		activeVolatileLutConv = editable && soc.asVolatile() != null ? asPaletteConverter( soc.asVolatile().getConverter() ) : null;
+		activeLutConv = soc == null ? null : editableConverterOf( soc );
+		final boolean editable = activeLutConv != null;
+		activeVolatileLutConv = editable ? volatileConverterOf( soc ) : null;
 		activeSetup = editable ? converterSetups.getConverterSetup( soc ) : null;
 
 		if ( soc == null )
@@ -480,19 +490,45 @@ public class LutEditorDialog extends JDialog
 		else
 			labelStatus.setText( "" );
 
-		// The converter renders through a PaletteWrapper, which cannot be read
-		// back into the editor's palette-plus-curve terms; restore what the
-		// editor last pushed for this converter instead (see converterStates),
-		// falling back to a neutral default for one set up outside this dialog.
-		final EditorState state = editable ? converterStates.get( lutConv ) : null;
-		final Palette palette = state != null ? state.palette : Palette.DEFAULT;
-		final String paletteName = state != null ? state.paletteName : LutPalettes.findName( palette );
-		final LutEditorMapping mapping = state != null ? state.mapping : defaultMapping();
-		final double min = activeSetup != null ? activeSetup.getDisplayRangeMin() : 0;
-		final double max = activeSetup != null ? activeSetup.getDisplayRangeMax() : 255;
-		loadIntoEditor( palette, paletteName, mapping, min, max );
-
+		loadIntoEditor( initialStateFor( activeLutConv, activeSetup ) );
 		baseline = captureEditorState();
+	}
+
+	/**
+	 * The {@link PaletteConverter} rendering {@code soc}, or -- if it is
+	 * rendered by some other kind of converter -- the one it was converted to
+	 * on the user's say-so (see {@link #offerConversion}); {@code null} if it
+	 * was not.
+	 */
+	private PaletteConverter< ? > editableConverterOf( final SourceAndConverter< ? > soc )
+	{
+		final PaletteConverter< ? > lutConv = asPaletteConverter( soc.getConverter() );
+		return lutConv != null ? lutConv : offerConversion( soc );
+	}
+
+	/** The {@link PaletteConverter} behind {@code soc}'s volatile counterpart, if it has one; see {@link #activeVolatileLutConv}. */
+	private static PaletteConverter< ? > volatileConverterOf( final SourceAndConverter< ? > soc )
+	{
+		return soc.asVolatile() != null ? asPaletteConverter( soc.asVolatile().getConverter() ) : null;
+	}
+
+	/**
+	 * What the editor shows for a newly bound converter.
+	 * <p>
+	 * The converter renders through a {@link PaletteWrapper}, which cannot be
+	 * read back into the editor's palette-plus-curve terms; this restores what
+	 * the editor last pushed to it instead (see {@link #converterStates}),
+	 * falling back to the neutral state for one set up outside this dialog.
+	 * The range is the exception: it is always read fresh from {@code setup},
+	 * which owns it, so brightness/contrast changes made elsewhere are kept.
+	 */
+	private EditorState initialStateFor( final PaletteConverter< ? > lutConv, final ConverterSetup setup )
+	{
+		final EditorState remembered = lutConv != null ? converterStates.get( lutConv ) : null;
+		final EditorState look = remembered != null ? remembered : NEUTRAL_STATE;
+		final double min = setup != null ? setup.getDisplayRangeMin() : NEUTRAL_STATE.rangeMin;
+		final double max = setup != null ? setup.getDisplayRangeMax() : NEUTRAL_STATE.rangeMax;
+		return new EditorState( look.palette, look.paletteName, look.mapping, min, max );
 	}
 
 	/** {@code converter} as a {@link PaletteConverter}, or {@code null} if it is some other implementation. */
@@ -508,14 +544,13 @@ public class LutEditorDialog extends JDialog
 	 * original setup survives that translation. Returns the converter now
 	 * rendering the source, or {@code null} if it was not converted.
 	 * <p>
-	 * Only asked while the dialog is actually on screen, and only once per
-	 * source: this runs on every source switch, and a modal prompt appearing
-	 * behind the user's back, or again every time they cycle past the same
-	 * source with the 1..9 keys, would cost more than the warning is worth.
+	 * Only asked once per source: this runs on every source switch, and a
+	 * modal prompt appearing again every time the user cycles past the same
+	 * source with the 1..9 keys would cost more than the warning is worth.
 	 */
 	private PaletteConverter< ? > offerConversion( final SourceAndConverter< ? > soc )
 	{
-		if ( !isVisible() || !declinedConversion.add( soc ) )
+		if ( !declinedConversion.add( soc ) )
 			return null;
 
 		final Converter< ?, ? > conv = soc.getConverter();
@@ -547,8 +582,7 @@ public class LutEditorDialog extends JDialog
 		// Editable from here on, so no longer a source to stop asking about.
 		declinedConversion.remove( soc );
 		repointConverterSetup( soc );
-		if ( repaintAction != null )
-			repaintAction.run();
+		repaintAction.run();
 		return converted;
 	}
 
@@ -615,28 +649,25 @@ public class LutEditorDialog extends JDialog
 	// -- Editor state and live edits ---------------------------------------
 
 	/**
-	 * Load a palette/mapping/range into the editor's own controls, without
-	 * touching {@link #activeLutConv} itself (callers decide separately
-	 * whether to push it there with {@link #pushLiveEdits()}). Used for a
-	 * newly selected source's actually-applied state, a saved configuration,
-	 * and the {@link #baseline} when resetting.
+	 * Load {@code state} into the editor's own controls -- the inverse of
+	 * {@link #captureEditorState()} -- without touching {@link #activeLutConv}
+	 * itself (callers decide separately whether to push it there with
+	 * {@link #pushLiveEdits()}). Used for a newly selected source's
+	 * actually-applied state, a saved configuration, and the {@link #baseline}
+	 * when resetting. The mapping is copied in, so {@code state} is not
+	 * changed by later edits.
 	 */
-	private void loadIntoEditor( final Palette palette, final String paletteName, final LutEditorMapping mapping, final double min, final double max )
+	private void loadIntoEditor( final EditorState state )
 	{
-		loadingControls = true;
-		try
+		withoutFeedback( () ->
 		{
-			currentPalette = palette;
-			currentPaletteName = paletteName;
-			editedRangeMin = min;
-			editedRangeMax = max;
+			setPalette( state.palette, state.paletteName );
+			comboPalette.setSelectedItem( state.paletteName );
+			editedRangeMin = state.rangeMin;
+			editedRangeMax = state.rangeMax;
+			panelMappingCurve.setRange( state.rangeMin, state.rangeMax );
 
-			panelPaletteSwatch.update( palette );
-			panelMappingCurve.setRange( min, max );
-			panelMappingCurve.setPalette( palette );
-			comboPalette.setSelectedItem( paletteName );
-
-			mappingModel.copyFrom( mapping );
+			mappingModel.copyFrom( state.mapping );
 
 			comboLeftBoundary.setSelectedItem( mappingModel.getLeftBoundaryCondition() );
 			comboRightBoundary.setSelectedItem( mappingModel.getRightBoundaryCondition() );
@@ -645,11 +676,60 @@ public class LutEditorDialog extends JDialog
 			updateSpecialColorButtonStates();
 			updateShapeControls();
 			syncEditorPresetSelection();
+		} );
+	}
+
+	/**
+	 * Run {@code update}, which sets controls programmatically, with the
+	 * controls' own listeners muted (see {@link #loadingControls}): a combo
+	 * box reports a {@code setSelectedItem} exactly as it reports a click, and
+	 * each such report would otherwise be taken for a user edit and acted on
+	 * half-way through the update.
+	 */
+	private void withoutFeedback( final Runnable update )
+	{
+		loadingControls = true;
+		try
+		{
+			update.run();
 		}
 		finally
 		{
 			loadingControls = false;
 		}
+	}
+
+	/**
+	 * Make {@code palette} the one being edited, and show it in the swatch and
+	 * the graph. Leaves {@link #comboPalette} alone, since this is also how a
+	 * pick made in it takes effect (see {@link #selectPalette}).
+	 */
+	private void setPalette( final Palette palette, final String paletteName )
+	{
+		currentPalette = palette;
+		currentPaletteName = paletteName;
+		panelPaletteSwatch.update( palette );
+		panelMappingCurve.setPalette( palette );
+	}
+
+	/** Switch to the palette the user picked in {@link #comboPalette}. */
+	private void selectPalette( final String name )
+	{
+		final Palette palette = LutPalettes.load( name );
+		if ( palette == null )
+		{
+			labelStatus.setText( "Failed to load LUT: " + name );
+			return;
+		}
+		setPalette( palette, name );
+		labelStatus.setText( "" );
+
+		// Discrete or continuous follows the palette file's own declared kind,
+		// not a user choice: a palette that declares itself non-interpolated
+		// (e.g. a qualitative palette like tab10) is meant to be read as
+		// individual colors, not blended.
+		mappingModel.setDiscrete( !palette.isInterpolated() );
+		updateShapeControls();
 	}
 
 	/** What the editor currently shows, with the mapping copied so later edits cannot reach into the snapshot; see {@link EditorState}. */
@@ -667,7 +747,7 @@ public class LutEditorDialog extends JDialog
 	 */
 	private void resetToSessionBaseline()
 	{
-		loadIntoEditor( baseline.palette, baseline.paletteName, baseline.mapping, baseline.rangeMin, baseline.rangeMax );
+		loadIntoEditor( baseline );
 		pushLiveEdits();
 		labelStatus.setText( activeLutConv == null ? "" : "Reset." );
 	}
@@ -704,21 +784,26 @@ public class LutEditorDialog extends JDialog
 
 		if ( activeSetup != null )
 			activeSetup.setDisplayRange( editedRangeMin, editedRangeMax );
-		if ( repaintAction != null )
-			repaintAction.run();
+		repaintAction.run();
 	}
 
 	// -- Configurations (saved presets) ------------------------------------
 
 	/**
-	 * Apply a saved {@link EditorPreset} (see {@link #comboEditorPreset}):
-	 * its palette, range mode, background handling and curve, live and
-	 * immediately, same as any other edit here. Deliberately leaves
-	 * {@link #editedRangeMin}/{@link #editedRangeMax} alone -- a preset is a
-	 * reusable "look", not tied to any particular source's data range.
+	 * Apply the saved {@link EditorPreset} called {@code name} (see
+	 * {@link #comboEditorPreset}): its palette, boundary conditions and
+	 * shape, live and immediately, same as any other edit here. Deliberately
+	 * leaves {@link #editedRangeMin}/{@link #editedRangeMax} alone -- a preset
+	 * is a reusable "look", not tied to any particular source's data range.
 	 */
-	private void applyEditorPreset( final EditorPreset preset )
+	private void applyEditorPreset( final String name )
 	{
+		final EditorPreset preset = EditorPresets.load( name );
+		if ( preset == null )
+		{
+			labelStatus.setText( "Failed to load configuration: " + name );
+			return;
+		}
 		final Palette palette = LutPalettes.load( preset.getPaletteName() );
 		if ( palette == null )
 		{
@@ -728,7 +813,7 @@ public class LutEditorDialog extends JDialog
 
 		final LutEditorMapping presetMapping = mappingFromPreset( preset, !palette.isInterpolated() );
 
-		loadIntoEditor( palette, preset.getPaletteName(), presetMapping, editedRangeMin, editedRangeMax );
+		loadIntoEditor( new EditorState( palette, preset.getPaletteName(), presetMapping, editedRangeMin, editedRangeMax ) );
 		pushLiveEdits();
 		labelStatus.setText( "" );
 	}
@@ -762,9 +847,18 @@ public class LutEditorDialog extends JDialog
 	 * Deselect the configuration combo when it no longer describes what is
 	 * actually loaded -- e.g. after switching to a source whose applied
 	 * palette/mapping is not the one the previously selected configuration
-	 * saves. Called after every {@link #loadIntoEditor}, so the combo cannot
-	 * go on claiming a configuration is in effect once the editor state has
-	 * moved on from it.
+	 * saves, or after the user changed the palette or mapping by hand. Called
+	 * after every {@link #loadIntoEditor} and on every change to
+	 * {@link #mappingModel} (which a palette pick also makes, see
+	 * {@link #selectPalette}), so the combo cannot go on claiming a
+	 * configuration is in effect once the editor state has moved on from it.
+	 * <p>
+	 * Compared rather than cleared outright, so that a pick that changes
+	 * nothing -- re-choosing the boundary condition already in effect -- leaves
+	 * it selected. The input range is not part of a configuration (see
+	 * {@link #applyEditorPreset}) and is not held by {@link #mappingModel}, so
+	 * changing it never deselects. Only ever deselects: editing back to a
+	 * configuration's exact state does not select it again.
 	 */
 	private void syncEditorPresetSelection()
 	{
@@ -785,15 +879,15 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Ask the user for a name and save the editor's current palette, range
-	 * mode, background handling and curve as a reusable {@link EditorPreset}
+	 * Ask the user for a name and save the editor's current palette, boundary
+	 * conditions and shape as a reusable {@link EditorPreset}
 	 * (see {@link #applyEditorPreset}) under it, confirming first if that
 	 * would overwrite an existing one.
 	 */
 	private void promptAndSaveEditorPreset()
 	{
 		// Checked before prompting: nothing the user could type would make a
-		// palette-less setting saveable, so asking for a name first would
+		// palette-less configuration saveable, so asking for a name first would
 		// only waste their time.
 		if ( currentPaletteName == null )
 		{
@@ -838,20 +932,15 @@ public class LutEditorDialog extends JDialog
 			// Saving is the one preset operation that can't degrade silently
 			// (see EditorPresets#save) -- report it here rather than letting
 			// it escape into the button's action listener.
-			labelStatus.setText( "Failed to save setting: " + e.getMessage() );
+			labelStatus.setText( "Failed to save configuration: " + e.getMessage() );
 			return;
 		}
 
-		refreshEditorPresetCombo( comboEditorPreset );
-		loadingControls = true;
-		try
+		withoutFeedback( () ->
 		{
+			refreshEditorPresetCombo( comboEditorPreset );
 			comboEditorPreset.setSelectedItem( name );
-		}
-		finally
-		{
-			loadingControls = false;
-		}
+		} );
 		labelStatus.setText( "Saved configuration \"" + name + "\"." );
 	}
 
@@ -1159,30 +1248,8 @@ public class LutEditorDialog extends JDialog
 			if ( loadingControls )
 				return;
 			final Object selected = comboPalette.getSelectedItem();
-			if ( !( selected instanceof String ) )
-				return;
-			final String name = ( String ) selected;
-			final Palette ct = LutPalettes.load( name );
-			if ( ct == null )
-			{
-				labelStatus.setText( "Failed to load LUT: " + name );
-				return;
-			}
-			currentPalette = ct;
-			currentPaletteName = name;
-			panelPaletteSwatch.update( ct );
-			panelMappingCurve.setPalette( ct );
-			labelStatus.setText( "" );
-
-			// Value matching always follows the palette file's own declared
-			// mode, not a user choice: a palette that declares itself
-			// non-interpolated (e.g. a qualitative/categorical palette like
-			// tab10) is meant to be used as discrete colors, not blended --
-			// Truncate is the closest match to how such palettes are
-			// typically read (each raw value holds the color of the control
-			// point at or before it).
-			mappingModel.setDiscrete( !ct.isInterpolated() );
-			updateShapeControls();
+			if ( selected instanceof String )
+				selectPalette( ( String ) selected );
 		} );
 
 		comboLeftBoundary.addActionListener( e ->
@@ -1228,16 +1295,8 @@ public class LutEditorDialog extends JDialog
 			if ( loadingControls )
 				return;
 			final Object selected = comboEditorPreset.getSelectedItem();
-			if ( !( selected instanceof String ) )
-				return;
-			final String name = ( String ) selected;
-			final EditorPreset preset = EditorPresets.load( name );
-			if ( preset == null )
-			{
-				labelStatus.setText( "Failed to load configuration: " + name );
-				return;
-			}
-			applyEditorPreset( preset );
+			if ( selected instanceof String )
+				applyEditorPreset( ( String ) selected );
 		} );
 
 		buttonSaveEditorPreset.addActionListener( e -> promptAndSaveEditorPreset() );
@@ -1247,6 +1306,11 @@ public class LutEditorDialog extends JDialog
 		mappingModel.addChangeListener( panelMappingCurve::repaint );
 		mappingModel.addChangeListener( panelPaletteSwatch::repaint );
 		mappingModel.addChangeListener( this::pushLiveEdits );
+		mappingModel.addChangeListener( () ->
+		{
+			if ( !loadingControls )
+				syncEditorPresetSelection();
+		} );
 	}
 
 	/**
@@ -1306,8 +1370,8 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * The saved-setting chooser (see {@link EditorPresets}): built-in and
-	 * user-saved settings, grouped under a non-selectable
+	 * The saved-configuration chooser (see {@link EditorPresets}): built-in and
+	 * user-saved configurations, grouped under a non-selectable
 	 * {@link CategoryHeader} each. Populated by {@link #refreshEditorPresetCombo}.
 	 */
 	private JComboBox< Object > createEditorPresetCombo()
@@ -1323,9 +1387,11 @@ public class LutEditorDialog extends JDialog
 
 	/**
 	 * Rebuild {@code combo}'s items from {@link EditorPresets#discoverNames()},
-	 * grouped into "My Settings" (user-saved) and "Built-in", preserving the
-	 * current selection if it is still present. Called on construction and
-	 * again after {@link #promptAndSaveEditorPreset()} adds/overwrites one.
+	 * grouped into "My Configurations" (user-saved) and "Built-in",
+	 * preserving the current selection if it is still present. Called on
+	 * construction and again after {@link #promptAndSaveEditorPreset()}
+	 * adds/overwrites one -- with the listeners muted there, since the
+	 * selection it restores would otherwise be re-applied as if picked.
 	 */
 	private static void refreshEditorPresetCombo( final JComboBox< Object > combo )
 	{
@@ -1340,7 +1406,7 @@ public class LutEditorDialog extends JDialog
 		model.removeAllElements();
 		if ( !userDefined.isEmpty() )
 		{
-			model.addElement( new CategoryHeader( "My Settings" ) );
+			model.addElement( new CategoryHeader( "My Configurations" ) );
 			for ( final String name : userDefined )
 				model.addElement( name );
 		}
@@ -1564,7 +1630,7 @@ public class LutEditorDialog extends JDialog
 				"- Applies a saved combination of palette, boundary handling and transfer",
 				"  function (see EditorPreset) -- built-in ones ship with the app, and",
 				"  \"Save as...\" stores the current combination (under a name you choose)",
-				"  for reuse later, next to the built-in ones under \"My Settings\".",
+				"  for reuse later, next to the built-in ones under \"My Configurations\".",
 				"  Applying one leaves the current input value range alone, since that is",
 				"  specific to whatever source's data you are editing, not part of the",
 				"  saved look.",
