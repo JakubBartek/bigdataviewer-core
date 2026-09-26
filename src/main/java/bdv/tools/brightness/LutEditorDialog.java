@@ -356,7 +356,10 @@ public class LutEditorDialog extends JDialog
 		// -- Behavior --------------------------------------------------------
 		installControlListeners();
 		viewerState.changeListeners().add( viewerStateListener );
-		beginSession( viewerState.getCurrentSource() );
+		// Sessions begin only when the window is shown (see setVisible), but
+		// pack() needs filled-in controls to measure -- an empty label has no
+		// height -- so size the window around the neutral state.
+		loadIntoEditor( Palette.DEFAULT, LutPalettes.findName( Palette.DEFAULT ), defaultMapping(), 0, 255 );
 		packAndMatchGraphWidth( panelLeftColumn, panelMappingCurveColumn );
 	}
 
