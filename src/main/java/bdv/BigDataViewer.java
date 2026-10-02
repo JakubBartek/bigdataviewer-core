@@ -65,7 +65,10 @@ import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.type.volatiles.AbstractVolatileNativeRealType;
 import net.imglib2.type.volatiles.VolatileARGBType;
+import net.imglib2.type.volatiles.VolatileDoubleType;
+import net.imglib2.type.volatiles.VolatileFloatType;
 
 import org.jdom2.Document;
 import org.jdom2.Element;
@@ -224,9 +227,18 @@ public class BigDataViewer
 			final double typeMax = Math.max( 0, Math.min( t.getMaxValue(), 65535 ) );
 			return ( Converter< T, ARGBType > ) createPaletteConverter( typeMin, typeMax );
 		}
-		else if ( type instanceof FloatType || type instanceof DoubleType )
+		else if ( type instanceof FloatType || type instanceof DoubleType
+				|| type instanceof VolatileFloatType || type instanceof VolatileDoubleType )
 		{
 			return ( Converter< T, ARGBType > ) createPaletteConverter( 0, 1 );
+		}
+		else if ( type instanceof AbstractVolatileNativeRealType )
+		{
+			//NB: must be now only Integer-based types
+			AbstractVolatileNativeRealType< ?, ? > t = ( AbstractVolatileNativeRealType< ?, ? > ) type;
+			final double typeMin = Math.max( 0, Math.min( t.getMinValue(), 65535 ) );
+			final double typeMax = Math.max( 0, Math.min( t.getMaxValue(), 65535 ) );
+			return ( Converter< T, ARGBType > ) createPaletteConverter( typeMin, typeMax );
 		}
 		else if ( type instanceof RealType )
 		{
