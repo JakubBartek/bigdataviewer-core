@@ -42,10 +42,8 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.WeakHashMap;
 
 import javax.swing.BorderFactory;
@@ -231,16 +229,6 @@ public class LutEditorDialog extends JDialog
 	private ConverterSetup activeSetup = null;
 
 	/**
-	 * Sources whose foreign converter the user has already declined to convert
-	 * (see {@link #offerConversion}), so that selecting one again -- which
-	 * happens on every pass through the sources with the 1..9 keys in the
-	 * viewer -- does not ask a second time. Weakly held so it does not keep
-	 * sources alive.
-	 */
-	private final Set< SourceAndConverter< ? > > declinedConversion =
-			Collections.newSetFromMap( new WeakHashMap<>() );
-
-	/**
 	 * The editor-facing configuration ({@link Palette} + editable
 	 * {@link LutEditorMapping}) last pushed to each {@link PaletteConverter}, so
 	 * re-selecting a source can restore what the editor last showed for it.
@@ -390,13 +378,11 @@ public class LutEditorDialog extends JDialog
 	 * was last closed. The previous session is dropped rather than reverted:
 	 * its edits were kept when the window was hidden.
 	 * <p>
-	 * The session has to be (re)started only once the window is on screen,
-	 * because a session started while it was hidden cannot warn about a
-	 * converter it is unable to edit (see {@link #offerConversion}) -- there
-	 * would be a modal prompt with nothing behind it to explain where it came
-	 * from. The dialog is constructed with the viewer and only shown later, so
-	 * without this the warning would never appear for the source the user
-	 * opens it on.
+	 * The session is (re)started only once the window is on screen, because
+	 * starting one converts a source this editor cannot edit (see
+	 * {@link #convertToPalette}) and reports that in the status line. Done
+	 * while hidden, that would swap the converter of a source nobody asked to
+	 * edit, with no window to say so.
 	 */
 	@Override
 	public void setVisible( final boolean visible )
@@ -433,8 +419,6 @@ public class LutEditorDialog extends JDialog
 		viewerState.changeListeners().remove( viewerStateListener );
 		super.dispose();
 	}
-// TODO: LegacyBDVCOlorPAlette(Color)
-// Dostanem SAC -> Ak nie je nas -> Prekonvertuj na nas
 	/**
 	 * Adopt the viewer's current source as this window's. A no-op when it
 	 * already is, so that a notification arriving after this dialog has
@@ -465,22 +449,21 @@ public class LutEditorDialog extends JDialog
 	 * controls, and take the baseline that {@link #resetToSessionBaseline()}
 	 * restores.
 	 * <p>
-	 * A source rendered by some other kind of converter cannot be edited here;
-	 * the user is warned and offered a conversion (see
-	 * {@link #offerConversion}), and if that comes to nothing -- or there is
-	 * no source at all -- the editor shows a neutral state pushed nowhere,
-	 * rather than whatever the previous source left behind.
+	 * A source rendered by some other kind of converter is converted to one
+	 * this editor can edit, without asking (see {@link #convertToPalette}),
+	 * and the status line says so. If it cannot be converted -- or there is no
+	 * source at all -- the editor shows a neutral state pushed nowhere, rather
+	 * than whatever the previous source left behind.
 	 * <p>
 	 * Only ever called while the window is showing (see
-	 * {@link #setVisible(boolean)} and {@link #syncToCurrentSource()}): the
-	 * conversion prompt this may raise would otherwise appear with no editor
-	 * on screen behind it to explain where it came from.
+	 * {@link #setVisible(boolean)} and {@link #syncToCurrentSource()}).
 	 */
 	private void beginSession( final SourceAndConverter< ? > soc )
 	{
 		sessionSource = soc;
 		updateTitle();
 
+		final Converter< ?, ? > original = soc == null ? null : soc.getConverter();
 		activeLutConv = soc == null ? null : editableConverterOf( soc );
 		final boolean editable = activeLutConv != null;
 		activeVolatileLutConv = editable ? volatileConverterOf( soc ) : null;
@@ -489,7 +472,9 @@ public class LutEditorDialog extends JDialog
 		if ( soc == null )
 			labelStatus.setText( "no setup selected" );
 		else if ( !editable )
-			labelStatus.setText( "Converter does not use a LUT." );
+			labelStatus.setText( converterKind( original ) + " does not use a LUT and cannot be converted." );
+		else if ( activeLutConv != original )
+			labelStatus.setText( "Converted " + converterKind( original ) + " to a palette-based converter." );
 		else
 			labelStatus.setText( "" );
 
@@ -499,14 +484,14 @@ public class LutEditorDialog extends JDialog
 
 	/**
 	 * The {@link PaletteConverter} rendering {@code soc}, or -- if it is
-	 * rendered by some other kind of converter -- the one it was converted to
-	 * on the user's say-so (see {@link #offerConversion}); {@code null} if it
-	 * was not.
+	 * rendered by some other kind of converter -- the one it has just been
+	 * converted to (see {@link #convertToPalette}); {@code null} if it could
+	 * not be.
 	 */
 	private PaletteConverter< ? > editableConverterOf( final SourceAndConverter< ? > soc )
 	{
 		final PaletteConverter< ? > lutConv = asPaletteConverter( soc.getConverter() );
-		return lutConv != null ? lutConv : offerConversion( soc );
+		return lutConv != null ? lutConv : convertToPalette( soc );
 	}
 
 	/** The {@link PaletteConverter} behind {@code soc}'s volatile counterpart, if it has one; see {@link #activeVolatileLutConv}. */
@@ -541,52 +526,32 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Warn that {@code soc} is rendered by a converter this editor does not
-	 * understand, and offer to re-render it through one that it does -- see
+	 * Re-render {@code soc}, which is rendered by a converter this editor does
+	 * not understand, through one that it does -- see
 	 * {@link PaletteConverterFactory}, which spells out how much of the
 	 * original setup survives that translation. Returns the converter now
-	 * rendering the source, or {@code null} if it was not converted.
+	 * rendering the source, or {@code null} if it could not be converted.
 	 * <p>
-	 * Only asked once per source: this runs on every source switch, and a
-	 * modal prompt appearing again every time the user cycles past the same
-	 * source with the 1..9 keys would cost more than the warning is worth.
+	 * Not asked first: a single-color converter becomes a palette that renders
+	 * the same image (see {@code LegacyBdvColorPalette}), so the conversion
+	 * changes what can be edited, not what is shown. {@link #beginSession}
+	 * reports it in the status line instead.
 	 */
-	private PaletteConverter< ? > offerConversion( final SourceAndConverter< ? > soc )
+	private PaletteConverter< ? > convertToPalette( final SourceAndConverter< ? > soc )
 	{
-		if ( !declinedConversion.add( soc ) )
-			return null;
-
-		final Converter< ?, ? > conv = soc.getConverter();
-		final String kind = conv == null ? "no converter" : conv.getClass().getSimpleName();
-		final String preamble = "Source \"" + sourceName( soc ) + "\" is rendered by " + kind + ",\n"
-				+ "which this LUT editor cannot edit.";
-
-		if ( !PaletteConverterFactory.canApproximate( soc ) )
-		{
-			JOptionPane.showMessageDialog( this,
-					preamble + "\n\nIt cannot be converted to a palette-based converter either.",
-					"Unsupported Converter", JOptionPane.WARNING_MESSAGE );
-			return null;
-		}
-
-		final int choice = JOptionPane.showConfirmDialog( this,
-				preamble + "\n\nConvert it to a palette-based converter?\n"
-						+ "Its display range is kept and mapped linearly; its color\n"
-						+ "becomes the closest sequential palette, so the image will\n"
-						+ "look similar but not identical.",
-				"Unsupported Converter", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE );
-		if ( choice != JOptionPane.YES_OPTION )
-			return null;
-
 		final PaletteConverter< ? > converted = PaletteConverterFactory.approximateInPlace( soc );
 		if ( converted == null )
 			return null;
 
-		// Editable from here on, so no longer a source to stop asking about.
-		declinedConversion.remove( soc );
 		repointConverterSetup( soc );
 		repaintAction.run();
 		return converted;
+	}
+
+	/** How the status line names a converter: its class's simple name. */
+	private static String converterKind( final Converter< ?, ? > converter )
+	{
+		return converter == null ? "No converter" : converter.getClass().getSimpleName();
 	}
 
 	/**

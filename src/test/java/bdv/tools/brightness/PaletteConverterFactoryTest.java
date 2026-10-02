@@ -39,6 +39,7 @@ import java.util.List;
 
 import org.junit.Test;
 
+import bdv.tools.brightness.colorscheme.LegacyBdvColorPalette;
 import bdv.viewer.Interpolation;
 import bdv.viewer.Source;
 import bdv.viewer.SourceAndConverter;
@@ -55,11 +56,10 @@ import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.real.DoubleType;
 
 /**
- * Note the direction of the palettes asserted here: {@code Greys} runs
- * white-to-black, the opposite of the black-to-white ramp the legacy converter
- * renders. That is a property of the bundled palette, not of the translation,
- * and it is deliberately pinned down here so that swapping the chosen palettes
- * shows up as a failing test rather than as a silently inverted image.
+ * How faithfully a {@link bdv.tools.brightness.colorscheme.LegacyBdvColorPalette}
+ * reproduces the legacy converter, over every color, range and raw value, is
+ * covered by {@code LegacyBdvColorPaletteTest}; here only that a conversion
+ * actually installs it, so the converted source renders as it did before.
  */
 public class PaletteConverterFactoryTest
 {
@@ -140,48 +140,6 @@ public class PaletteConverterFactoryTest
 	private static SourceAndConverter< DoubleType > legacySoc( final double min, final double max, final int argb )
 	{
 		return soc( new DoubleType(), legacy( min, max, argb ) );
-	}
-
-	// -- paletteNameForColor -------------------------------------------------
-
-	@Test
-	public void testAchromaticColorsMapToGreys()
-	{
-		assertEquals( "Greys", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 255, 255, 255, 255 ) ) );
-		assertEquals( "Greys", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 0, 0, 0, 255 ) ) );
-		assertEquals( "Greys", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 128, 128, 128, 255 ) ) );
-	}
-
-	@Test
-	public void testPureColorsMapToTheirOwnChannel()
-	{
-		assertEquals( "Reds", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 255, 0, 0, 255 ) ) );
-		assertEquals( "Greens", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 0, 255, 0, 255 ) ) );
-		assertEquals( "Blues", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 0, 0, 255, 255 ) ) );
-	}
-
-	@Test
-	public void testMixedColorsMapToTheirStrongestChannel()
-	{
-		assertEquals( "Greens", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 30, 200, 90, 255 ) ) );
-		assertEquals( "Blues", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 10, 20, 30, 255 ) ) );
-	}
-
-	/** Two channels tied for strongest go to the earlier one in R, G, B order. */
-	@Test
-	public void testTiedChannelsResolveInRgbOrder()
-	{
-		assertEquals( "Reds", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 255, 255, 0, 255 ) ) );
-		assertEquals( "Reds", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 255, 0, 255, 255 ) ) );
-		assertEquals( "Greens", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 0, 255, 255, 255 ) ) );
-	}
-
-	/** The alpha channel says nothing about the hue, so it must not steer the choice. */
-	@Test
-	public void testAlphaDoesNotAffectTheChoice()
-	{
-		assertEquals( "Greens", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 0, 255, 0, 0 ) ) );
-		assertEquals( "Greys", PaletteConverterFactory.paletteNameForColor( ARGBType.rgba( 7, 7, 7, 0 ) ) );
 	}
 
 	// -- canApproximate ------------------------------------------------------
@@ -297,28 +255,36 @@ public class PaletteConverterFactoryTest
 	}
 
 	/**
-	 * The colors a converted white source actually renders. Note that they run
-	 * white-to-black while the legacy converter ran black-to-white over the
-	 * same range: {@code Greys} is a descending ramp. See this class's javadoc.
+	 * The legacy converter is its own reference here: it is asked for its
+	 * colors before the conversion and the new converter has to reproduce
+	 * them. The sample points avoid exact rounding ties, which the two
+	 * paths are allowed to break differently.
 	 */
 	@Test
-	public void testConvertedWhiteSourceRendersTheGreysRamp()
+	public void testConvertedSourceRendersAsTheLegacyConverterDid()
 	{
-		final SourceAndConverter< DoubleType > source = legacySoc( 10, 210, ARGBType.rgba( 255, 255, 255, 255 ) );
-		final PaletteConverter< ? > converted = PaletteConverterFactory.approximateInPlace( source );
+		for ( final int color : new int[] { ARGBType.rgba( 255, 255, 255, 255 ), ARGBType.rgba( 255, 0, 0, 255 ), ARGBType.rgba( 255, 128, 0, 200 ) } )
+		{
+			final SourceAndConverter< DoubleType > source = legacySoc( 10, 210, color );
+			final double[] raws = { -50, 10, 47, 61, 113, 190, 210 };
+			final int[] expected = renderLegacy( legacy( 10, 210, color ), raws );
 
-		assertColors( new int[] { 0xffffffff, 0xffd9d9d9, 0xff969696, 0xff525252, 0xff000000 },
-				render( converted, 10, 60, 110, 160, 210 ) );
+			final PaletteConverter< ? > converted = PaletteConverterFactory.approximateInPlace( source );
+
+			assertColors( expected, render( converted, raws ) );
+		}
 	}
 
 	@Test
-	public void testConvertedRedSourceRendersTheRedsRamp()
+	public void testConvertedSourceRendersThroughALegacyPaletteOfItsColor()
 	{
-		final SourceAndConverter< DoubleType > source = legacySoc( 10, 210, ARGBType.rgba( 255, 0, 0, 255 ) );
+		final int color = ARGBType.rgba( 30, 200, 90, 255 );
+		final SourceAndConverter< DoubleType > source = legacySoc( 0, 255, color );
+
 		final PaletteConverter< ? > converted = PaletteConverterFactory.approximateInPlace( source );
 
-		assertColors( new int[] { 0xfffff5f0, 0xfffcbba1, 0xfffb6a4b, 0xffcb181d, 0xff67000d },
-				render( converted, 10, 60, 110, 160, 210 ) );
+		assertEquals( new LegacyBdvColorPalette( color ), PaletteConverterFactory.paletteFor( legacy( 0, 255, color ) ) );
+		assertColors( new int[] { color }, render( converted, 255 ) );
 	}
 
 	// -- colorConvertersOf ---------------------------------------------------
@@ -348,6 +314,20 @@ public class PaletteConverterFactoryTest
 	}
 
 	// -- helpers -------------------------------------------------------------
+
+	private static int[] renderLegacy( final RealARGBColorConverter< DoubleType > converter, final double... raws )
+	{
+		final DoubleType in = new DoubleType();
+		final ARGBType out = new ARGBType();
+		final int[] argbs = new int[ raws.length ];
+		for ( int i = 0; i < raws.length; i++ )
+		{
+			in.set( raws[ i ] );
+			converter.convert( in, out );
+			argbs[ i ] = out.get();
+		}
+		return argbs;
+	}
 
 	private static int[] render( final PaletteConverter< ? > converter, final double... raws )
 	{

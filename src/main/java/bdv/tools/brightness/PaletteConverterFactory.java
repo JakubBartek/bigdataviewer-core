@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
+import bdv.tools.brightness.colorscheme.LegacyBdvColorPalette;
 import bdv.tools.brightness.colorscheme.Palette;
 import bdv.tools.brightness.palette.PresetPaletteWrapper;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
@@ -48,8 +49,7 @@ import net.imglib2.type.numeric.RealType;
  * mapping architecture in {@code bdv.tools.brightness.palette} instead, so
  * that {@link LutEditorDialog} can edit it.
  * <p>
- * The translation is an <em>approximation</em>, not a faithful port -- the two
- * representations do not describe the same family of mappings:
+ * The translation keeps the source looking as it did:
  * <ul>
  * <li>The display range is carried over as the new mapping's raw domain --
  * exactly, unless it was collapsed to a single value, which the new
@@ -57,13 +57,14 @@ import net.imglib2.type.numeric.RealType;
  * <li>The transfer function becomes {@link LinearPresetFunc linear}, which is
  * what a single-color converter always is: it scales the raw value into the
  * display range and multiplies its color by the result.</li>
- * <li>The single color becomes the bundled sequential palette that ramps
- * towards it -- see {@link #paletteNameForColor(int)}. This is the lossy step:
- * an arbitrary color is answered with one of four palettes.</li>
+ * <li>The single color becomes a {@link LegacyBdvColorPalette}, the
+ * black-to-color ramp that converter renders.</li>
  * </ul>
- * So the result looks similar but is not identical: the old converter scales
- * the color's own channels linearly down to black, whereas a palette like
- * {@code Reds} is a designed perceptual ramp that starts near white.
+ * It is faithful below and inside the display range, up to a rounding tie
+ * landing one unit apart in a channel. Above the range it is faithful only
+ * for colors whose channels are each 0 or 255 -- see
+ * {@link LegacyBdvColorPalette} for why the old converter keeps brightening
+ * any other color there and a palette cannot.
  *
  * @author Jakub Bartek
  */
@@ -157,42 +158,18 @@ public final class PaletteConverterFactory
 	}
 
 	/**
-	 * The bundled palette a single-color converter's color is approximated by:
-	 * {@code Greys} when the color is achromatic, otherwise the sequential
-	 * palette named after its strongest channel.
-	 * <p>
-	 * Ties go to the earlier channel in R, G, B order, so yellow
-	 * {@code (255, 255, 0)} is read as {@code Reds}. There is no better answer
-	 * to be had: the bundled sequential palettes span one channel each, and any
-	 * mixed hue has to be rounded onto one of them.
-	 */
-	public static String paletteNameForColor( final int argb )
-	{
-		final int r = ARGBType.red( argb );
-		final int g = ARGBType.green( argb );
-		final int b = ARGBType.blue( argb );
-		if ( r == g && g == b )
-			return "Greys";
-		if ( r >= g && r >= b )
-			return "Reds";
-		if ( g >= b )
-			return "Greens";
-		return "Blues";
-	}
-
-	/**
-	 * The palette {@code legacy}'s color maps to (see
-	 * {@link #paletteNameForColor}), falling back to grayscale for a converter
-	 * with no editable color to read, and to {@link Palette#DEFAULT} if the
-	 * named resource cannot be loaded -- a missing palette file should degrade
-	 * the result, not fail the conversion.
+	 * The palette {@code legacy} renders with (see {@link LegacyBdvColorPalette}),
+	 * falling back to the white ramp -- the old converter's own default color
+	 * -- for a converter with no color to read.
 	 */
 	static Palette paletteFor( final ColorConverter legacy )
 	{
 		final ARGBType color = legacy.supportsColor() ? legacy.getColor() : null;
-		final Palette palette = LutPalettes.load( color == null ? "Greys" : paletteNameForColor( color.get() ) );
-		return palette != null ? palette : Palette.DEFAULT;
+		return new LegacyBdvColorPalette( color != null ? color.get() : DEFAULT_LEGACY_COLOR );
 	}
+
+	/** The color a {@code RealARGBColorConverter} starts out with. */
+	private static final int DEFAULT_LEGACY_COLOR = ARGBType.rgba( 255, 255, 255, 255 );
 
 	private static boolean isRealTyped( final SourceAndConverter< ? > soc )
 	{

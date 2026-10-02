@@ -54,11 +54,18 @@ import net.imglib2.type.numeric.ARGBType;
  * ever produced an unevenly spaced one -- the bundled resources are a plain
  * ordered color list -- and its own {@code lookupARGB} already ignored the
  * positions, so the capability is not reproduced here.
+ * <p>
+ * Open to subclassing only so that a palette with a known origin can be built
+ * by name -- see {@link LegacyBdvColorPalette}. Everything that makes a
+ * palette a value (its stops, {@link #isInterpolated()}, {@link #equals} and
+ * {@link #hashCode}) is {@code final}, so a subclass can add a constructor and
+ * describe itself, but cannot make two palettes with the same colors compare
+ * unequal, or make one mutable.
  *
  * @see ContinuousColorScheme
  * @see DiscreteColorScheme
  */
-public final class Palette
+public class Palette
 {
 	/**
 	 * A black-to-white gradient, the placeholder used whenever no real palette
@@ -115,19 +122,19 @@ public final class Palette
 	}
 
 	/** The number of color stops. */
-	public int getLength()
+	public final int getLength()
 	{
 		return stops.length;
 	}
 
 	/** The packed-ARGB color stop at {@code index}. */
-	public int getStop( final int index )
+	public final int getStop( final int index )
 	{
 		return stops[ index ];
 	}
 
 	/** The color stops, packed ARGB, in order. A copy: {@code Palette} is immutable. */
-	public int[] getStops()
+	public final int[] getStops()
 	{
 		return stops.clone();
 	}
@@ -139,7 +146,7 @@ public final class Palette
 	 * between a {@link ContinuousColorScheme} and a {@link DiscreteColorScheme}
 	 * for it -- never a user choice.
 	 */
-	public boolean isInterpolated()
+	public final boolean isInterpolated()
 	{
 		return interpolated;
 	}
@@ -151,7 +158,7 @@ public final class Palette
 	 * {@code LutPalettes#findName}).
 	 */
 	@Override
-	public boolean equals( final Object obj )
+	public final boolean equals( final Object obj )
 	{
 		if ( this == obj )
 			return true;
@@ -162,7 +169,7 @@ public final class Palette
 	}
 
 	@Override
-	public int hashCode()
+	public final int hashCode()
 	{
 		return 31 * Arrays.hashCode( stops ) + Boolean.hashCode( interpolated );
 	}
