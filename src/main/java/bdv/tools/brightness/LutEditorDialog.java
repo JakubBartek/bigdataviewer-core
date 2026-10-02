@@ -405,6 +405,8 @@ public class LutEditorDialog extends JDialog
 		super.setVisible( visible );
 		if ( showing )
 			beginSession( viewerState.getCurrentSource() );
+
+		// TODO: Set null params
 	}
 
 	/**
@@ -431,7 +433,8 @@ public class LutEditorDialog extends JDialog
 		viewerState.changeListeners().remove( viewerStateListener );
 		super.dispose();
 	}
-
+// TODO: LegacyBDVCOlorPAlette(Color)
+// Dostanem SAC -> Ak nie je nas -> Prekonvertuj na nas
 	/**
 	 * Adopt the viewer's current source as this window's. A no-op when it
 	 * already is, so that a notification arriving after this dialog has
@@ -1644,8 +1647,8 @@ public class LutEditorDialog extends JDialog
 				"",
 				"Function:",
 				"- For a smooth (continuous) palette, Preset replaces the transfer",
-				"  function with a predefined shape (Linear, Percentile Stretch, Log, Exp,",
-				"  Sigmoid, \u03b1-Sigmoid, Tan, Atan). It can still be adjusted afterwards,",
+				"  function with a predefined shape (Linear, Log, Exp, Sigmoid, \u03b1-Sigmoid,",
+				"  Tan, Atan). It can still be adjusted afterwards,",
 				"  and Invert flips it vertically on top of whatever shape/edits it has.",
 				"- For a discrete (categorical) palette, Step size replaces it: it is how",
 				"  many input values one color covers. Set it to 1 to give every integer",

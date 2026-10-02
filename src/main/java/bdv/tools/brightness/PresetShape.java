@@ -33,7 +33,6 @@ import bdv.tools.brightness.presetfunc.CustomInterpPresetFunc;
 import bdv.tools.brightness.presetfunc.ExpPresetFunc;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import bdv.tools.brightness.presetfunc.LogPresetFunc;
-import bdv.tools.brightness.presetfunc.PercentileStretchPresetFunc;
 import bdv.tools.brightness.presetfunc.PresetFunc;
 import bdv.tools.brightness.presetfunc.SigmoidPresetFunc;
 import bdv.tools.brightness.presetfunc.TanPresetFunc;
@@ -49,7 +48,6 @@ import bdv.tools.brightness.presetfunc.TanPresetFunc;
 public enum PresetShape
 {
 	LINEAR( "Linear", LinearPresetFunc::new ),
-	PERCENTILE_STRETCH( "Percentile Stretch", PercentileStretchPresetFunc::new ),
 	LOG( "Log", LogPresetFunc::new ),
 	EXP( "Exp", ExpPresetFunc::new ),
 	SIGMOID( "Sigmoid", SigmoidPresetFunc::new ),

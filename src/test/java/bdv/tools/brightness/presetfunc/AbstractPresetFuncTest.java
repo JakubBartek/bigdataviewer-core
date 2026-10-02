@@ -63,7 +63,6 @@ public class AbstractPresetFuncTest
 	 */
 	private static final List< PresetFuncFactory > RANGE_STRETCHING_CONSTRUCTORS = Arrays.asList(
 			LinearPresetFunc::new,
-			PercentileStretchPresetFunc::new,
 			LogPresetFunc::new,
 			ExpPresetFunc::new,
 			SigmoidPresetFunc::new,
