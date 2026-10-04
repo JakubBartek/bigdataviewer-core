@@ -33,7 +33,6 @@ import java.util.List;
 
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.LegacyBdvColorPalette;
-import bdv.tools.brightness.colorscheme.Palette;
 import bdv.tools.brightness.palette.PresetPaletteWrapper;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import bdv.viewer.Source;
@@ -162,7 +161,7 @@ public final class PaletteConverterFactory
 	 * falling back to the white ramp -- the old converter's own default color
 	 * -- for a converter with no color to read.
 	 */
-	static Palette paletteFor( final ColorConverter legacy )
+	static LegacyBdvColorPalette paletteFor( final ColorConverter legacy )
 	{
 		final ARGBType color = legacy.supportsColor() ? legacy.getColor() : null;
 		return new LegacyBdvColorPalette( color != null ? color.get() : DEFAULT_LEGACY_COLOR );

@@ -42,6 +42,7 @@ import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -72,6 +73,7 @@ import javax.swing.border.EmptyBorder;
 import bdv.tools.brightness.colorscheme.ColorScheme;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
+import bdv.tools.brightness.colorscheme.LegacyBdvColorPalette;
 import bdv.tools.brightness.colorscheme.Palette;
 import bdv.tools.brightness.palette.BoundaryCondition;
 import bdv.tools.brightness.palette.PaletteWrapper;
@@ -83,6 +85,8 @@ import bdv.viewer.ViewerStateChange;
 import bdv.viewer.ViewerStateChangeListener;
 import net.imglib2.converter.Converter;
 import net.imglib2.display.ColorConverter;
+import net.imglib2.display.RealARGBColorConverter;
+import net.imglib2.type.numeric.ARGBType;
 
 /**
  * A LUT editor dialog, laid out as a header strip over two columns:
@@ -199,6 +203,17 @@ public class LutEditorDialog extends JDialog
 
 	/** Name of {@link #currentPalette} in {@link #comboPalette}, or {@code null} if it doesn't (or isn't known to) correspond to one -- see {@link #loadIntoEditor}. */
 	private String currentPaletteName = null;
+
+	/**
+	 * Palettes listed in {@link #comboPalette} that are not bundled resources,
+	 * by name -- see {@link #addPalette}. A bundled palette is loaded from its
+	 * resource whenever it is picked; these have nowhere to be loaded from, so
+	 * the dialog keeps them for as long as it lives.
+	 */
+	private final Map< String, Palette > addedPalettes = new HashMap<>();
+
+	/** The {@link #comboPalette} category that {@link #convertToPalette} files a converted source's palette under. */
+	private static final String LEGACY_PALETTE_CATEGORY = "Legacy BDV Colors";
 
 	private final LutEditorMapping mappingModel = new LutEditorMapping();
 
@@ -474,7 +489,7 @@ public class LutEditorDialog extends JDialog
 		else if ( !editable )
 			labelStatus.setText( converterKind( original ) + " does not use a LUT and cannot be converted." );
 		else if ( activeLutConv != original )
-			labelStatus.setText( "Converted " + converterKind( original ) + " to a palette-based converter." );
+			labelStatus.setText( "Converted " + converterKind( original ) + " to palette \"" + converterStates.get( activeLutConv ).paletteName + "\"." );
 		else
 			labelStatus.setText( "" );
 
@@ -533,25 +548,70 @@ public class LutEditorDialog extends JDialog
 	 * rendering the source, or {@code null} if it could not be converted.
 	 * <p>
 	 * Not asked first: a single-color converter becomes a palette that renders
-	 * the same image (see {@code LegacyBdvColorPalette}), so the conversion
+	 * the same image (see {@link LegacyBdvColorPalette}), so the conversion
 	 * changes what can be edited, not what is shown. {@link #beginSession}
 	 * reports it in the status line instead.
+	 * <p>
+	 * The new converter's palette is listed in {@link #comboPalette} (see
+	 * {@link #addPalette}) and remembered as its editor state, so the editor
+	 * opens on the palette the source is actually rendered with -- and Reset
+	 * returns to it -- rather than on the neutral state, which would replace
+	 * the source's color with gray at the first edit. The remembered mapping
+	 * is {@link #defaultMapping()}: linear and clamped at both ends, which is
+	 * the mapping the conversion sets up.
 	 */
 	private PaletteConverter< ? > convertToPalette( final SourceAndConverter< ? > soc )
 	{
+		if ( !PaletteConverterFactory.canApproximate( soc ) )
+			return null;
+		final LegacyBdvColorPalette palette = PaletteConverterFactory.paletteFor( ( ColorConverter ) soc.getConverter() );
 		final PaletteConverter< ? > converted = PaletteConverterFactory.approximateInPlace( soc );
 		if ( converted == null )
 			return null;
+
+		final String name = legacyPaletteName( palette );
+		addPalette( LEGACY_PALETTE_CATEGORY, name, palette );
+		converterStates.put( converted, new EditorState( palette, name, defaultMapping(), converted.getMin(), converted.getMax() ) );
 
 		repointConverterSetup( soc );
 		repaintAction.run();
 		return converted;
 	}
 
-	/** How the status line names a converter: its class's simple name. */
-	private static String converterKind( final Converter< ?, ? > converter )
+	/**
+	 * How {@link #comboPalette} lists a converted source's palette: by its
+	 * color, as {@code #RRGGBB}, or {@code #AARRGGBB} when the color is not
+	 * opaque. Named by color rather than by source, so sources that shared a
+	 * color share one entry.
+	 */
+	static String legacyPaletteName( final LegacyBdvColorPalette palette )
 	{
-		return converter == null ? "No converter" : converter.getClass().getSimpleName();
+		final int color = palette.getColor();
+		return ARGBType.alpha( color ) == 255
+				? String.format( "BDV #%06X", color & 0xffffff )
+				: String.format( "BDV #%08X", color );
+	}
+
+	/**
+	 * How the status line names a converter: by the interface for a
+	 * {@link RealARGBColorConverter}, otherwise by its class name without the
+	 * package.
+	 * <p>
+	 * Not {@code Class.getSimpleName()}: imglib2 creates a
+	 * {@code RealARGBColorConverter} as a copy of a nested class loaded by a
+	 * class loader of its own (see {@code ClassCopyProvider}), and asking that
+	 * copy for its simple name looks up the enclosing class across the two
+	 * loaders and throws {@code IllegalAccessError}. Its own name would only
+	 * say {@code Imp} anyway.
+	 */
+	static String converterKind( final Converter< ?, ? > converter )
+	{
+		if ( converter == null )
+			return "No converter";
+		if ( converter instanceof RealARGBColorConverter )
+			return RealARGBColorConverter.class.getSimpleName();
+		final String name = converter.getClass().getName();
+		return name.substring( name.lastIndexOf( '.' ) + 1 );
 	}
 
 	/**
@@ -683,7 +743,7 @@ public class LutEditorDialog extends JDialog
 	/** Switch to the palette the user picked in {@link #comboPalette}. */
 	private void selectPalette( final String name )
 	{
-		final Palette palette = LutPalettes.load( name );
+		final Palette palette = resolvePalette( name );
 		if ( palette == null )
 		{
 			labelStatus.setText( "Failed to load LUT: " + name );
@@ -698,6 +758,86 @@ public class LutEditorDialog extends JDialog
 		// individual colors, not blended.
 		mappingModel.setDiscrete( !palette.isInterpolated() );
 		updateShapeControls();
+	}
+
+	/**
+	 * List {@code palette} in the palette chooser as {@code name}, under the
+	 * {@code category} header -- appended to that category, which is itself
+	 * appended to the end of the list if it is not there yet. From then on it
+	 * can be picked, named by a saved configuration and restored by Reset like
+	 * any bundled palette, for as long as this dialog lives.
+	 * <p>
+	 * Adding the same palette under the same name again does nothing, so a
+	 * caller that meets the same palette repeatedly -- as
+	 * {@link #convertToPalette} does for every source of one color -- need not
+	 * check first. Does not select it; the current selection is left alone.
+	 * Call on the EDT, like any change to a Swing component.
+	 *
+	 * @throws IllegalArgumentException if {@code name} already names a
+	 *         different palette, bundled or added: the chooser lists palettes by
+	 *         name alone, so one name cannot stand for two.
+	 */
+	public void addPalette( final String category, final String name, final Palette palette )
+	{
+		final Palette existing = resolvePalette( name );
+		if ( existing != null )
+		{
+			if ( existing.equals( palette ) )
+				return;
+			throw new IllegalArgumentException( "palette name \"" + name + "\" already names a different palette" );
+		}
+		addedPalettes.put( name, palette );
+
+		final GroupedComboModel model = ( GroupedComboModel ) comboPalette.getModel();
+		withoutFeedback( () ->
+		{
+			int header = indexOfCategory( model, category );
+			if ( header < 0 )
+			{
+				model.addElement( new CategoryHeader( category ) );
+				header = model.getSize() - 1;
+			}
+			// The end of the category: the next header, or the end of the list.
+			int end = header + 1;
+			while ( end < model.getSize() && !( model.getElementAt( end ) instanceof CategoryHeader ) )
+				end++;
+			model.insertElementAt( name, end );
+		} );
+	}
+
+	/** Index of the {@link CategoryHeader} labeled {@code category} in {@code model}, or {@code -1}. */
+	private static int indexOfCategory( final GroupedComboModel model, final String category )
+	{
+		for ( int i = 0; i < model.getSize(); i++ )
+		{
+			final Object item = model.getElementAt( i );
+			if ( item instanceof CategoryHeader && item.toString().equals( category ) )
+				return i;
+		}
+		return -1;
+	}
+
+	/**
+	 * The palette {@code name} stands for in {@link #comboPalette}: one added
+	 * with {@link #addPalette}, otherwise the bundled resource of that name;
+	 * {@code null} if it is neither.
+	 */
+	private Palette resolvePalette( final String name )
+	{
+		final Palette added = addedPalettes.get( name );
+		return added != null ? added : LutPalettes.load( name );
+	}
+
+	/** The palette being edited; see {@link #currentPalette}. Package-private for tests. */
+	Palette getCurrentPalette()
+	{
+		return currentPalette;
+	}
+
+	/** The palette chooser; see {@link #comboPalette}. Package-private for tests. */
+	JComboBox< Object > getPaletteCombo()
+	{
+		return comboPalette;
 	}
 
 	/** What the editor currently shows, with the mapping copied so later edits cannot reach into the snapshot; see {@link EditorState}. */
@@ -772,7 +912,7 @@ public class LutEditorDialog extends JDialog
 			labelStatus.setText( "Failed to load configuration: " + name );
 			return;
 		}
-		final Palette palette = LutPalettes.load( preset.getPaletteName() );
+		final Palette palette = resolvePalette( preset.getPaletteName() );
 		if ( palette == null )
 		{
 			labelStatus.setText( "Configuration's palette not found: " + preset.getPaletteName() );

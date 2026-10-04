@@ -66,9 +66,10 @@ public class PaletteConverterFactoryTest
 	/**
 	 * A source that exists only to answer {@code getType()} and
 	 * {@code getName()} -- the only two things {@link PaletteConverterFactory}
-	 * asks a source about. Nothing here is ever rendered.
+	 * asks a source about. Nothing here is ever rendered. Also used by
+	 * {@link LutEditorDialogTest}, whose dialog asks no more of a source.
 	 */
-	private static class TypeOnlySource< T extends NumericType< T > > implements Source< T >
+	static class TypeOnlySource< T extends NumericType< T > > implements Source< T >
 	{
 		private final T type;
 
