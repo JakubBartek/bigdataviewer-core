@@ -72,6 +72,7 @@ import javax.swing.border.EmptyBorder;
 
 import bdv.tools.brightness.colorscheme.ColorScheme;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
+import bdv.tools.brightness.colorscheme.CustomColorsPalette;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
 import bdv.tools.brightness.colorscheme.LegacyBdvColorPalette;
 import bdv.tools.brightness.colorscheme.Palette;
@@ -215,6 +216,9 @@ public class LutEditorDialog extends JDialog
 	/** The {@link #comboPalette} category that {@link #convertToPalette} files a converted source's palette under. */
 	private static final String LEGACY_PALETTE_CATEGORY = "Legacy BDV Colors";
 
+	/** The {@link #comboPalette} category listing {@link CustomColorsPalette#classics()}. */
+	private static final String CUSTOM_COLORS_CATEGORY = "Custom Colors";
+
 	private final LutEditorMapping mappingModel = new LutEditorMapping();
 
 	/** The input value range currently being edited; see {@link #currentPalette}. */
@@ -319,6 +323,7 @@ public class LutEditorDialog extends JDialog
 
 		// -- Widgets ---------------------------------------------------------
 		comboPalette = createPaletteCombo();
+		CustomColorsPalette.classics().forEach( ( name, palette ) -> addPalette( CUSTOM_COLORS_CATEGORY, name, palette ) );
 		comboEditorPreset = createEditorPresetCombo();
 		buttonSaveEditorPreset = new JButton( "Save as..." );
 		buttonSaveEditorPreset.setFocusable( false );

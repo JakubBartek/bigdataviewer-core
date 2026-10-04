@@ -30,12 +30,14 @@ package bdv.tools.brightness;
 import java.awt.GraphicsEnvironment;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.JComboBox;
 
 import org.junit.Test;
 
 import bdv.tools.brightness.PaletteConverterFactoryTest.TypeOnlySource;
+import bdv.tools.brightness.colorscheme.CustomColorsPalette;
 import bdv.tools.brightness.colorscheme.LegacyBdvColorPalette;
 import bdv.tools.brightness.colorscheme.Palette;
 import bdv.viewer.BasicViewerState;
@@ -167,6 +169,32 @@ public class LutEditorDialogTest
 			dialog.addPalette( "Mine", "red-blue", RED_TO_BLUE );
 			dialog.getPaletteCombo().setSelectedItem( "red-blue" );
 			assertEquals( RED_TO_BLUE, dialog.getCurrentPalette() );
+		}
+		finally
+		{
+			dialog.dispose();
+		}
+	}
+
+	@Test
+	public void testCustomColorsAreListedInOrderAndCanBePicked()
+	{
+		assumeFalse( GraphicsEnvironment.isHeadless() );
+
+		final LutEditorDialog dialog = new LutEditorDialog( null, new ConverterSetups( new BasicViewerState() ), new BasicViewerState(), () -> {} );
+		try
+		{
+			final List< String > items = itemsOf( dialog.getPaletteCombo() );
+			final int header = items.indexOf( "[Custom Colors]" );
+			assertTrue( "category header missing: " + items, header >= 0 );
+			final List< String > classics = new ArrayList<>( CustomColorsPalette.classics().keySet() );
+			assertEquals( classics, items.subList( header + 1, header + 1 + classics.size() ) );
+
+			for ( final Map.Entry< String, CustomColorsPalette > classic : CustomColorsPalette.classics().entrySet() )
+			{
+				dialog.getPaletteCombo().setSelectedItem( classic.getKey() );
+				assertEquals( classic.getValue(), dialog.getCurrentPalette() );
+			}
 		}
 		finally
 		{

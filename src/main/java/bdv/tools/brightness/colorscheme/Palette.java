@@ -56,7 +56,7 @@ import net.imglib2.type.numeric.ARGBType;
  * positions, so the capability is not reproduced here.
  * <p>
  * Open to subclassing only so that a palette with a known origin can be built
- * by name -- see {@link LegacyBdvColorPalette}. Everything that makes a
+ * by name -- see {@link LegacyBdvColorPalette} and {@link CustomColorsPalette}. Everything that makes a
  * palette a value (its stops, {@link #isInterpolated()}, {@link #equals} and
  * {@link #hashCode}) is {@code final}, so a subclass can add a constructor and
  * describe itself, but cannot make two palettes with the same colors compare
