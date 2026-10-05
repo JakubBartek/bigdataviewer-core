@@ -254,5 +254,22 @@
 			<artifactId>jmh-generator-annprocess</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>ome.zarr</groupId>
+			<artifactId>ome-zarr-fiji-ui</artifactId>
+			<version>0.9.3</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>ome.zarr</groupId>
+			<artifactId>ome-zarr-n5</artifactId>
+			<version>0.9.3</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>fiji</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 </project>
