@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="bdv.StartUI 3R_big2D" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="bdv.StartUI" />
+    <module name="bigdataviewer-core" />
+    <option name="PROGRAM_PARAMETERS" value="https://livingobjects.ebi.ac.uk/idr/zarr/v0.4/idr0073A/9798462.zarr" />
+    <extension name="coverage">
+      <pattern>
+        <option name="PATTERN" value="bdv.*" />
+        <option name="ENABLED" value="true" />
+      </pattern>
+    </extension>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
