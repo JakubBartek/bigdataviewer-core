@@ -48,12 +48,6 @@ public class StartUI
 			System.out.println( "Opening: " + arg );
 			final URI uri = URI.create( arg );
 
-//			OmeZarrOpenActions opener = new OmeZarrOpenActions( uri, ij.context() );
-//			opener.showInBdv(/* BdvOptions or BdvHandle */);
-
-//			OmeZarr oz = new OmeZarr( uri, ij.context(), backend );
-//			oz.showInBdv(/* BdvOptions or BdvHandle */);
-
 			PyramidalBdv< ? > pyramidalBdv = new PyramidalBdv<>( ij.context(), ( PyramidContents ) backend.read( uri ) );
 			BdvFunctions.show( pyramidalBdv.asSources(), pyramidalBdv.getPyramidContents().numTimepoints(), mainBdvOptions );
 			List< Omero.Channel > omeroChannels = omeroChannels(
