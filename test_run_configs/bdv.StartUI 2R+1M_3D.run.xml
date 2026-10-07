@@ -3,6 +3,8 @@
     <option name="MAIN_CLASS_NAME" value="bdv.StartUI" />
     <module name="bigdataviewer-core" />
     <option name="PROGRAM_PARAMETERS" value="https://livingobjects.ebi.ac.uk/idr/zarr/v0.4/idr0062A/6001240.zarr https://livingobjects.ebi.ac.uk/idr/zarr/v0.4/idr0062A/6001240.zarr/labels/0" />
+    <shortenClasspath name="ARGS_FILE" />
+    <option name="VM_PARAMETERS" value="--add-opens=java.base/java.lang=ALL-UNNAMED" />
     <extension name="coverage">
       <pattern>
         <option name="PATTERN" value="bdv.*" />
