@@ -100,7 +100,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
 	private static final int LABEL_HEIGHT = 26;
 
-	private static final int RANGE_FIELD_WIDTH = 32;
+	private static final int RANGE_FIELD_WIDTH = 64;
 
 	private static final int RANGE_FIELD_HEIGHT = 16;
 
