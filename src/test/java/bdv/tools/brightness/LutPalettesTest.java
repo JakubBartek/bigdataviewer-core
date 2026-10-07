@@ -27,7 +27,10 @@
  */
 package bdv.tools.brightness;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -65,6 +68,49 @@ public class LutPalettesTest
 	public void testLoadReturnsNullForUnknownName()
 	{
 		Assert.assertNull( LutPalettes.load( "this-palette-does-not-exist" ) );
+	}
+
+	/**
+	 * {@code "Gray"} is not a bundled name, but {@code gray.json} is; where the
+	 * resources are read from a directory on a case-insensitive filesystem
+	 * (an IDE run on Windows) a plain resource lookup would find it anyway.
+	 * {@code LutEditorDialog} relies on {@code null} here to tell the
+	 * custom-colors "Gray" apart from the bundled "gray".
+	 */
+	@Test
+	public void testLoadDoesNotMatchGrayToBundledGray()
+	{
+		Assert.assertNotNull( LutPalettes.load( "gray" ) );
+		Assert.assertNull( LutPalettes.load( "Gray" ) );
+	}
+
+	/**
+	 * Names are exact: every case variant of a bundled name that is not itself
+	 * bundled loads as {@code null}, whatever filesystem the resources live on.
+	 */
+	@Test
+	public void testLoadMatchesNamesCaseSensitively()
+	{
+		final List< String > names = LutPalettes.discoverNames();
+		final Set< String > exact = new HashSet<>( names );
+		for ( final String name : names )
+		{
+			final Set< String > variants = new HashSet<>();
+			variants.add( name.toUpperCase( Locale.ROOT ) );
+			variants.add( name.toLowerCase( Locale.ROOT ) );
+			variants.add( swapCase( name.substring( 0, 1 ) ) + name.substring( 1 ) );
+			for ( final String variant : variants )
+				if ( !exact.contains( variant ) )
+					Assert.assertNull( "load( \"" + variant + "\" ) should not resolve to " + name, LutPalettes.load( variant ) );
+		}
+	}
+
+	private static String swapCase( final String s )
+	{
+		final StringBuilder sb = new StringBuilder( s.length() );
+		for ( final char c : s.toCharArray() )
+			sb.append( Character.isUpperCase( c ) ? Character.toLowerCase( c ) : Character.toUpperCase( c ) );
+		return sb.toString();
 	}
 
 	/**

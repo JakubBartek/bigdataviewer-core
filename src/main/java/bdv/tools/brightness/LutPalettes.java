@@ -39,6 +39,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -132,12 +133,21 @@ public final class LutPalettes
 	 * {@link Palette#isInterpolated()} reflects the resource's
 	 * {@code color_interpolation} field (defaulting to {@code true} if the
 	 * resource does not declare it).
+	 * <p>
+	 * The name must match a discovered one exactly, case included. A bare
+	 * resource lookup would not guarantee that: read from a jar it is
+	 * case-sensitive, but read from a directory (an IDE run) it follows the
+	 * filesystem, which on Windows ignores case -- so {@code "Gray"} would load
+	 * {@code gray.json} there and nowhere else, and {@code LutEditorDialog}
+	 * would take the custom-colors "Gray" for a clash with it.
 	 *
 	 * @param name
 	 * 		a name as returned by {@link #discoverNames()}.
 	 */
 	public static Palette load( final String name )
 	{
+		if ( !exactNames().contains( name ) )
+			return null;
 		final JsonObject root = readRoot( name );
 		if ( root == null )
 			return null;
@@ -216,6 +226,23 @@ public final class LutPalettes
 
 	/** Guarded by {@code LutPalettes.class}, via {@link #findName}. */
 	private static Map< String, Palette > cachedPalettes = null;
+
+	/**
+	 * {@link #discoverNames()} as a set compared exactly, for {@link #load} to
+	 * check against. Kept for the life of the process, like
+	 * {@link #cachedPalettes()} and for the same reason: {@link #load} runs on
+	 * the EDT for each palette the LUT editor resolves, and listing the
+	 * resource directory each time would walk it (or open the jar) again.
+	 */
+	private static synchronized Set< String > exactNames()
+	{
+		if ( exactNames == null )
+			exactNames = new HashSet<>( discoverNames() );
+		return exactNames;
+	}
+
+	/** Guarded by {@code LutPalettes.class}, via {@link #exactNames()}. */
+	private static Set< String > exactNames = null;
 
 	/**
 	 * Read and parse the named LUT resource's root JSON object, or
