@@ -4,7 +4,7 @@
     <module name="bigdataviewer-core" />
     <option name="PROGRAM_PARAMETERS" value="https://livingobjects.ebi.ac.uk/idr/zarr/v0.4/idr0062A/6001240.zarr https://livingobjects.ebi.ac.uk/idr/zarr/v0.4/idr0052A/5514375.zarr" />
     <shortenClasspath name="ARGS_FILE" />
-    <option name="VM_PARAMETERS" value="--add-opens=java.base/java.lang=ALL-UNNAMED" />
+    <option name="VM_PARAMETERS" value="--add-opens=java.base/java.lang=ALL-UNNAMED -Djna.library.path=$USER_HOME$/Fiji/lib/win64" />
     <extension name="coverage">
       <pattern>
         <option name="PATTERN" value="bdv.*" />
