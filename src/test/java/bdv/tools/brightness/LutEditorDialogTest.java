@@ -187,6 +187,80 @@ public class LutEditorDialogTest
 		}
 	}
 
+	// -- discrete palette defaults ------------------------------------------
+
+	/**
+	 * Switching from a continuous palette to a discrete one starts it at
+	 * min 1, step size 1, keeping the range's max; switching on to another
+	 * discrete palette keeps what the user has set since.
+	 */
+	@Test
+	public void testDiscretePaletteStartsAtMinOneStepOne() throws Exception
+	{
+		assumeFalse( GraphicsEnvironment.isHeadless() );
+
+		final SourceAndConverter< DoubleType > soc = paletteSource( 10, 210 );
+		final BasicViewerState state = new BasicViewerState();
+		state.addSource( soc );
+		state.setCurrentSource( soc );
+		final ConverterSetups setups = new ConverterSetups( state );
+		final RealARGBColorConverterSetup setup = new RealARGBColorConverterSetup( 0, ( ColorConverter ) soc.getConverter() );
+		setups.put( soc, setup );
+
+		final LutEditorDialog dialog = new LutEditorDialog( null, setups, state, () -> {} );
+		try
+		{
+			dialog.setVisible( true );
+			dialog.getPaletteCombo().setSelectedItem( "tab10" );
+			assertEquals( 1, dialog.getEditedRangeMin(), 0 );
+			assertEquals( 210, dialog.getEditedRangeMax(), 0 );
+			assertEquals( 1, dialog.getStepSize(), 0 );
+			assertEquals( 1, setup.getDisplayRangeMin(), 0 );
+			assertEquals( 210, setup.getDisplayRangeMax(), 0 );
+
+			setup.setDisplayRange( 5, 100 );
+			SwingUtilities.invokeAndWait( () -> {} );
+			dialog.getPaletteCombo().setSelectedItem( "tab20" );
+			assertEquals( 5, dialog.getEditedRangeMin(), 0 );
+
+			dialog.getPaletteCombo().setSelectedItem( "viridis" );
+			assertEquals( 5, dialog.getEditedRangeMin(), 0 );
+			dialog.getPaletteCombo().setSelectedItem( "tab10" );
+			assertEquals( 1, dialog.getEditedRangeMin(), 0 );
+		}
+		finally
+		{
+			dialog.dispose();
+		}
+	}
+
+	/** A range that min 1 would leave empty -- a float source's default {@code [0, 1]} -- is widened to where the palette runs out. */
+	@Test
+	public void testDiscreteDefaultsWidenAnEmptiedRange() throws Exception
+	{
+		assumeFalse( GraphicsEnvironment.isHeadless() );
+
+		final SourceAndConverter< DoubleType > soc = paletteSource( 0, 1 );
+		final BasicViewerState state = new BasicViewerState();
+		state.addSource( soc );
+		state.setCurrentSource( soc );
+		final ConverterSetups setups = new ConverterSetups( state );
+		setups.put( soc, new RealARGBColorConverterSetup( 0, ( ColorConverter ) soc.getConverter() ) );
+
+		final LutEditorDialog dialog = new LutEditorDialog( null, setups, state, () -> {} );
+		try
+		{
+			dialog.setVisible( true );
+			dialog.getPaletteCombo().setSelectedItem( "tab10" ); // 10 colors
+			assertEquals( 1, dialog.getEditedRangeMin(), 0 );
+			assertEquals( 11, dialog.getEditedRangeMax(), 0 );
+		}
+		finally
+		{
+			dialog.dispose();
+		}
+	}
+
 	// -- addPalette ----------------------------------------------------------
 
 	@Test

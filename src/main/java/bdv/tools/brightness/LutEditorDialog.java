@@ -235,6 +235,18 @@ public class LutEditorDialog extends JDialog
 	/** The {@link #comboPalette} category listing {@link CustomColorsPalette#classics()}. */
 	private static final String CUSTOM_COLORS_CATEGORY = "Custom Colors";
 
+	/**
+	 * The input range minimum a discrete palette starts from (see
+	 * {@link #selectPalette}). A discrete palette is mostly used on a label
+	 * image, whose 0 is background: starting at 1 leaves it below the range,
+	 * for the below-range condition to paint, and gives the first label the
+	 * first color.
+	 */
+	private static final double DISCRETE_DEFAULT_RANGE_MIN = 1;
+
+	/** The step size a discrete palette starts from: one color per label id; see {@link #DISCRETE_DEFAULT_RANGE_MIN}. */
+	private static final double DISCRETE_DEFAULT_STEP_SIZE = 1;
+
 	private final LutEditorMapping mappingModel = new LutEditorMapping();
 
 	/** The input value range currently being edited; see {@link #currentPalette}. */
@@ -775,7 +787,16 @@ public class LutEditorDialog extends JDialog
 		panelMappingCurve.setPalette( palette );
 	}
 
-	/** Switch to the palette the user picked in {@link #comboPalette}. */
+	/**
+	 * Switch to the palette the user picked in {@link #comboPalette}.
+	 * <p>
+	 * Going from a continuous palette to a discrete one also starts the range
+	 * at {@link #DISCRETE_DEFAULT_RANGE_MIN} and the step size at
+	 * {@link #DISCRETE_DEFAULT_STEP_SIZE}: the range a continuous palette was
+	 * stretched over says nothing about where label ids begin or how far apart
+	 * they are. Between two discrete palettes both are kept, since by then
+	 * they are the user's own choice for this data.
+	 */
 	private void selectPalette( final String name )
 	{
 		final Palette palette = resolvePalette( name );
@@ -791,7 +812,25 @@ public class LutEditorDialog extends JDialog
 		// not a user choice: a palette that declares itself non-interpolated
 		// (e.g. a qualitative palette like tab10) is meant to be read as
 		// individual colors, not blended.
-		mappingModel.setDiscrete( !palette.isInterpolated() );
+		final boolean discrete = !palette.isInterpolated();
+		if ( discrete && !mappingModel.isDiscrete() )
+		{
+			withoutFeedback( () ->
+			{
+				editedRangeMin = DISCRETE_DEFAULT_RANGE_MIN;
+				// The display range has to stay non-empty; where the palette
+				// runs out is the one maximum that means something here.
+				if ( editedRangeMax <= editedRangeMin )
+					editedRangeMax = editedRangeMin + DISCRETE_DEFAULT_STEP_SIZE * new DiscreteColorScheme( palette ).getPaletteRangeLength();
+				panelMappingCurve.setRange( editedRangeMin, editedRangeMax );
+				mappingModel.setDiscrete( true );
+				mappingModel.setStepSize( DISCRETE_DEFAULT_STEP_SIZE );
+			} );
+			pushLiveEdits();
+			syncEditorPresetSelection();
+		}
+		else
+			mappingModel.setDiscrete( discrete );
 		updateShapeControls();
 	}
 
@@ -879,6 +918,12 @@ public class LutEditorDialog extends JDialog
 	double getEditedRangeMax()
 	{
 		return editedRangeMax;
+	}
+
+	/** The step size being edited, as {@link LutEditorMapping#getStepSize()}. Package-private for tests. */
+	double getStepSize()
+	{
+		return mappingModel.getStepSize();
 	}
 
 	/** The palette chooser; see {@link #comboPalette}. Package-private for tests. */
