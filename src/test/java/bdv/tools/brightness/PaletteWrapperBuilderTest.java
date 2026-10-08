@@ -119,7 +119,7 @@ public class PaletteWrapperBuilderTest
 	 * palette reaches on its own, and the display range's top does not enter
 	 * into it -- with 3 stops at one raw unit each the palette covers
 	 * {@code [0, 3)} whether the range given was {@code [0, 6]} or anything
-	 * else. Past that, the boundary condition decides, so the default
+	 * else. Past that, the boundary condition decides, so
 	 * {@link bdv.tools.brightness.palette.BoundaryCondition#CLAMP} holds the
 	 * last color rather than starting over.
 	 */
@@ -129,6 +129,7 @@ public class PaletteWrapperBuilderTest
 		final LutEditorMapping mapping = new LutEditorMapping();
 		mapping.setDiscrete( true );
 		mapping.setStepSize( 1.0 );
+		mapping.setRightBoundaryCondition( BoundaryCondition.CLAMP );
 
 		for ( final double rangeMax : new double[] { 3, 6, 100 } )
 		{
@@ -203,12 +204,14 @@ public class PaletteWrapperBuilderTest
 
 	// -- boundary conditions (both wrapper kinds) ----------------------------
 
-	/** CLAMP (the default at both ends) holds out-of-range values at the nearest edge stop. */
+	/** CLAMP holds out-of-range values at the nearest edge stop. */
 	@Test
 	public void testClampHoldsOutOfRangeAtTheEdgeStops()
 	{
 		final LutEditorMapping mapping = new LutEditorMapping();
 		mapping.setDiscrete( true );
+		mapping.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
+		mapping.setRightBoundaryCondition( BoundaryCondition.CLAMP );
 		final PaletteWrapper wrapper = PaletteWrapperBuilder.build( threeStopPalette(), mapping, 0, 3 );
 
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( -5f ) ); // below -> first stop
@@ -221,13 +224,14 @@ public class PaletteWrapperBuilderTest
 	{
 		final LutEditorMapping mapping = new LutEditorMapping();
 		mapping.setDiscrete( true );
+		mapping.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
 		mapping.setRightBoundaryCondition( BoundaryCondition.CYCLE );
 		final PaletteWrapper wrapper = PaletteWrapperBuilder.build( threeStopPalette(), mapping, 0, 3 );
 
 		// Above: domain [0,3], period 3 -- raw 3.5 wraps to 0.5 (first stop), 4.5 to 1.5 (middle stop).
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( 3.5f ) );
 		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 4.5f ) );
-		// Below is still CLAMP, so it is unaffected.
+		// Below is CLAMP, so it is unaffected.
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( -5f ) );
 	}
 

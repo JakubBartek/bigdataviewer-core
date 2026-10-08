@@ -72,8 +72,15 @@ public class LutEditorMapping
 	 */
 	public static final double AUTO_STEP_SIZE = 0.0;
 
-	/** The default {@link BoundaryCondition#SPECIAL} color at either end: opaque black. */
-	public static final int DEFAULT_SPECIAL_COLOR = 0xff000000;
+	/**
+	 * The default below-range {@link BoundaryCondition#SPECIAL} color: opaque
+	 * black. Paired with white above the range, so the two ends start out as
+	 * the dark and light extremes they sit beyond rather than looking alike.
+	 */
+	public static final int DEFAULT_LEFT_SPECIAL_COLOR = 0xff000000;
+
+	/** The default above-range {@link BoundaryCondition#SPECIAL} color: opaque white; see {@link #DEFAULT_LEFT_SPECIAL_COLOR}. */
+	public static final int DEFAULT_RIGHT_SPECIAL_COLOR = 0xffffffff;
 
 	private final Curve curve = new Curve();
 
@@ -85,17 +92,21 @@ public class LutEditorMapping
 	 * {@link BoundaryCondition#SPECIAL} paints {@link #getLeftSpecialColor()}
 	 * instead of any palette color at all (how a label image's background value
 	 * is given a dedicated color).
+	 * <p>
+	 * Defaults to {@link BoundaryCondition#SPECIAL} at both ends, so values
+	 * outside the range are marked as such (black below, white above) instead
+	 * of blending into the palette's own edge colors.
 	 */
-	private BoundaryCondition leftBoundaryCondition = BoundaryCondition.CLAMP;
+	private BoundaryCondition leftBoundaryCondition = BoundaryCondition.SPECIAL;
 
 	/** As {@link #leftBoundaryCondition}, for raw values above the input range. */
-	private BoundaryCondition rightBoundaryCondition = BoundaryCondition.CLAMP;
+	private BoundaryCondition rightBoundaryCondition = BoundaryCondition.SPECIAL;
 
 	/** The color painted below the range when {@link #leftBoundaryCondition} is {@link BoundaryCondition#SPECIAL}, packed as ARGB. */
-	private int leftSpecialColor = DEFAULT_SPECIAL_COLOR;
+	private int leftSpecialColor = DEFAULT_LEFT_SPECIAL_COLOR;
 
 	/** The color painted above the range when {@link #rightBoundaryCondition} is {@link BoundaryCondition#SPECIAL}, packed as ARGB. */
-	private int rightSpecialColor = DEFAULT_SPECIAL_COLOR;
+	private int rightSpecialColor = DEFAULT_RIGHT_SPECIAL_COLOR;
 
 	/**
 	 * Whether the palette is used as discrete, individually chosen colors

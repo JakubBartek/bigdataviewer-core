@@ -349,8 +349,8 @@ public class LutEditorDialog extends JDialog
 
 		comboLeftBoundary = createBoundaryCombo();
 		comboRightBoundary = createBoundaryCombo();
-		buttonLeftSpecialColor = createSpecialColorButton( "Color for values below the range" );
-		buttonRightSpecialColor = createSpecialColorButton( "Color for values above the range" );
+		buttonLeftSpecialColor = createSpecialColorButton( "Color for values below the range", LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR );
+		buttonRightSpecialColor = createSpecialColorButton( "Color for values above the range", LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR );
 		comboMappingPreset = new JComboBox<>( PresetShape.values() );
 		buttonInvertCurve = new JButton( "Invert" );
 		buttonInvertCurve.setFocusable( false );
@@ -580,8 +580,9 @@ public class LutEditorDialog extends JDialog
 	 * opens on the palette the source is actually rendered with -- and Reset
 	 * returns to it -- rather than on the neutral state, which would replace
 	 * the source's color with gray at the first edit. The remembered mapping
-	 * is {@link #defaultMapping()}: linear and clamped at both ends, which is
-	 * the mapping the conversion sets up.
+	 * is linear and clamped at both ends, which is the mapping the conversion
+	 * sets up -- not {@link #defaultMapping()}, whose fixed colors would paint
+	 * the legacy converter's saturated pixels white at the first edit.
 	 */
 	private PaletteConverter< ? > convertToPalette( final SourceAndConverter< ? > soc )
 	{
@@ -594,7 +595,10 @@ public class LutEditorDialog extends JDialog
 
 		final String name = legacyPaletteName( palette );
 		addPalette( LEGACY_PALETTE_CATEGORY, name, palette );
-		converterStates.put( converted, new EditorState( palette, name, defaultMapping(), converted.getMin(), converted.getMax() ) );
+		final LutEditorMapping mapping = defaultMapping();
+		mapping.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
+		mapping.setRightBoundaryCondition( BoundaryCondition.CLAMP );
+		converterStates.put( converted, new EditorState( palette, name, mapping, converted.getMin(), converted.getMax() ) );
 
 		repointConverterSetup( soc );
 		repaintAction.run();
@@ -686,12 +690,20 @@ public class LutEditorDialog extends JDialog
 		setTitle( sessionSource == null ? "LUT Editor" : "LUT Editor - " + sourceName( sessionSource ) );
 	}
 
-	/** A neutral mapping (linear, both ends clamped, interpolated) -- the editor's starting point for a source with no remembered state. */
+	/**
+	 * A neutral mapping (linear, interpolated, a fixed black/white color past
+	 * either end) -- the editor's starting point for a source with no
+	 * remembered state. Matches what {@code BigDataViewer.createConverterToARGB}
+	 * renders a new source with, so opening the editor on one does not change
+	 * how it looks.
+	 */
 	private static LutEditorMapping defaultMapping()
 	{
 		final LutEditorMapping defaults = new LutEditorMapping();
-		defaults.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
-		defaults.setRightBoundaryCondition( BoundaryCondition.CLAMP );
+		defaults.setLeftBoundaryCondition( BoundaryCondition.SPECIAL );
+		defaults.setRightBoundaryCondition( BoundaryCondition.SPECIAL );
+		defaults.setLeftSpecialColor( LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR );
+		defaults.setRightSpecialColor( LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR );
 		defaults.setDiscrete( false );
 		defaults.applyPreset( PresetShape.LINEAR );
 		return defaults;
@@ -1686,7 +1698,7 @@ public class LutEditorDialog extends JDialog
 	 * disabled: it is only meaningful while that end is set to
 	 * {@link BoundaryCondition#SPECIAL}.
 	 */
-	private static JButton createSpecialColorButton( final String toolTip )
+	private static JButton createSpecialColorButton( final String toolTip, final int argb )
 	{
 		final JButton button = new JButton();
 		button.setToolTipText( toolTip );
@@ -1694,7 +1706,7 @@ public class LutEditorDialog extends JDialog
 		button.setPreferredSize( size );
 		button.setMinimumSize( size );
 		button.setMaximumSize( size );
-		button.setBackground( new Color( LutEditorMapping.DEFAULT_SPECIAL_COLOR, false ) );
+		button.setBackground( new Color( argb, false ) );
 		button.setEnabled( false );
 		return button;
 	}

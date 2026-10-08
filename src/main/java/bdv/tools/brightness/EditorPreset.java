@@ -145,13 +145,13 @@ public class EditorPreset
 			return leftSpecialColor;
 		if ( backgroundColor != null )
 			return backgroundColor;
-		return LutEditorMapping.DEFAULT_SPECIAL_COLOR;
+		return LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR;
 	}
 
 	/** The above-range {@link BoundaryCondition#SPECIAL} color, packed as ARGB. The legacy format had no equivalent, so an older preset gets the default. */
 	public int getRightSpecialColor()
 	{
-		return rightSpecialColor != null ? rightSpecialColor : LutEditorMapping.DEFAULT_SPECIAL_COLOR;
+		return rightSpecialColor != null ? rightSpecialColor : LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR;
 	}
 
 	/** Raw values per color stop for a discrete palette, or {@link LutEditorMapping#AUTO_STEP_SIZE} if this preset does not pin one down. */

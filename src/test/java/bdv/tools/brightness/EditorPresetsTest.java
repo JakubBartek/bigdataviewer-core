@@ -145,7 +145,7 @@ public class EditorPresetsTest
 		Assert.assertEquals( BoundaryCondition.CYCLE, loaded.getRightBoundaryCondition() );
 		Assert.assertEquals( 0xff000000, loaded.getLeftSpecialColor() );
 		// The legacy format had no above-range color or step size at all.
-		Assert.assertEquals( LutEditorMapping.DEFAULT_SPECIAL_COLOR, loaded.getRightSpecialColor() );
+		Assert.assertEquals( LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR, loaded.getRightSpecialColor() );
 		Assert.assertEquals( LutEditorMapping.AUTO_STEP_SIZE, loaded.getStepSize(), 0.0 );
 	}
 

@@ -58,6 +58,16 @@ public class LutEditorMappingTest
 	}
 
 	@Test
+	public void testDefaultIsFixedBlackBelowWhiteAbove()
+	{
+		final LutEditorMapping model = new LutEditorMapping();
+		Assert.assertEquals( BoundaryCondition.SPECIAL, model.getLeftBoundaryCondition() );
+		Assert.assertEquals( BoundaryCondition.SPECIAL, model.getRightBoundaryCondition() );
+		Assert.assertEquals( 0xff000000, model.getLeftSpecialColor() );
+		Assert.assertEquals( 0xffffffff, model.getRightSpecialColor() );
+	}
+
+	@Test
 	public void testApplyPresetChangesShape()
 	{
 		final LutEditorMapping model = new LutEditorMapping();
@@ -137,8 +147,8 @@ public class LutEditorMappingTest
 		source.applyPreset( PresetShape.LINEAR );
 		source.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
 		source.setRightBoundaryCondition( BoundaryCondition.CLAMP );
-		source.setLeftSpecialColor( LutEditorMapping.DEFAULT_SPECIAL_COLOR );
-		source.setRightSpecialColor( LutEditorMapping.DEFAULT_SPECIAL_COLOR );
+		source.setLeftSpecialColor( LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR );
+		source.setRightSpecialColor( LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR );
 		source.setStepSize( LutEditorMapping.AUTO_STEP_SIZE );
 		Assert.assertEquals( PresetShape.SIGMOID, copy.getPreset() );
 		Assert.assertEquals( BoundaryCondition.SPECIAL, copy.getLeftBoundaryCondition() );
@@ -158,22 +168,22 @@ public class LutEditorMappingTest
 
 		b.setLeftBoundaryCondition( BoundaryCondition.CYCLE );
 		Assert.assertFalse( a.hasSameState( b ) );
-		b.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
+		b.setLeftBoundaryCondition( BoundaryCondition.SPECIAL );
 		Assert.assertTrue( a.hasSameState( b ) );
 
-		b.setRightBoundaryCondition( BoundaryCondition.SPECIAL );
-		Assert.assertFalse( a.hasSameState( b ) );
 		b.setRightBoundaryCondition( BoundaryCondition.CLAMP );
+		Assert.assertFalse( a.hasSameState( b ) );
+		b.setRightBoundaryCondition( BoundaryCondition.SPECIAL );
 		Assert.assertTrue( a.hasSameState( b ) );
 
 		b.setLeftSpecialColor( 0xff123456 );
 		Assert.assertFalse( a.hasSameState( b ) );
-		b.setLeftSpecialColor( LutEditorMapping.DEFAULT_SPECIAL_COLOR );
+		b.setLeftSpecialColor( LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR );
 		Assert.assertTrue( a.hasSameState( b ) );
 
 		b.setRightSpecialColor( 0xff123456 );
 		Assert.assertFalse( a.hasSameState( b ) );
-		b.setRightSpecialColor( LutEditorMapping.DEFAULT_SPECIAL_COLOR );
+		b.setRightSpecialColor( LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR );
 		Assert.assertTrue( a.hasSameState( b ) );
 
 		b.setStepSize( 7.5 );

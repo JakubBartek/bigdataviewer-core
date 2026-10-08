@@ -95,6 +95,7 @@ import bdv.tools.bookmarks.BookmarksEditor;
 import bdv.tools.brightness.BrightnessDialog;
 import bdv.tools.brightness.ConverterSetup;
 import bdv.tools.brightness.LutEditorDialog;
+import bdv.tools.brightness.LutEditorMapping;
 import bdv.tools.brightness.MinMaxGroup;
 import bdv.tools.brightness.PaletteConverter;
 import bdv.tools.brightness.PaletteConverterFactory;
@@ -102,6 +103,7 @@ import bdv.tools.brightness.RealARGBColorConverterSetup;
 import bdv.tools.brightness.SetupAssignments;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.Palette;
+import bdv.tools.brightness.palette.BoundaryCondition;
 import bdv.tools.brightness.palette.PresetPaletteWrapper;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import bdv.tools.crop.CropDialog;
@@ -259,14 +261,19 @@ public class BigDataViewer
 	 * A {@link PaletteConverter} over the new color-mapping architecture,
 	 * rendering {@code [min, max]} through a grayscale {@link ColorTable8} with
 	 * a linear transfer function -- the default LUT setup, editable via
-	 * {@link LutEditorDialog}.
+	 * {@link LutEditorDialog}. Values outside the range get the editor's default
+	 * fixed colors (black below, white above), the same mapping the editor
+	 * starts from for a source it has not edited yet.
 	 */
 	private static < T extends RealType< T > > PaletteConverter< T > createPaletteConverter( final double min, final double max )
 	{
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( Palette.of( new ColorTable8() ) );
 		final double hi = max > min ? max : min + 1;
 		final LinearPresetFunc preset = new LinearPresetFunc( min, hi, scheme.getPaletteRangeLength() );
-		return new PaletteConverter<>( new PresetPaletteWrapper( scheme, preset ), min, max );
+		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, preset, BoundaryCondition.SPECIAL, BoundaryCondition.SPECIAL );
+		wrapper.setLeftSpecialColor( LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR );
+		wrapper.setRightSpecialColor( LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR );
+		return new PaletteConverter<>( wrapper, min, max );
 	}
 
 	/**
