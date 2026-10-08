@@ -33,17 +33,23 @@ import java.util.List;
 import java.util.Map;
 
 import javax.swing.JComboBox;
+import javax.swing.SwingUtilities;
 
 import org.junit.Test;
 
+import bdv.tools.brightness.ConverterSetup.SetupChangeListener;
 import bdv.tools.brightness.PaletteConverterFactoryTest.TypeOnlySource;
+import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.CustomColorsPalette;
 import bdv.tools.brightness.colorscheme.LegacyBdvColorPalette;
 import bdv.tools.brightness.colorscheme.Palette;
+import bdv.tools.brightness.palette.PresetPaletteWrapper;
+import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import bdv.viewer.BasicViewerState;
 import bdv.viewer.ConverterSetups;
 import bdv.viewer.SourceAndConverter;
 import bdv.viewer.ViewerStateChangeListener;
+import net.imglib2.display.ColorConverter;
 import net.imglib2.display.RealARGBColorConverter;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.real.DoubleType;
@@ -88,6 +94,97 @@ public class LutEditorDialogTest
 
 		dialog.dispose();
 		assertEquals( before, countChangeListeners( state ) );
+	}
+
+	/** Same as for the {@code ViewerState}: the {@code ConverterSetups} lives as long as the viewer. */
+	@Test
+	public void testDisposeUnregistersTheSetupListener()
+	{
+		assumeFalse( GraphicsEnvironment.isHeadless() );
+
+		final BasicViewerState state = new BasicViewerState();
+		final ConverterSetups setups = new ConverterSetups( state );
+
+		final int before = countSetupListeners( setups );
+		final LutEditorDialog dialog = new LutEditorDialog( null, setups, state, () -> {} );
+		assertEquals( before + 1, countSetupListeners( setups ) );
+
+		dialog.dispose();
+		assertEquals( before, countSetupListeners( setups ) );
+	}
+
+	// -- following the display range -----------------------------------------
+
+	/**
+	 * A display range changed outside the editor -- by the brightness dialog,
+	 * say -- shows up in it, and is what the editor's next edit pushes, rather
+	 * than the range the session opened with.
+	 */
+	@Test
+	public void testFollowsADisplayRangeChangedElsewhere() throws Exception
+	{
+		assumeFalse( GraphicsEnvironment.isHeadless() );
+
+		final SourceAndConverter< DoubleType > soc = paletteSource( 10, 210 );
+		final BasicViewerState state = new BasicViewerState();
+		state.addSource( soc );
+		state.setCurrentSource( soc );
+		final ConverterSetups setups = new ConverterSetups( state );
+		final RealARGBColorConverterSetup setup = new RealARGBColorConverterSetup( 0, ( ColorConverter ) soc.getConverter() );
+		setups.put( soc, setup );
+
+		final LutEditorDialog dialog = new LutEditorDialog( null, setups, state, () -> {} );
+		try
+		{
+			dialog.setVisible( true );
+			assertEquals( 10, dialog.getEditedRangeMin(), 0 );
+			assertEquals( 210, dialog.getEditedRangeMax(), 0 );
+
+			setup.setDisplayRange( 50, 100 );
+			SwingUtilities.invokeAndWait( () -> {} );
+			assertEquals( 50, dialog.getEditedRangeMin(), 0 );
+			assertEquals( 100, dialog.getEditedRangeMax(), 0 );
+
+			dialog.getPaletteCombo().setSelectedItem( "viridis" );
+			assertEquals( 50, setup.getDisplayRangeMin(), 0 );
+			assertEquals( 100, setup.getDisplayRangeMax(), 0 );
+		}
+		finally
+		{
+			dialog.dispose();
+		}
+	}
+
+	/** Another source's range is not this editor's business. */
+	@Test
+	public void testIgnoresTheDisplayRangeOfAnotherSource() throws Exception
+	{
+		assumeFalse( GraphicsEnvironment.isHeadless() );
+
+		final SourceAndConverter< DoubleType > edited = paletteSource( 10, 210 );
+		final SourceAndConverter< DoubleType > other = paletteSource( 10, 210 );
+		final BasicViewerState state = new BasicViewerState();
+		state.addSource( edited );
+		state.addSource( other );
+		state.setCurrentSource( edited );
+		final ConverterSetups setups = new ConverterSetups( state );
+		setups.put( edited, new RealARGBColorConverterSetup( 0, ( ColorConverter ) edited.getConverter() ) );
+		final RealARGBColorConverterSetup otherSetup = new RealARGBColorConverterSetup( 1, ( ColorConverter ) other.getConverter() );
+		setups.put( other, otherSetup );
+
+		final LutEditorDialog dialog = new LutEditorDialog( null, setups, state, () -> {} );
+		try
+		{
+			dialog.setVisible( true );
+			otherSetup.setDisplayRange( 50, 100 );
+			SwingUtilities.invokeAndWait( () -> {} );
+			assertEquals( 10, dialog.getEditedRangeMin(), 0 );
+			assertEquals( 210, dialog.getEditedRangeMax(), 0 );
+		}
+		finally
+		{
+			dialog.dispose();
+		}
 	}
 
 	// -- addPalette ----------------------------------------------------------
@@ -267,6 +364,19 @@ public class LutEditorDialogTest
 	}
 
 	// -- helpers -------------------------------------------------------------
+
+	/** A source the editor can edit as it is, rendered over {@code [min, max]} -- the way {@code BigDataViewer} sets one up. */
+	private static SourceAndConverter< DoubleType > paletteSource( final double min, final double max )
+	{
+		final ContinuousColorScheme scheme = new ContinuousColorScheme( RED_TO_BLUE );
+		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, new LinearPresetFunc( min, max, scheme.getPaletteRangeLength() ) );
+		return new SourceAndConverter<>( new TypeOnlySource<>( new DoubleType() ), new PaletteConverter<>( wrapper, min, max ) );
+	}
+
+	private static int countSetupListeners( final ConverterSetups setups )
+	{
+		return ( ( Listeners.List< SetupChangeListener > ) setups.listeners() ).listCopy().size();
+	}
 
 	/** {@code Listeners} has no size of its own; {@code Listeners.List}, which is what a {@code BasicViewerState} holds, can be asked for a copy. */
 	private static int countChangeListeners( final BasicViewerState state )

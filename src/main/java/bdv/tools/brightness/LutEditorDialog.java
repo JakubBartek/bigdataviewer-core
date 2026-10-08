@@ -70,6 +70,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.border.EmptyBorder;
 
+import bdv.tools.brightness.ConverterSetup.SetupChangeListener;
 import bdv.tools.brightness.colorscheme.ColorScheme;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.CustomColorsPalette;
@@ -152,6 +153,21 @@ public class LutEditorDialog extends JDialog
 		if ( change == ViewerStateChange.CURRENT_SOURCE_CHANGED )
 			SwingUtilities.invokeLater( this::syncToCurrentSource );
 	};
+
+	/**
+	 * Follow the display range: the setup owns it, and the brightness dialog,
+	 * the source table or a script can move it while this window is open (see
+	 * {@link #followDisplayRange}).
+	 * <p>
+	 * Listens to every setup through {@link ConverterSetups#listeners()}
+	 * rather than to {@link #activeSetup} alone, so it neither has to move
+	 * from setup to setup with each session nor miss a setup that
+	 * {@link #repointConverterSetup} put in place. Bounced onto the EDT and
+	 * unregistered in {@link #dispose()} for the same reasons as
+	 * {@link #viewerStateListener}.
+	 */
+	private final SetupChangeListener setupChangeListener = setup ->
+			SwingUtilities.invokeLater( () -> followDisplayRange( setup ) );
 
 	private final JComboBox< Object > comboPalette;
 	private final JComboBox< Object > comboEditorPreset;
@@ -376,6 +392,7 @@ public class LutEditorDialog extends JDialog
 		// -- Behavior --------------------------------------------------------
 		installControlListeners();
 		viewerState.changeListeners().add( viewerStateListener );
+		converterSetups.listeners().add( setupChangeListener );
 		// Sessions begin only when the window is shown (see setVisible), but
 		// pack() needs filled-in controls to measure -- an empty label has no
 		// height -- so size the window around the neutral state.
@@ -437,6 +454,7 @@ public class LutEditorDialog extends JDialog
 	public void dispose()
 	{
 		viewerState.changeListeners().remove( viewerStateListener );
+		converterSetups.listeners().remove( setupChangeListener );
 		super.dispose();
 	}
 	/**
@@ -839,6 +857,18 @@ public class LutEditorDialog extends JDialog
 		return currentPalette;
 	}
 
+	/** The input value range being edited; see {@link #editedRangeMin}. Package-private for tests. */
+	double getEditedRangeMin()
+	{
+		return editedRangeMin;
+	}
+
+	/** The input value range being edited; see {@link #editedRangeMax}. Package-private for tests. */
+	double getEditedRangeMax()
+	{
+		return editedRangeMax;
+	}
+
 	/** The palette chooser; see {@link #comboPalette}. Package-private for tests. */
 	JComboBox< Object > getPaletteCombo()
 	{
@@ -898,6 +928,45 @@ public class LutEditorDialog extends JDialog
 		if ( activeSetup != null )
 			activeSetup.setDisplayRange( editedRangeMin, editedRangeMax );
 		repaintAction.run();
+	}
+
+	/**
+	 * Show a display range that {@code setup} changed outside this window --
+	 * in the brightness dialog, the source table, a script -- if it is the
+	 * one being edited, and push the edits again with it.
+	 * <p>
+	 * Pushed again rather than only shown: the converter has already moved
+	 * its wrapper's domain to the new range (see {@link PaletteConverter}),
+	 * but an automatic step size is resolved from the range only when
+	 * {@link PaletteWrapperBuilder} builds a wrapper, so a discrete palette
+	 * would otherwise go on stepping at the old range's width while the step
+	 * size field showed the new one.
+	 * <p>
+	 * The range is read from the setup now, not taken from the order the
+	 * notifications arrived in: one caused by {@link #pushLiveEdits()} itself
+	 * finds the range already matching and stops there, and so does one that
+	 * a later change overtook while it waited on the EDT. A range with
+	 * {@code max <= min} is not adopted, because the editor cannot show one
+	 * and the converter does not render it either (it keeps its previous
+	 * domain until the range is valid again).
+	 * <p>
+	 * Ignored while the window is hidden, as {@link #syncToCurrentSource()}
+	 * is, for the same reasons: showing the window reads the range afresh
+	 * (see {@link #initialStateFor}), and a disposed window is hidden too.
+	 */
+	private void followDisplayRange( final ConverterSetup setup )
+	{
+		if ( !isVisible() || setup != activeSetup )
+			return;
+		final double min = setup.getDisplayRangeMin();
+		final double max = setup.getDisplayRangeMax();
+		if ( max <= min || ( min == editedRangeMin && max == editedRangeMax ) )
+			return;
+		editedRangeMin = min;
+		editedRangeMax = max;
+		panelMappingCurve.setRange( min, max );
+		updateStepSizeField();
+		pushLiveEdits();
 	}
 
 	// -- Configurations (saved presets) ------------------------------------
