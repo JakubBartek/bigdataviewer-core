@@ -35,15 +35,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Groups LUT palette names into the same categories matplotlib uses for its
- * own built-in colormaps ("Choosing Colormaps in Matplotlib"). Pure data/
- * lookup, no UI, so the categorization logic doesn't live in the (visual)
- * LUT editor dialog.
- * <p>
- * A {@code "_r"} suffix (a reversed palette) is stripped before lookup, so a
- * reversed palette is always grouped with its base palette. Names not
- * recognized here (e.g. a user-added resource) fall back to
- * {@link #MISCELLANEOUS}, matplotlib's own catch-all category.
+ * Groups LUT palette names into matplotlib's colormap categories. A
+ * {@code "_r"} suffix is ignored; unknown names fall back to
+ * {@link #MISCELLANEOUS}.
  */
 public final class LutCategories
 {
@@ -69,21 +63,13 @@ public final class LutCategories
 	{
 	}
 
-	/**
-	 * The category of {@code paletteName} (after stripping a trailing
-	 * {@code "_r"}, if any), or {@link #MISCELLANEOUS} if not recognized.
-	 */
 	public static String categoryOf( final String paletteName )
 	{
 		final String base = paletteName.endsWith( "_r" ) ? paletteName.substring( 0, paletteName.length() - 2 ) : paletteName;
 		return CATEGORY_BY_NAME.getOrDefault( base, MISCELLANEOUS );
 	}
 
-	/**
-	 * Group {@code names} by {@link #categoryOf(String)}, in matplotlib's own
-	 * category order, each category's names sorted case-insensitively.
-	 * Categories with no matching name are omitted.
-	 */
+	/** In matplotlib's category order, names sorted case-insensitively, empty categories omitted. */
 	public static Map< String, List< String > > groupByCategory( final Collection< String > names )
 	{
 		final Map< String, List< String > > grouped = new LinkedHashMap<>();

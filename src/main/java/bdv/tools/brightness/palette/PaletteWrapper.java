@@ -31,26 +31,14 @@ import bdv.tools.brightness.colorscheme.ColorScheme;
 
 /**
  * Maps a raw image value all the way to a color: {@code rawValue -> boundary
- * handling -> paletteValue -> color}. The public face of
- * {@link PresetPaletteWrapper} (raw value -> palette value via a
- * {@code PresetFunc}, then a color scheme), kept as an interface so a renderer
- * can depend on the mapping without the concrete composition.
- * <p>
- * This is the seam a renderer plugs into: it holds a {@code PaletteWrapper}
- * and calls {@link #getRGBAForRaw(double)} per pixel (see {@code PaletteConverter}).
- * Raw values travel as {@code double} the whole way: see
- * {@link bdv.tools.brightness.presetfunc.PresetFunc#getPaletteValueForRaw(double)}
- * for why nothing on this path may narrow to {@code float}.
+ * handling -> paletteValue -> color}. A renderer calls
+ * {@link #getRGBAForRaw(double)} per pixel (see {@code PaletteConverter}).
+ * Raw values stay {@code double} the whole way; see
+ * {@link bdv.tools.brightness.presetfunc.PresetFunc#getPaletteValueForRaw(double)}.
  */
 public interface PaletteWrapper
 {
-	/**
-	 * The palette value for a raw image value: the wrapper's boundary
-	 * conditions applied if the value is outside the domain, otherwise the
-	 * plain {@code rawValue -> paletteValue} conversion. Feed this to
-	 * {@link #getColorScheme()} to get a color, or use the {@code *ForRaw}
-	 * shortcuts below.
-	 */
+	/** The palette value for a raw image value, with boundary conditions applied. */
 	double getPaletteValueForRaw( double rawValue );
 
 	/** The color for a raw image value, fully opaque; see {@link ColorScheme#getRGB(double)}. */
@@ -63,16 +51,9 @@ public interface PaletteWrapper
 	ColorScheme getColorScheme();
 
 	/**
-	 * Stretch this wrapper's raw-value domain to {@code [min, max]}, i.e. make
-	 * {@code min} map to palette value {@code 0} and {@code max} to the end of
-	 * the palette. This is how a display-range (brightness/contrast) change
-	 * reaches the mapping, without disturbing the palette or the chosen shape.
-	 * <p>
-	 * A {@code StepPresetFunc} (the discrete path) honours {@code min} but
-	 * derives its own maximum from its step size, since that step size is a
-	 * quantity in raw units that a range change is not supposed to rescale -- so
-	 * for a discrete mapping this moves where the palette starts and leaves how
-	 * wide each color band is alone. See that class's javadoc.
+	 * Stretch the raw-value domain to {@code [min, max]}, keeping palette and
+	 * shape. A {@code StepPresetFunc} only honours {@code min}; its width comes
+	 * from its step size.
 	 *
 	 * @throws IllegalArgumentException if {@code max} is not strictly greater than {@code min}.
 	 */

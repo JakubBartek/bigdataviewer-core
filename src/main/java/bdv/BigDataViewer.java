@@ -258,12 +258,8 @@ public class BigDataViewer
 	}
 
 	/**
-	 * A {@link PaletteConverter} over the new color-mapping architecture,
-	 * rendering {@code [min, max]} through a grayscale {@link ColorTable8} with
-	 * a linear transfer function -- the default LUT setup, editable via
-	 * {@link LutEditorDialog}. Values outside the range get the editor's default
-	 * fixed colors (black below, white above), the same mapping the editor
-	 * starts from for a source it has not edited yet.
+	 * Linear grayscale over {@code [min, max]}, with the LUT editor's default
+	 * out-of-range colors.
 	 */
 	private static < T extends RealType< T > > PaletteConverter< T > createPaletteConverter( final double min, final double max )
 	{

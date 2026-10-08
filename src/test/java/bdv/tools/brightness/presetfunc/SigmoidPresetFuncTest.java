@@ -31,11 +31,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Test cases for {@link SigmoidPresetFunc}. Endpoint and out-of-range
- * behavior shared by every {@link PresetFunc} is covered generically by
- * {@link AbstractPresetFuncTest}; this only checks the shape distinctive to
- * this class. Expected values computed independently from the formula
- * ({@code k = 10}), not derived from this implementation.
+ * Shape only; see {@link AbstractPresetFuncTest}. Expected values come from
+ * the formula ({@code k = 10}), not from this implementation.
  */
 public class SigmoidPresetFuncTest
 {

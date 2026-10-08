@@ -31,40 +31,18 @@ package bdv.tools.brightness.colorscheme;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
- * The palette a classic single-color BigDataViewer converter
- * ({@code net.imglib2.display.RealARGBColorConverter}) renders with: a
- * two-stop ramp from black up to one color, both stops carrying that color's
- * alpha.
+ * Reproduces {@code net.imglib2.display.RealARGBColorConverter} through a
+ * linear, clamped palette mapping: a ramp from black to one color, both stops
+ * keeping that color's alpha (the old converter renders below-{@code min} as
+ * {@code rgba(0, 0, 0, A)}).
  * <p>
- * That converter scales each channel of its color by
- * {@code (raw - min) / (max - min)}, and renders {@code rgba(0, 0, 0, A)} --
- * black at the color's own alpha, not opaque black -- below {@code min}. Read
- * through a {@link ContinuousColorScheme} and a linear {@code PresetFunc}
- * over the same display range, with both boundaries clamped, this palette
- * reproduces that inside the range and below it. It is what lets a source set
- * up the old way be taken over by the palette architecture without changing
- * how it looks.
- * <p>
- * Two places it cannot follow the old converter:
+ * Diverges from the old converter in two places:
  * <ul>
- * <li><b>Above {@code max}.</b> The old converter does not stop at its color
- * there: it goes on scaling every channel and clips each one at 255
- * separately, so a color with a channel below 255 keeps brightening, and
- * drifts in hue, until all its non-zero channels have saturated. A palette
- * ends at its last stop, so this one clamps to the color itself. The two agree
- * for any color whose channels are each either 0 or 255 (white, the
- * primaries, cyan, magenta, yellow). Reproducing the rest would need stops at
- * each channel's own saturation point, which are not evenly spaced and lie
- * outside the display range.</li>
- * <li><b>Exact rounding ties.</b> The old converter computes each channel as
- * {@code (int) (channel / (max - min) * (raw - min) + 0.5)}; the palette path
- * normalizes the raw value first and rounds the blend with
- * {@code Math.round}. Where a channel lands exactly on a {@code .5} the two
- * operation orders can round to neighbouring values, one unit apart in that
- * channel.</li>
+ * <li>Above {@code max} the old converter keeps scaling and clips each
+ * channel separately, drifting in hue; this clamps to the color. They agree
+ * for colors whose channels are all 0 or 255.</li>
+ * <li>Exact {@code .5} rounding ties can land one unit apart in a channel.</li>
  * </ul>
- * The palette is {@link #isInterpolated() interpolated}: the ramp is a
- * continuous blend, not two categories.
  *
  * @author Jakub Bartek
  */
@@ -72,11 +50,7 @@ public final class LegacyBdvColorPalette extends Palette
 {
 	private final int color;
 
-	/**
-	 * @param argb the converter's color, packed ARGB (see
-	 *             {@link ARGBType#rgba(int, int, int, int)}). Its alpha is kept
-	 *             on both stops, as the old converter keeps it on every pixel.
-	 */
+	/** @param argb the converter's color; its alpha is kept on both stops. */
 	public LegacyBdvColorPalette( final int argb )
 	{
 		super( new int[] { ARGBType.rgba( 0, 0, 0, ARGBType.alpha( argb ) ), argb }, true );

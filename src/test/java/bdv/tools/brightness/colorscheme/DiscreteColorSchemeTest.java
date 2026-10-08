@@ -79,11 +79,7 @@ public class DiscreteColorSchemeTest
 		}
 	}
 
-	/**
-	 * Domain is the half-open interval [0, N); a value truncates (floors) to
-	 * whichever stop's unit-wide slot it falls into. Exactly the N = 3
-	 * examples from the requirements.
-	 */
+	/** The N = 3 examples from the requirements. */
 	@Test
 	public void testDomainBoundariesForThreeStops()
 	{
@@ -132,13 +128,6 @@ public class DiscreteColorSchemeTest
 		Assert.assertEquals( scheme.getRGBA( 1.2f ), scheme.getRGB( 1.2f ) );
 	}
 
-	/**
-	 * Reuses an actual bundled palette (see {@code bdv.tools.brightness.LutPalettes})
-	 * instead of a hand-built stop array, exercising the
-	 * {@link DiscreteColorScheme#DiscreteColorScheme(Palette)} constructor.
-	 * tab10 is a real 10-color qualitative palette -- a natural fit for a
-	 * discrete scheme.
-	 */
 	@Test
 	public void testConstructFromExistingPalette()
 	{

@@ -43,12 +43,7 @@ import org.junit.rules.TemporaryFolder;
 
 import bdv.tools.brightness.palette.BoundaryCondition;
 
-/**
- * Test cases for {@link EditorPresets}. Each test points
- * {@link EditorPresets#USER_DIR_OVERRIDE_PROPERTY} at a fresh
- * {@link TemporaryFolder} rather than the real per-machine config directory,
- * so saving never touches the developer's actual settings.
- */
+/** Each test points {@link EditorPresets#USER_DIR_OVERRIDE_PROPERTY} at a {@link TemporaryFolder}. */
 public class EditorPresetsTest
 {
 	@Rule
@@ -122,14 +117,7 @@ public class EditorPresetsTest
 		Assert.assertArrayEquals( saved.getCurveYs(), loaded.getCurveYs() );
 	}
 
-	/**
-	 * A preset saved before per-end boundary conditions existed carries
-	 * {@code cyclic}/{@code treatMinAsBackground}/{@code backgroundColor}
-	 * instead. Those must still load -- a user's saved settings outlive the
-	 * format -- with treat-min-as-background becoming a left
-	 * {@link BoundaryCondition#SPECIAL} (what it always meant) and cyclic
-	 * becoming {@link BoundaryCondition#CYCLE} on the end it did not claim.
-	 */
+	/** Legacy keys still load: treat-min-as-background as left SPECIAL, cyclic as CYCLE elsewhere. */
 	@Test
 	public void testLegacyPresetMigratesToBoundaryConditions() throws Exception
 	{
@@ -203,10 +191,6 @@ public class EditorPresetsTest
 		Assert.assertTrue( EditorPresets.isUserDefined( "My Setting" ) );
 	}
 
-	/**
-	 * Saving under a built-in preset's exact name should shadow it: loading
-	 * that name afterwards returns the user's version, not the built-in one.
-	 */
 	@Test
 	public void testUserSavedPresetOverridesBuiltinOfSameName()
 	{
@@ -225,17 +209,8 @@ public class EditorPresetsTest
 	}
 
 	/**
-	 * Regression test: when there is no user-preset directory at all --
-	 * which is what happens for real when running from a packaged jar, whose
-	 * {@code jar:} resource URL cannot become a {@link java.io.File} -- the
-	 * read paths must degrade to "no user-saved presets" rather than
-	 * throwing. Previously they threw, which took down the whole LUT editor
-	 * dialog (it builds the preset combo during construction), including the
-	 * built-in presets that don't need a writable directory at all.
-	 * <p>
-	 * Simulated here by pointing the directory override at a path that does
-	 * not exist; the jar case reaches the same {@code null} directory by a
-	 * different route.
+	 * Regression: with no user directory (as in a jar) reads used to throw,
+	 * taking down the LUT editor. Simulated with a nonexistent path.
 	 */
 	@Test
 	public void testReadPathsDegradeWhenNoUserDirectoryExists()
@@ -251,12 +226,7 @@ public class EditorPresetsTest
 		Assert.assertFalse( EditorPresets.isUserDefined( "anything" ) );
 	}
 
-	/**
-	 * A preset name with filesystem-significant characters must not let a
-	 * save escape the user directory (e.g. via {@code ../}). Canonicalizing
-	 * replaces those characters, and the canonical form is what the preset
-	 * is stored, listed and loaded under.
-	 */
+	/** E.g. via {@code ../}. */
 	@Test
 	public void testCanonicalNameReplacesUnsafeCharacters()
 	{
@@ -277,13 +247,8 @@ public class EditorPresetsTest
 	}
 
 	/**
-	 * Regression test: a preset's own name must match the name it is filed
-	 * (and therefore listed) under, so {@link EditorPresets#discoverNames()}
-	 * -- which reads names off file names -- can never disagree with
-	 * {@link EditorPreset#getName()}. Saving a non-canonical name used to
-	 * silently file it elsewhere, which also made the caller's
-	 * "already exists?" check against discoverNames() miss and overwrite
-	 * without asking.
+	 * Regression: a non-canonical name was filed elsewhere, so the "already
+	 * exists?" check missed and overwrote without asking.
 	 */
 	@Test
 	public void testSaveRejectsNonCanonicalName()

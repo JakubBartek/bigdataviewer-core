@@ -31,25 +31,13 @@ package bdv.tools.brightness;
 import bdv.tools.brightness.palette.BoundaryCondition;
 
 /**
- * A named, reusable snapshot of the LUT editor's "look" settings: which
- * palette, what happens at each end of the input range, and the shape in
- * between (a curve for a continuous palette, a step size for a discrete one)
- * -- everything in {@link LutEditorDialog}'s "Mapping" panel except the actual
- * input value range (min/max), which is left alone since it is specific to
- * whatever source's data is currently being edited, not part of a reusable
- * preset.
+ * A named snapshot of the LUT editor's mapping settings, excluding the display
+ * range, which belongs to the source.
  * <p>
- * A plain data class (Gson-serialized field-for-field by {@link EditorPresets});
- * field names are also the JSON keys, so renaming a field changes the file
- * format.
- * <p>
- * <b>Legacy files.</b> Presets written before per-end boundary conditions
- * existed carry {@code cyclic}/{@code treatMinAsBackground}/{@code backgroundColor}
- * instead. Those keys are still read (see {@link #getLeftBoundaryCondition()}),
- * so an older user-saved setting keeps working, but they are never written
- * again: every field below is a boxed type precisely so Gson can tell "absent"
- * from "false"/"0" on the way in, and so the legacy keys can be left
- * {@code null} -- and thus omitted -- on the way out.
+ * Gson-serialized by {@link EditorPresets}; field names are the JSON keys.
+ * The legacy keys {@code cyclic}/{@code treatMinAsBackground}/{@code backgroundColor}
+ * are read but never written. Fields are boxed so Gson can tell "absent" from
+ * "false"/"0".
  */
 public class EditorPreset
 {
@@ -57,10 +45,10 @@ public class EditorPreset
 
 	private String paletteName;
 
-	/** {@link BoundaryCondition#name()}; {@code null} in a legacy file, see the class javadoc. */
+	/** {@link BoundaryCondition#name()}; {@code null} in a legacy file. */
 	private String leftBoundaryCondition;
 
-	/** {@link BoundaryCondition#name()}; {@code null} in a legacy file, see the class javadoc. */
+	/** {@link BoundaryCondition#name()}; {@code null} in a legacy file. */
 	private String rightBoundaryCondition;
 
 	private Integer leftSpecialColor;
@@ -74,7 +62,7 @@ public class EditorPreset
 
 	private int[] curveYs;
 
-	// -- legacy keys, read but never written; see the class javadoc -----------
+	// -- legacy keys, read but never written ---------------------------------
 
 	private Boolean cyclic;
 
@@ -82,10 +70,7 @@ public class EditorPreset
 
 	private Integer backgroundColor;
 
-	/**
-	 * No-arg constructor for Gson deserialization; fields are otherwise
-	 * immutable (see the other constructor).
-	 */
+	/** For Gson. */
 	EditorPreset()
 	{}
 
@@ -115,12 +100,7 @@ public class EditorPreset
 		return paletteName;
 	}
 
-	/**
-	 * What happens below the input range. Falls back to the legacy keys when
-	 * this preset predates them: a treat-min-as-background preset becomes
-	 * {@link BoundaryCondition#SPECIAL} (which is what that setting always
-	 * meant), otherwise a cyclic one becomes {@link BoundaryCondition#CYCLE}.
-	 */
+	/** Legacy fallback: treat-min-as-background is {@link BoundaryCondition#SPECIAL}, else cyclic is {@link BoundaryCondition#CYCLE}. */
 	public BoundaryCondition getLeftBoundaryCondition()
 	{
 		if ( leftBoundaryCondition != null )
@@ -130,7 +110,7 @@ public class EditorPreset
 		return legacyRangeMode();
 	}
 
-	/** As {@link #getLeftBoundaryCondition()}, above the range -- where the legacy format could only ever express clamp-or-cycle. */
+	/** Legacy fallback: cyclic is {@link BoundaryCondition#CYCLE}. */
 	public BoundaryCondition getRightBoundaryCondition()
 	{
 		if ( rightBoundaryCondition != null )
@@ -138,7 +118,7 @@ public class EditorPreset
 		return legacyRangeMode();
 	}
 
-	/** The below-range {@link BoundaryCondition#SPECIAL} color, packed as ARGB; the legacy {@code backgroundColor} if this preset predates it. */
+	/** Legacy fallback: {@code backgroundColor}. */
 	public int getLeftSpecialColor()
 	{
 		if ( leftSpecialColor != null )
@@ -148,13 +128,11 @@ public class EditorPreset
 		return LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR;
 	}
 
-	/** The above-range {@link BoundaryCondition#SPECIAL} color, packed as ARGB. The legacy format had no equivalent, so an older preset gets the default. */
 	public int getRightSpecialColor()
 	{
 		return rightSpecialColor != null ? rightSpecialColor : LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR;
 	}
 
-	/** Raw values per color stop for a discrete palette, or {@link LutEditorMapping#AUTO_STEP_SIZE} if this preset does not pin one down. */
 	public double getStepSize()
 	{
 		return stepSize != null ? stepSize : LutEditorMapping.AUTO_STEP_SIZE;
@@ -170,17 +148,12 @@ public class EditorPreset
 		return curveYs;
 	}
 
-	/** The legacy {@code cyclic} flag as a boundary condition, for both ends alike -- all that format could express. */
 	private BoundaryCondition legacyRangeMode()
 	{
 		return Boolean.TRUE.equals( cyclic ) ? BoundaryCondition.CYCLE : BoundaryCondition.CLAMP;
 	}
 
-	/**
-	 * A stored boundary-condition name, defaulting to {@link BoundaryCondition#CLAMP}
-	 * if it names nothing we know: a preset file is user-editable, and one bad
-	 * key is not worth failing the whole load over.
-	 */
+	/** Unknown names fall back to {@link BoundaryCondition#CLAMP}; preset files are user-editable. */
 	private static BoundaryCondition parse( final String name )
 	{
 		try

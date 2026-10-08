@@ -33,14 +33,7 @@ import org.junit.Test;
 import net.imglib2.display.ColorTable8;
 import net.imglib2.type.numeric.ARGBType;
 
-/**
- * Test cases for {@link Palette}: the stop list itself, the
- * {@link Palette#of(net.imglib2.display.ColorTable) adapter} from a foreign
- * {@code ColorTable}, and the value equality {@code LutPalettes#findName}
- * relies on. How a palette's stops turn into colors is a
- * {@link ColorScheme} concern, covered in {@link ContinuousColorSchemeTest}/
- * {@link DiscreteColorSchemeTest} rather than here.
- */
+/** Turning stops into colors is covered by the {@link ColorScheme} tests. */
 public class PaletteTest
 {
 	private static final int RED = ARGBType.rgba( 255, 0, 0, 255 );
@@ -64,12 +57,7 @@ public class PaletteTest
 		new Palette( new int[] { RED }, true );
 	}
 
-	/**
-	 * A {@code Palette} is immutable, which is what lets
-	 * {@code LutPalettes#findName} share one cached instance between callers.
-	 * Neither the array it was built from nor the one it hands out may be a
-	 * way back in.
-	 */
+	/** {@code LutPalettes#findName} shares cached instances. */
 	@Test
 	public void testIsImmutable()
 	{
@@ -101,11 +89,7 @@ public class PaletteTest
 
 	// -- equality ------------------------------------------------------------
 
-	/**
-	 * Value equality is what recovers a palette's resource name from its
-	 * colors alone (see {@code LutPalettes#findName}), so it has to hold
-	 * across separately built instances -- identity would defeat the purpose.
-	 */
+	/** {@code LutPalettes#findName} relies on this. */
 	@Test
 	public void testEqualityIsByValue()
 	{
@@ -123,20 +107,12 @@ public class PaletteTest
 
 		Assert.assertNotEquals( base, new Palette( new int[] { GREEN, RED }, true ) );
 		Assert.assertNotEquals( base, new Palette( new int[] { RED, GREEN, RED }, true ) );
-		// The flag is part of a palette's identity: the same colors meant as
-		// discrete categories are a different palette from the same colors
-		// meant as a gradient.
 		Assert.assertNotEquals( base, new Palette( new int[] { RED, GREEN }, false ) );
 	}
 
 	// -- adapting a foreign ColorTable ---------------------------------------
 
-	/**
-	 * imglib2's default {@link ColorTable8} carries only RGB (3 components,
-	 * no ALPHA) and is the table {@code BigDataViewer} sets its default
-	 * converter up with, so adapting it must fill in full opacity rather than
-	 * reach for a component that isn't there.
-	 */
+	/** {@link ColorTable8} has no ALPHA component. */
 	@Test
 	public void testOfColorTableWithoutAlphaComponentIsOpaque()
 	{

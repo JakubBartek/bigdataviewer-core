@@ -36,97 +36,42 @@ import bdv.tools.brightness.palette.BoundaryCondition;
 import bdv.tools.brightness.presetfunc.StepPresetFunc;
 
 /**
- * The LUT editor's editable mapping state: how a raw source value should be
- * turned into a color -- what happens at each end of the input range, whether
- * the palette is discrete (categorical) or continuous, and the shape in
- * between.
- * <p>
- * That shape is specified two different ways depending on the palette kind,
- * because the two ask genuinely different questions:
- * <ul>
- * <li><b>continuous</b> (a gradient palette): a transfer {@link Curve},
- * seeded from a {@link PresetShape} and further draggable -- "what curve
- * reshapes this gradient".</li>
- * <li><b>discrete</b> (a categorical palette): a {@link #getStepSize() step
- * size} in raw units -- "how many raw values does one color cover". A curve
- * would be meaningless here, since the color scheme floors its value to a
- * stop anyway.</li>
- * </ul>
- * <p>
- * This is a pure configuration holder edited by {@link LutEditorDialog} and
- * {@link MappingCurvePanel}; it does not perform the raw-value-to-color
- * mapping itself. That is done by the color-mapping architecture: the editor's
- * state is translated into a {@code PaletteWrapper} by
- * {@link PaletteWrapperBuilder}, and the wrapper is what actually renders (see
- * {@code PaletteConverter}).
+ * The LUT editor's editable mapping state, turned into a {@code PaletteWrapper}
+ * by {@link PaletteWrapperBuilder}. A continuous palette is shaped by a
+ * {@link Curve}; a discrete one by a {@link #getStepSize() step size} in raw
+ * units, since its scheme floors to a stop anyway.
  */
 public class LutEditorMapping
 {
 	/**
-	 * {@link #getStepSize()} value meaning "no explicit choice": let
-	 * {@link PaletteWrapperBuilder} use {@link StepPresetFunc#defaultStepSize},
-	 * which spreads the palette exactly once across the input range. Kept as a
-	 * sentinel rather than a resolved number because the range and the palette's
-	 * stop count -- both needed to resolve it -- are deliberately not part of
-	 * this model.
+	 * Step size sentinel resolved by {@link PaletteWrapperBuilder} via
+	 * {@link StepPresetFunc#defaultStepSize}; the range and stop count needed
+	 * for that are not part of this model.
 	 */
 	public static final double AUTO_STEP_SIZE = 0.0;
 
-	/**
-	 * The default below-range {@link BoundaryCondition#SPECIAL} color: opaque
-	 * black. Paired with white above the range, so the two ends start out as
-	 * the dark and light extremes they sit beyond rather than looking alike.
-	 */
 	public static final int DEFAULT_LEFT_SPECIAL_COLOR = 0xff000000;
 
-	/** The default above-range {@link BoundaryCondition#SPECIAL} color: opaque white; see {@link #DEFAULT_LEFT_SPECIAL_COLOR}. */
 	public static final int DEFAULT_RIGHT_SPECIAL_COLOR = 0xffffffff;
 
 	private final Curve curve = new Curve();
 
-	/**
-	 * What happens to raw values below the input range. Passed straight through
-	 * to the rendered wrapper by {@link PaletteWrapperBuilder}:
-	 * {@link BoundaryCondition#CLAMP} holds the first color,
-	 * {@link BoundaryCondition#CYCLE} wraps them back around the range, and
-	 * {@link BoundaryCondition#SPECIAL} paints {@link #getLeftSpecialColor()}
-	 * instead of any palette color at all (how a label image's background value
-	 * is given a dedicated color).
-	 * <p>
-	 * Defaults to {@link BoundaryCondition#SPECIAL} at both ends, so values
-	 * outside the range are marked as such (black below, white above) instead
-	 * of blending into the palette's own edge colors.
-	 */
+	/** SPECIAL by default, so out-of-range values stand out from the palette's edge colors. */
 	private BoundaryCondition leftBoundaryCondition = BoundaryCondition.SPECIAL;
 
-	/** As {@link #leftBoundaryCondition}, for raw values above the input range. */
 	private BoundaryCondition rightBoundaryCondition = BoundaryCondition.SPECIAL;
 
-	/** The color painted below the range when {@link #leftBoundaryCondition} is {@link BoundaryCondition#SPECIAL}, packed as ARGB. */
 	private int leftSpecialColor = DEFAULT_LEFT_SPECIAL_COLOR;
 
-	/** The color painted above the range when {@link #rightBoundaryCondition} is {@link BoundaryCondition#SPECIAL}, packed as ARGB. */
 	private int rightSpecialColor = DEFAULT_RIGHT_SPECIAL_COLOR;
 
-	/**
-	 * Whether the palette is used as discrete, individually chosen colors
-	 * (a categorical palette like tab10, where the mapped value snaps to a
-	 * stop) rather than a smoothly interpolated gradient. Follows the chosen
-	 * palette's own declared kind; picked up by {@link PaletteWrapperBuilder}
-	 * to choose a discrete vs. continuous color scheme -- and, with it, whether
-	 * {@link #getStepSize()} or {@link #getCurve()} defines the shape (see the
-	 * class javadoc).
-	 */
+	/** Follows the chosen palette's declared kind. */
 	private boolean discrete = false;
 
-	/**
-	 * How many raw values one color stop covers, when {@link #isDiscrete()};
-	 * {@link #AUTO_STEP_SIZE} to let the range and palette decide. Ignored
-	 * entirely for a continuous palette, which uses {@link #getCurve()} instead.
-	 */
+	/** Raw values per color stop when {@link #isDiscrete()}, or {@link #AUTO_STEP_SIZE}. */
 	private double stepSize = AUTO_STEP_SIZE;
 
-	/** The shape {@link #curve} was last seeded from; only meaningful for a continuous palette. */
+	/** The shape {@link #curve} was last seeded from. */
 	private PresetShape preset;
 
 	private final List< Runnable > changeListeners = new ArrayList<>();
@@ -136,7 +81,7 @@ public class LutEditorMapping
 		applyPreset( PresetShape.LINEAR );
 	}
 
-	/** The transfer curve, defining the shape for a <em>continuous</em> palette only; see the class javadoc. */
+	/** Only used for a continuous palette. */
 	public Curve getCurve()
 	{
 		return curve;
@@ -144,7 +89,6 @@ public class LutEditorMapping
 
 	// -- boundary conditions -------------------------------------------------
 
-	/** What happens to raw values below the input range; see the field javadoc. */
 	public BoundaryCondition getLeftBoundaryCondition()
 	{
 		return leftBoundaryCondition;
@@ -156,7 +100,6 @@ public class LutEditorMapping
 		fireChangeListeners();
 	}
 
-	/** What happens to raw values above the input range; see the field javadoc. */
 	public BoundaryCondition getRightBoundaryCondition()
 	{
 		return rightBoundaryCondition;
@@ -168,7 +111,6 @@ public class LutEditorMapping
 		fireChangeListeners();
 	}
 
-	/** The below-range {@link BoundaryCondition#SPECIAL} color, packed as ARGB. */
 	public int getLeftSpecialColor()
 	{
 		return leftSpecialColor;
@@ -180,7 +122,6 @@ public class LutEditorMapping
 		fireChangeListeners();
 	}
 
-	/** The above-range {@link BoundaryCondition#SPECIAL} color, packed as ARGB. */
 	public int getRightSpecialColor()
 	{
 		return rightSpecialColor;
@@ -194,19 +135,12 @@ public class LutEditorMapping
 
 	// -- discrete vs continuous ----------------------------------------------
 
-	/** Whether the palette is used as discrete (categorical) colors rather than a smooth gradient; see the field javadoc. */
 	public boolean isDiscrete()
 	{
 		return discrete;
 	}
 
-	/**
-	 * @param discrete see the field javadoc. Turning this on resets the curve to
-	 *                 {@link PresetShape#LINEAR}: the curve is not what defines a
-	 *                 discrete palette's mapping ({@link #getStepSize()} is), so
-	 *                 leaving a warped shape behind would only mislead if the
-	 *                 palette later went back to continuous.
-	 */
+	/** Turning this on resets the unused curve to {@link PresetShape#LINEAR}. */
 	public void setDiscrete( final boolean discrete )
 	{
 		this.discrete = discrete;
@@ -216,20 +150,12 @@ public class LutEditorMapping
 			fireChangeListeners();
 	}
 
-	/**
-	 * How many raw values one color stop covers for a discrete palette, or
-	 * {@link #AUTO_STEP_SIZE} if none was chosen; see the field javadoc.
-	 */
 	public double getStepSize()
 	{
 		return stepSize;
 	}
 
-	/**
-	 * @param stepSize raw values per color stop; {@link #AUTO_STEP_SIZE} (or any
-	 *                 non-positive value) to go back to letting the range and
-	 *                 palette decide.
-	 */
+	/** @param stepSize raw values per color stop; non-positive means {@link #AUTO_STEP_SIZE}. */
 	public void setStepSize( final double stepSize )
 	{
 		this.stepSize = stepSize > 0.0 ? stepSize : AUTO_STEP_SIZE;
@@ -243,10 +169,7 @@ public class LutEditorMapping
 		return preset;
 	}
 
-	/**
-	 * Apply a preset, replacing the current curve control points with the
-	 * preset's shape. The control points can still be dragged afterwards.
-	 */
+	/** Replaces the curve's control points with the preset's shape. */
 	public void applyPreset( final PresetShape preset )
 	{
 		this.preset = preset;
@@ -254,12 +177,7 @@ public class LutEditorMapping
 		fireChangeListeners();
 	}
 
-	/**
-	 * Flip the current curve vertically (see {@link Curve#invert()}), e.g.
-	 * turning the default increasing linear ramp into a decreasing one.
-	 * Applies on top of whatever shape the curve currently has -- including
-	 * further hand-dragged edits -- not just a freshly applied preset.
-	 */
+	/** Flips the current curve vertically, including hand-dragged edits. */
 	public void invertCurve()
 	{
 		curve.invert();
@@ -268,11 +186,6 @@ public class LutEditorMapping
 
 	// -- bulk state ----------------------------------------------------------
 
-	/**
-	 * Copy all mapping state (boundary conditions and their colors, discrete
-	 * flag, step size, preset and curve control points) from another model into
-	 * this one.
-	 */
 	public void copyFrom( final LutEditorMapping other )
 	{
 		this.leftBoundaryCondition = other.leftBoundaryCondition;
@@ -286,11 +199,7 @@ public class LutEditorMapping
 		fireChangeListeners();
 	}
 
-	/**
-	 * Whether {@code other} represents the same mapping as this one -- used to
-	 * tell whether the editor still matches a saved configuration, rather than
-	 * a general-purpose {@code equals}.
-	 */
+	/** Whether the editor still matches a saved configuration; not a general {@code equals}. */
 	public boolean hasSameState( final LutEditorMapping other )
 	{
 		return leftBoundaryCondition == other.leftBoundaryCondition
@@ -304,10 +213,7 @@ public class LutEditorMapping
 				&& Arrays.equals( curve.ysArray(), other.curve.ysArray() );
 	}
 
-	/**
-	 * Notify listeners that the curve's control points were edited directly
-	 * (e.g. by dragging in a UI), without going through {@link #applyPreset}.
-	 */
+	/** Call after editing the curve's points directly. */
 	public void notifyCurveEdited()
 	{
 		fireChangeListeners();

@@ -45,14 +45,9 @@ import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.real.DoubleType;
 
 /**
- * {@link LegacyBdvColorPalette} is only worth having if it renders what the
- * old converter rendered, so the reference throughout is imglib2's own
- * {@link RealARGBColorConverter}, asked directly, never a hand-derived color.
- * <p>
- * The comparisons sweep colors (including translucent and mixed-hue ones),
- * display ranges (including non-dyadic widths and origins far from zero) and
- * raw values below, inside and above each range: a rounding disagreement
- * between the two paths shows up only for some ranges and not others.
+ * The reference is imglib2's {@link RealARGBColorConverter} itself. Colors,
+ * ranges and raw values are swept, since rounding disagreements only show up
+ * for some ranges.
  */
 public class LegacyBdvColorPaletteTest
 {
@@ -87,10 +82,6 @@ public class LegacyBdvColorPaletteTest
 		assertEquals( ARGBType.rgba( 0, 0, 0, 77 ), palette.getStop( 0 ) );
 	}
 
-	/**
-	 * A palette is a value: knowing where its colors came from must not make
-	 * it unequal to a plain palette with the same colors.
-	 */
 	@Test
 	public void testEqualsAPlainPaletteWithTheSameStops()
 	{
@@ -117,12 +108,7 @@ public class LegacyBdvColorPaletteTest
 		} );
 	}
 
-	/**
-	 * Inside the range the two paths compute the same blend in a different
-	 * order (see {@link LegacyBdvColorPalette}), so an exact {@code .5} can
-	 * round to neighbouring values: each color channel may differ by at most
-	 * one unit, and alpha, which is constant along the ramp, not at all.
-	 */
+	/** Rounding ties allow one unit per color channel; alpha must match exactly. */
 	@Test
 	public void testMatchesTheLegacyConverterWithinOneUnitInsideTheRange()
 	{
@@ -153,11 +139,7 @@ public class LegacyBdvColorPaletteTest
 		} );
 	}
 
-	/**
-	 * Above the range the palette clamps to the color. The old converter
-	 * agrees exactly when every channel of the color is 0 or 255, since
-	 * clipping each channel at 255 then lands on the color itself.
-	 */
+	/** Only for colors whose channels are all 0 or 255. */
 	@Test
 	public void testClampsToTheColorAboveTheRangeAsTheLegacyConverterDoesForSaturatedColors()
 	{
@@ -174,11 +156,7 @@ public class LegacyBdvColorPaletteTest
 		} );
 	}
 
-	/**
-	 * The known divergence, pinned down so it stays a decision rather than a
-	 * surprise: past {@code max} the old converter keeps brightening a color
-	 * with a channel strictly between 0 and 255, and the palette does not.
-	 */
+	/** Pins the known divergence above {@code max}. */
 	@Test
 	public void testDivergesFromTheLegacyConverterAboveTheRangeForUnsaturatedColors()
 	{
@@ -204,11 +182,7 @@ public class LegacyBdvColorPaletteTest
 				check.check( color, range[ 0 ], range[ 1 ], legacyConverter( range[ 0 ], range[ 1 ], color ), wrapper( range[ 0 ], range[ 1 ], color ) );
 	}
 
-	/**
-	 * The palette read the way {@code PaletteConverterFactory} reads it: a
-	 * continuous scheme, a linear transfer function over the display range,
-	 * both boundaries clamped.
-	 */
+	/** As {@code PaletteConverterFactory} sets it up. */
 	private static PresetPaletteWrapper wrapper( final double min, final double max, final int color )
 	{
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( new LegacyBdvColorPalette( color ) );
@@ -247,10 +221,7 @@ public class LegacyBdvColorPaletteTest
 		return String.format( "color %08x, range [%s, %s], raw %s: legacy %08x, palette %08x", color, min, max, raw, expected, actual );
 	}
 
-	/**
-	 * Every saturated color (each channel 0 or 255), some mixed hues and
-	 * greys, colors with a non-opaque alpha, and a seeded random spread.
-	 */
+	/** Saturated, mixed, grey, translucent and seeded random colors. */
 	private static int[] colors()
 	{
 		final List< Integer > colors = new ArrayList<>();
@@ -267,11 +238,7 @@ public class LegacyBdvColorPaletteTest
 		return colors.stream().mapToInt( Integer::intValue ).toArray();
 	}
 
-	/**
-	 * Common bit depths, every integer width from 1 to 40 (most are not a
-	 * power of two, so {@code 1 / width} is inexact), fractional widths, and
-	 * origins far from zero.
-	 */
+	/** Bit depths, widths 1 to 40 (mostly non-dyadic), fractional widths, far origins. */
 	private static double[][] ranges()
 	{
 		final List< double[] > ranges = new ArrayList<>();

@@ -79,10 +79,7 @@ public class ContinuousColorSchemeTest
 		}
 	}
 
-	/**
-	 * Domain is the closed interval [0, N - 1]. Exactly the N = 3 examples
-	 * from the requirements, plus the exact-integer stops in between.
-	 */
+	/** The N = 3 examples from the requirements. */
 	@Test
 	public void testDomainBoundariesForThreeStops()
 	{
@@ -141,12 +138,6 @@ public class ContinuousColorSchemeTest
 		Assert.assertEquals( scheme.getRGBA( 0.3f ), scheme.getRGB( 0.3f ) );
 	}
 
-	/**
-	 * Reuses an actual bundled palette instead of a hand-built stop array,
-	 * exercising the {@link ContinuousColorScheme#ContinuousColorScheme(Palette)}
-	 * constructor. viridis is a real 256-stop continuous palette -- a natural
-	 * fit for a continuous scheme.
-	 */
 	@Test
 	public void testConstructFromExistingPalette()
 	{

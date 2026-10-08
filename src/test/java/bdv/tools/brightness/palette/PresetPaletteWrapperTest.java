@@ -38,12 +38,8 @@ import bdv.tools.brightness.presetfunc.StepPresetFunc;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
- * Test cases for {@link PresetPaletteWrapper}: the single wrapper that pairs a
- * {@link PresetFunc} with a color scheme. The distinctive thing to prove is
- * that the wrapper itself is scheme-agnostic -- a {@link DiscreteColorScheme}
- * floors the preset function's value to a stop while a
- * {@link ContinuousColorScheme} interpolates it, with no other difference --
- * plus the boundary handling and construction invariants it owns.
+ * The wrapper is scheme-agnostic (a {@link DiscreteColorScheme} floors, a
+ * {@link ContinuousColorScheme} interpolates); it owns boundary handling.
  */
 public class PresetPaletteWrapperTest
 {
@@ -111,7 +107,6 @@ public class PresetPaletteWrapperTest
 
 	// -- the scheme decides floor vs interpolate -----------------------------
 
-	/** With a continuous scheme, the linear preset spreads the range across the gradient; the ends and midpoint land exactly on stops. */
 	@Test
 	public void testContinuousSchemeInterpolates()
 	{
@@ -120,13 +115,12 @@ public class PresetPaletteWrapperTest
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( 0f ) );
 		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 1f ) );
 		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 2f ) );
-		// Between stops it blends rather than snapping: halfway from RED to GREEN is neither.
+		// blends between stops
 		final int quarter = wrapper.getRGBForRaw( 0.5f );
 		Assert.assertNotEquals( RED, quarter );
 		Assert.assertNotEquals( GREEN, quarter );
 	}
 
-	/** With a discrete scheme and the very same kind of preset, the value is floored to a single stop: flat bands, no blend. */
 	@Test
 	public void testDiscreteSchemeFloors()
 	{
@@ -172,13 +166,7 @@ public class PresetPaletteWrapperTest
 		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 4.5f ) );
 	}
 
-	/**
-	 * {@code max} is the same point as {@code min} on a cyclic domain (like
-	 * 0{@code deg}/360{@code deg}), so it must wrap to the first stop, not
-	 * resolve to the last one -- otherwise the last stop's band is twice as
-	 * wide as every other stop's, and the first stop never appears exactly at
-	 * the seam.
-	 */
+	/** Otherwise the last stop's band would be twice as wide. */
 	@Test
 	public void testCycleWrapsExactlyAtTheDomainMaximum()
 	{
@@ -190,7 +178,6 @@ public class PresetPaletteWrapperTest
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( 6f ) );
 	}
 
-	/** Unlike CYCLE, CLAMP's domain is closed: exactly at max still resolves to the last stop. */
 	@Test
 	public void testClampResolvesExactlyAtTheDomainMaximumToTheLastStop()
 	{
@@ -199,7 +186,7 @@ public class PresetPaletteWrapperTest
 		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 3f ) );
 	}
 
-	/** A translucent grey, to prove the SPECIAL color is used verbatim, not looked up in the palette. */
+	/** Translucent and not in the palette. */
 	private static final int SPECIAL = ARGBType.rgba( 128, 128, 128, 64 );
 
 	@Test
@@ -291,21 +278,7 @@ public class PresetPaletteWrapperTest
 		}
 	}
 
-	/**
-	 * The property behind the bug this composition was actually reported for:
-	 * with a categorical palette, one raw unit per color and
-	 * {@link BoundaryCondition#CYCLE} on both ends, walking the raw axis must
-	 * step through the colors one at a time forever, never showing the same
-	 * color twice in a row.
-	 * <p>
-	 * Repeating the palette is this boundary condition's job and nothing else's
-	 * -- a {@link StepPresetFunc}'s domain is exactly one pass wide -- so the
-	 * property holds over the whole raw axis with no exception anywhere,
-	 * including at {@code getMax()} and far below {@code getMin()}. It is swept
-	 * over many periods either side of the domain rather than checked at a
-	 * chosen point, because the wrong answers this replaced appeared and
-	 * disappeared with the display range in a way nobody can eyeball.
-	 */
+	/** Regression: with one raw unit per color, no color may appear twice in a row. */
 	@Test
 	public void testCyclingAStepPaletteNeverRepeatsAColor()
 	{
@@ -330,22 +303,9 @@ public class PresetPaletteWrapperTest
 	}
 
 	/**
-	 * The same cyclic property with a step size that is not a dyadic fraction,
-	 * checked hundreds of periods away from the domain. Deriving the domain from
-	 * the step size made the cycle period as narrow as the palette itself rather
-	 * than as wide as the display range, so a raw value out at the edge of the
-	 * data now wraps hundreds of times instead of once, and every one of those
-	 * wraps has to put it back in the right place.
-	 * <p>
-	 * Sampled at the middle of each color's band rather than on its edges. That
-	 * is not a softer question, it is the only well-posed one out here: a raw
-	 * value naming the {@code k}th boundary can only be written as
-	 * {@code min + k * stepSize}, which is itself rounded, and for a non-dyadic
-	 * step size that drifts off the true boundary by up to {@code 1.6e-13} of a
-	 * band by {@code k = 2000}. Which side of the edge such a value falls on is
-	 * genuinely undetermined, and no tolerance can recover it. Boundaries are
-	 * pinned where they are exactly representable instead, by
-	 * {@link #testCyclingIsExactAtEveryBoundaryForALabelImage}.
+	 * Sampled mid-band: out here {@code min + k * stepSize} is itself rounded,
+	 * so which side of a boundary it lands on is undetermined. Boundaries are
+	 * covered by {@link #testCyclingIsExactAtEveryBoundaryForALabelImage}.
 	 */
 	@Test
 	public void testCyclingIsExactManyPeriodsOutForNonDyadicStepSizes()
@@ -374,14 +334,7 @@ public class PresetPaletteWrapperTest
 		}
 	}
 
-	/**
-	 * The case that must be exact right at the boundaries, because it is the one
-	 * where the boundaries are exactly representable and the one this is for: a
-	 * label image, one color per integer id, cycling through the palette. Every
-	 * id lands on its own color however far from {@code min} it is -- including
-	 * past 2^24, where a {@code float} could no longer tell neighbouring ids
-	 * apart at all.
-	 */
+	/** Including past 2^24, where {@code float} merges neighbouring ids. */
 	@Test
 	public void testCyclingIsExactAtEveryBoundaryForALabelImage()
 	{
@@ -404,19 +357,7 @@ public class PresetPaletteWrapperTest
 		}
 	}
 
-	/**
-	 * Wrapping breaks a tie toward the period boundary, so a raw value that is a
-	 * whole number of periods away in the step size's own (decimal) terms starts
-	 * the palette over instead of finishing the previous pass.
-	 * <p>
-	 * With a step size of 0.3 and 2 stops the period is 0.6, and 6.6 is 11 of
-	 * them -- but in binary {@code 6.6 % 0.6} is {@code 0.5999999999999999},
-	 * an eighth of a ULP short, which without the tie-break lands at the far end
-	 * of the previous pass: the last color where the first belongs, on a
-	 * difference far below anything the raw value can express. Neither reading
-	 * is forced by the arithmetic; this pins the one that matches what the step
-	 * size means to whoever typed it.
-	 */
+	/** In binary {@code 6.6 % 0.6} is {@code 0.5999999999999999}, yet 6.6 is 11 periods. */
 	@Test
 	public void testCyclingBreaksTiesTowardThePeriodBoundary()
 	{
@@ -428,25 +369,13 @@ public class PresetPaletteWrapperTest
 		Assert.assertNotEquals( "the binary remainder alone does not land on 0",
 				0.0, 6.6 % 0.6, 0.0 );
 
-		// 6.6 is 11 whole periods along, so it starts a fresh pass.
 		Assert.assertEquals( argb[ 0 ], wrapper.getRGBAForRaw( 6.6 ) );
-		// ...and so do the other whole-period multiples either side of it.
 		Assert.assertEquals( argb[ 0 ], wrapper.getRGBAForRaw( 1.8 ) );
 		Assert.assertEquals( argb[ 0 ], wrapper.getRGBAForRaw( -6.6 ) );
-		// A value in the middle of the second band is untouched by the tie-break.
-		// Sampled mid-band, not on the edge: out here a value naming a boundary
-		// is only accurate to about 1e-15 of a band, so which side it falls on
-		// is not determined -- see testCyclingIsExactManyPeriodsOutForNonDyadicStepSizes.
+		// mid-band is untouched by the tie-break
 		Assert.assertEquals( argb[ 1 ], wrapper.getRGBAForRaw( 6.6 + 0.45 ) );
 	}
 
-	/**
-	 * The counterpart under {@link BoundaryCondition#CLAMP}: the palette is
-	 * traversed once and then held on its last color. This is the behavior that
-	 * makes the display range's maximum cosmetic for a discrete mapping -- what
-	 * happens past the last stop is the boundary condition's decision, not a
-	 * function of how wide the range happens to be.
-	 */
 	@Test
 	public void testClampingAStepPaletteHoldsTheLastColorPastTheDomain()
 	{

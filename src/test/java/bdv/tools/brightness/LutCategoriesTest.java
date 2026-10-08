@@ -97,12 +97,7 @@ public class LutCategoriesTest
 		Assert.assertEquals( List.of( "Blues", "Greens", "Reds" ), grouped.get( LutCategories.SEQUENTIAL ) );
 	}
 
-	/**
-	 * Every actual bundled LUT resource must be recognized (i.e. not silently
-	 * fall back to Miscellaneous just because it was misspelled/forgotten
-	 * here) -- except the ones that are genuinely in matplotlib's own
-	 * Miscellaneous category.
-	 */
+	/** Catches a resource that was misspelled or forgotten in the category table. */
 	@Test
 	public void testAllDiscoveredPalettesAreCategorized()
 	{

@@ -38,13 +38,7 @@ import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.real.DoubleType;
 
-/**
- * Test cases for {@link PaletteConverter}: that it renders a real sample by
- * delegating to its {@link bdv.tools.brightness.palette.PaletteWrapper}, and
- * that changing the display range (min/max) re-ranges the wrapper's domain --
- * i.e. the render path and the brightness/contrast path are both wired to the
- * new architecture.
- */
+/** Rendering delegates to the wrapper, and display range changes re-range it. */
 public class PaletteConverterTest
 {
 	private static final int RED = ARGBType.rgba( 255, 0, 0, 255 );
@@ -136,12 +130,7 @@ public class PaletteConverterTest
 		Assert.assertEquals( BLUE, convert( converter, 39.9 ) );
 	}
 
-	/**
-	 * The motivating case: a SPECIAL left boundary with a transparent color
-	 * renders below-range values (e.g. a label image's background) fully
-	 * transparent, which the old converter did via treat-min-as-background +
-	 * backgroundColor(0x00000000). The alpha must survive convert().
-	 */
+	/** A transparent label background must survive {@code convert()}. */
 	@Test
 	public void testTransparentBackgroundBelowRangeSurvivesConversion()
 	{

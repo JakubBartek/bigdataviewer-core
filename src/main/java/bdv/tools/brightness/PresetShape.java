@@ -39,11 +39,7 @@ import bdv.tools.brightness.presetfunc.TanPresetFunc;
 
 /**
  * Predefined shapes for the mapping {@link Curve}, sampled from the
- * {@code bdv.tools.brightness.presetfunc} shape classes, so the shape math
- * lives exactly once (in each {@link PresetFunc}), not duplicated here. Each
- * preset is sampled at a fixed number of control points spanning the
- * normalized input range [0, 1]; the resulting points can be dragged further
- * by the user afterwards.
+ * corresponding {@link PresetFunc} into draggable control points.
  */
 public enum PresetShape
 {
@@ -55,7 +51,7 @@ public enum PresetShape
 	TAN( "Tan", TanPresetFunc::new ),
 	ATAN( "Atan", AtanPresetFunc::new );
 
-	/** Number of control points a non-linear preset is sampled at; {@link #LINEAR} is the exception below (see {@link #xs()}). */
+	/** Control points per non-linear preset; {@link #LINEAR} uses two. */
 	private static final int NUM_POINTS = 9;
 
 	private final String label;
@@ -74,15 +70,7 @@ public enum PresetShape
 		return label;
 	}
 
-	/**
-	 * Normalized x positions (in [0, 1]) of the sampled control points.
-	 * <p>
-	 * {@link #LINEAR} is the exception: a straight line is fully determined
-	 * by its two endpoints, so it is represented with just those two,
-	 * instead of {@link #NUM_POINTS} redundant ones -- sampling it at more
-	 * points would show 9 collinear, indistinguishable draggable dots
-	 * instead of a clean 2-point line.
-	 */
+	/** Control point x positions in [0, 1]. */
 	public double[] xs()
 	{
 		if ( this == LINEAR )
@@ -90,10 +78,7 @@ public enum PresetShape
 		return sample().getKnotTs();
 	}
 
-	/**
-	 * Output values (in [0, 255]) of the sampled control points, corresponding
-	 * to the x positions returned by {@link #xs()}.
-	 */
+	/** Control point values in [0, 255], matching {@link #xs()}. */
 	public int[] ys()
 	{
 		if ( this == LINEAR )
@@ -108,7 +93,6 @@ public enum PresetShape
 		return ys;
 	}
 
-	/** This preset's shape, sampled into {@link #NUM_POINTS} knots over a normalized [0, 1] domain and palette range. */
 	private CustomInterpPresetFunc sample()
 	{
 		final PresetFunc shape = factory.create( 0.0, 1.0, 1 );

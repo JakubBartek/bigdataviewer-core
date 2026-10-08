@@ -35,19 +35,9 @@ import java.util.Map;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
- * A single-color intensity scale: a two-stop ramp from opaque black up to one
- * opaque color, the way grayscale ramps from black up to white. The usual way
- * a fluorescence channel is shown -- brighter means more signal, in the
- * channel's own color.
- * <p>
- * Opaque at both ends, whatever the color it is given carries in its alpha
- * byte. That is what sets it apart from {@link LegacyBdvColorPalette}, the
- * same ramp built to reproduce an old converter, whose black keeps that
- * converter's alpha. For an opaque color the two are the same palette and
- * compare {@link #equals equal}.
- * <p>
- * The palette is {@link #isInterpolated() interpolated}: the ramp is a
- * continuous blend, not two categories.
+ * An opaque two-stop ramp from black up to one color, as for a fluorescence
+ * channel. Unlike {@link LegacyBdvColorPalette} it ignores the color's alpha;
+ * for an opaque color the two compare {@link #equals equal}.
  *
  * @author Jakub Bartek
  */
@@ -57,11 +47,7 @@ public final class CustomColorsPalette extends Palette
 
 	private final int color;
 
-	/**
-	 * @param rgb the color the ramp rises to, packed as in
-	 *            {@link ARGBType#rgba(int, int, int, int)}. Its alpha byte is
-	 *            ignored; the ramp is opaque.
-	 */
+	/** @param rgb packed color the ramp rises to; alpha is ignored. */
 	public CustomColorsPalette( final int rgb )
 	{
 		super( new int[] { ARGBType.rgba( 0, 0, 0, 255 ), opaque( rgb ) }, true );
@@ -75,13 +61,9 @@ public final class CustomColorsPalette extends Palette
 	}
 
 	/**
-	 * The single-color scales image analysis tools conventionally offer for a
-	 * channel, by display name, in the order a chooser lists them: grayscale,
-	 * the additive primaries, their complements, and orange. Unmodifiable.
-	 * <p>
-	 * The names are deliberately not any bundled palette's, ignoring case:
-	 * "gray" and "Grays" are bundled, and on a case-insensitive file system a
-	 * bundled resource is found under either spelling.
+	 * The conventional single-color scales by display name, in chooser order.
+	 * Names must not clash case-insensitively with a bundled palette's
+	 * ("gray" is bundled), since resource lookup may ignore case.
 	 */
 	public static Map< String, CustomColorsPalette > classics()
 	{

@@ -82,12 +82,7 @@ public class ExampleCirclesLabelsMultiSource2D {
         return img;
     }
 
-    /**
-     * Draws circle number {@code i} (0-based, value {@code i + 1}) at its
-     * fixed grid position -- the same position it would have in
-     * {@link ExampleCirclesLabels2D}, regardless of which group/source it
-     * ends up in.
-     */
+    /** Value {@code i + 1}, at the same position as in {@link ExampleCirclesLabels2D}. */
     private static void drawCircle(final RandomAccess<UnsignedByteType> ra, final int i) {
         final int col = i % COLUMNS;
         final int row = i / COLUMNS;
@@ -130,17 +125,9 @@ public class ExampleCirclesLabelsMultiSource2D {
     }
 
     /**
-     * Makes raw value 0 (the background) render fully transparent instead of
-     * opaque black. BDV's Fused display mode additively sums the R/G/B/A of
-     * every visible source at each pixel (see AccumulateProjectorARGB); since
-     * every source here has background covering nearly the whole canvas, an
-     * opaque background on any one source would wash out the combined image.
-     * <p>
-     * In the new color-mapping architecture that is a {@link BoundaryCondition#SPECIAL}
-     * left boundary (values below the display range) with the wrapper's default
-     * transparent special color; the labels {@code 1..N} span the range above
-     * it. Colors are then refined interactively in the LUT editor, which is
-     * what this multi-source demo exists to exercise.
+     * Fused mode sums every source's ARGB, so an opaque background would wash
+     * out the image. A {@link BoundaryCondition#SPECIAL} left boundary with the
+     * default transparent color, labels {@code 1..N} above it.
      */
     @SuppressWarnings("unchecked")
     private static void makeBackgroundTransparent(final Converter<UnsignedByteType, ARGBType> converter) {

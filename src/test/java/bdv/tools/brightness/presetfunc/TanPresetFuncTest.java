@@ -31,11 +31,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Test cases for {@link TanPresetFunc}. Endpoint and out-of-range behavior
- * shared by every {@link PresetFunc} is covered generically by
- * {@link AbstractPresetFuncTest}; this only checks the shape distinctive to
- * this class. Expected values computed independently from the formula
- * ({@code k = 1.4}), not derived from this implementation.
+ * Shape only; see {@link AbstractPresetFuncTest}. Expected values come from
+ * the formula ({@code k = 1.4}), not from this implementation.
  */
 public class TanPresetFuncTest
 {
@@ -61,12 +58,7 @@ public class TanPresetFuncTest
 		Assert.assertEquals( 5f, scaled().getPaletteValueForRaw( 150f ), 1e-4f );
 	}
 
-	/**
-	 * Unlike the sigmoid/atan family (steep through the middle, flat at the
-	 * edges), tan's normalized shape is steep near the edges and flat through
-	 * the middle. So it leads linear just past the low end and trails linear
-	 * just past the midpoint.
-	 */
+	/** Unlike sigmoid/atan, steep at the edges and flat in the middle. */
 	@Test
 	public void testRisesFasterNearTheEdgesThanLinear()
 	{

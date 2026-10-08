@@ -40,32 +40,16 @@ import bdv.tools.brightness.colorscheme.Palette;
 import bdv.tools.brightness.presetfunc.StepPresetFunc;
 
 /**
- * Translates the LUT editor's {@link LutEditorMapping}-plus-{@link Palette}
- * state into a {@link PaletteWrapper} of the color-mapping architecture that
- * actually renders (see {@link PaletteConverter}). The single bridge between
- * the editor's model and the render model, kept out of both the Swing dialog
- * (so it can be unit-tested) and the {@code palette} package (so that package
- * stays free of any dependency on the editor's model).
- * <p>
- * The mapping's {@link LutEditorMapping#isDiscrete()} flag picks both halves of
- * the pipeline at once, which is the discrete-vs-continuous distinction at the
- * heart of the design:
+ * Translates the LUT editor's {@link LutEditorMapping} and {@link Palette}
+ * into the {@link PaletteWrapper} that renders (see {@link PaletteConverter}).
+ * {@link LutEditorMapping#isDiscrete()} picks both halves:
  * <ul>
- * <li>continuous (a gradient palette, e.g. viridis): a
- * {@link ContinuousColorScheme} fed by the editor's {@link Curve} carried over
- * as a {@link CustomInterpPresetFunc}, so presets, hand-dragged points and
- * inversion are all preserved. The curve's value is interpolated between stops
- * into a smooth gradient.</li>
- * <li>discrete (a categorical palette, e.g. tab10, or a label image): a
- * {@link DiscreteColorScheme} fed by a {@link StepPresetFunc} built from the
- * mapping's {@link LutEditorMapping#getStepSize() step size}, so one color
- * covers that many raw values and the palette repeats across the range. The
- * curve is not consulted at all -- flooring to a stop is what makes a shape
- * pointless here.</li>
+ * <li>continuous: {@link ContinuousColorScheme} fed by the editor's
+ * {@link Curve} as a {@link CustomInterpPresetFunc}.</li>
+ * <li>discrete: {@link DiscreteColorScheme} fed by a {@link StepPresetFunc};
+ * the curve is ignored.</li>
  * </ul>
- * The two {@link bdv.tools.brightness.palette.BoundaryCondition}s and their
- * colors are passed through verbatim: the editor edits exactly the render
- * model's own boundary vocabulary, so there is nothing to translate.
+ * Boundary conditions and their colors pass through unchanged.
  */
 public final class PaletteWrapperBuilder
 {
@@ -74,15 +58,8 @@ public final class PaletteWrapperBuilder
 	}
 
 	/**
-	 * Build the {@link PaletteWrapper} equivalent of {@code palette} +
-	 * {@code mapping} over the display range {@code [min, max]}; see the class
-	 * javadoc.
-	 * <p>
-	 * Declared as the concrete {@link PresetPaletteWrapper} rather than the
-	 * interface, because the editor's preview draws the shape of the mapping
-	 * and not just its colors: it needs the {@code PresetFunc}'s own domain to
-	 * know where the palette runs out and the boundary condition takes over
-	 * (see {@code MappingCurvePanel}).
+	 * Returns the concrete type because {@code MappingCurvePanel} needs the
+	 * preset function's domain to draw where the boundary condition takes over.
 	 */
 	public static PresetPaletteWrapper build( final Palette palette, final LutEditorMapping mapping, final double min, final double max )
 	{
@@ -103,20 +80,7 @@ public final class PaletteWrapperBuilder
 		return wrapper;
 	}
 
-	/**
-	 * The discrete palette's shape: one color per
-	 * {@link LutEditorMapping#getStepSize()} raw values, resolving
-	 * {@link LutEditorMapping#AUTO_STEP_SIZE} against the range and stop count
-	 * the model deliberately does not know about.
-	 * <p>
-	 * Only {@code lo} reaches the function: a {@link StepPresetFunc} derives its
-	 * own maximum from the step size and the stop count, so the display range's
-	 * top is not part of what color a raw value gets (see that class's javadoc).
-	 * {@code hi} is used solely to resolve an automatic step size into an
-	 * explicit one -- the step size that would put the palette's far edge on
-	 * {@code hi}. Past that edge the boundary condition takes over, repeating the
-	 * palette (CYCLE) or holding the last color (CLAMP).
-	 */
+	/** {@code hi} is only used to resolve {@link LutEditorMapping#AUTO_STEP_SIZE}. */
 	private static PresetFunc stepFunc( final LutEditorMapping mapping, final ColorScheme scheme, final double lo, final double hi )
 	{
 		final int paletteRangeLength = scheme.getPaletteRangeLength();
@@ -125,7 +89,6 @@ public final class PaletteWrapperBuilder
 		return new StepPresetFunc( lo, paletteRangeLength, stepSize );
 	}
 
-	/** The continuous palette's shape: the editor's curve, knot for knot. */
 	private static PresetFunc curveFunc( final LutEditorMapping mapping, final ColorScheme scheme, final double lo, final double hi )
 	{
 		final CustomInterpPresetFunc curve = new CustomInterpPresetFunc( lo, hi, scheme.getPaletteRangeLength() );
@@ -134,7 +97,6 @@ public final class PaletteWrapperBuilder
 		return curve;
 	}
 
-	/** The knot arrays {@link CustomInterpPresetFunc#setKnots} needs; see {@link #sanitizedKnots}. */
 	private static final class Knots
 	{
 		final double[] ts;
@@ -148,12 +110,8 @@ public final class PaletteWrapperBuilder
 	}
 
 	/**
-	 * The mapping curve as {@link CustomInterpPresetFunc}-ready knots: x
-	 * positions clamped to {@code [0,1]} and forced strictly ascending (dropping
-	 * any that would not advance), outputs scaled from {@code [0,255]} to
-	 * {@code [0,1]}. Falls back to a linear pair if fewer than two usable knots
-	 * survive, so a degenerate curve can never make the wrapper throw during a
-	 * live edit.
+	 * Clamps and de-duplicates the curve into valid knots, falling back to
+	 * linear, so a degenerate curve never throws during a live edit.
 	 */
 	private static Knots sanitizedKnots( final LutEditorMapping mapping )
 	{
@@ -166,7 +124,7 @@ public final class PaletteWrapperBuilder
 		{
 			final double t = Math.max( 0.0, Math.min( 1.0, xs[ i ] ) );
 			if ( n > 0 && !( t > ts[ n - 1 ] ) )
-				continue; // keep strictly ascending; a non-advancing point is dropped
+				continue; // keep strictly ascending
 			ts[ n ] = t;
 			values[ n ] = Math.max( 0.0, Math.min( 1.0, ys[ i ] / 255.0 ) );
 			n++;

@@ -31,11 +31,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 /**
- * Test cases for {@link AlphaSigmoidPresetFunc}. Endpoint and out-of-range
- * behavior shared by every {@link PresetFunc} is covered generically by
- * {@link AbstractPresetFuncTest}; this only checks the shape distinctive to
- * this class. Expected values computed independently from the formula
- * ({@code alpha = 0.5}), not derived from this implementation.
+ * Shape only; see {@link AbstractPresetFuncTest}. Expected values come from
+ * the formula ({@code alpha = 0.5}), not from this implementation.
  */
 public class AlphaSigmoidPresetFuncTest
 {
@@ -61,12 +58,7 @@ public class AlphaSigmoidPresetFuncTest
 		Assert.assertEquals( 5f, scaled().getPaletteValueForRaw( 150f ), 1e-4f );
 	}
 
-	/**
-	 * Unlike the plain sigmoid (steep through the middle, flat at the edges),
-	 * alpha=0.5 gives the opposite family: steep near the edges, flat through
-	 * the middle. So it leads linear just past the low end and trails linear
-	 * just past the midpoint.
-	 */
+	/** Unlike the plain sigmoid, alpha=0.5 is steep at the edges and flat in the middle. */
 	@Test
 	public void testRisesFasterNearTheEdgesThanLinear()
 	{

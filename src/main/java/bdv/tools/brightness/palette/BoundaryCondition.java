@@ -30,42 +30,21 @@ package bdv.tools.brightness.palette;
 /**
  * What a {@link PresetPaletteWrapper} does when a raw value falls outside its
  * domain ({@code [presetFunc.getMin(), presetFunc.getMax()]}), independently
- * for the left and right side.
- * <p>
- * Deliberately owned by the wrapper, not the color scheme it wraps: a color
- * scheme already has its own fixed edge behavior for an out-of-domain value
- * (see {@code ColorScheme}, which always clamps), but boundary handling is a
- * raw-value-mapping concern, kept out of the color scheme so it can stay
- * ignorant of anything upstream of a palette value.
+ * for the left and right side. Owned by the wrapper so color schemes stay
+ * ignorant of raw values.
  */
 public enum BoundaryCondition
 {
-	/**
-	 * Convert the raw value as usual and pass the result through unchanged.
-	 * A color scheme's own {@code getRGB}/{@code getRGBA} (and a
-	 * {@code PresetFunc}'s own conversion) already clamp an out-of-domain
-	 * value to its nearest edge, so this is that clamping, simply left to
-	 * happen rather than pre-empted here.
-	 */
+	/** Use the nearest edge color (what color schemes and preset functions do anyway). */
 	CLAMP,
 
-	/**
-	 * Wrap the raw value around to the opposite side of the domain (e.g. one
-	 * step below the domain's start resolves to its last valid value),
-	 * instead of collapsing onto a single edge color -- for data that is
-	 * itself cyclic (e.g. hue, or a phase angle).
-	 */
+	/** Wrap around to the opposite side of the domain, for cyclic data such as hue or phase. */
 	CYCLE,
 
 	/**
-	 * Use a fixed, user-supplied color instead of looking one up in the
-	 * palette at all -- e.g. a dedicated background color for out-of-range raw
-	 * values, distinct from either edge of the palette. Being a real color
-	 * (packed ARGB) rather than a palette value, it can be a hue not in the
-	 * palette or, via its alpha, transparent -- which is how a "background"
-	 * out-of-range value is made to render as nothing. See
-	 * {@link PresetPaletteWrapper#getLeftSpecialColor()}/
-	 * {@link PresetPaletteWrapper#getRightSpecialColor()}.
+	 * Use a fixed packed-ARGB color instead of the palette; may be outside the
+	 * palette or transparent (a background). See
+	 * {@link PresetPaletteWrapper#getLeftSpecialColor()}.
 	 */
 	SPECIAL
 }

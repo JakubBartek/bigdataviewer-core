@@ -55,20 +55,10 @@ import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.real.DoubleType;
 
-/**
- * How faithfully a {@link bdv.tools.brightness.colorscheme.LegacyBdvColorPalette}
- * reproduces the legacy converter, over every color, range and raw value, is
- * covered by {@code LegacyBdvColorPaletteTest}; here only that a conversion
- * actually installs it, so the converted source renders as it did before.
- */
+/** Fidelity is covered by {@code LegacyBdvColorPaletteTest}; this checks the conversion installs it. */
 public class PaletteConverterFactoryTest
 {
-	/**
-	 * A source that exists only to answer {@code getType()} and
-	 * {@code getName()} -- the only two things {@link PaletteConverterFactory}
-	 * asks a source about. Nothing here is ever rendered. Also used by
-	 * {@link LutEditorDialogTest}, whose dialog asks no more of a source.
-	 */
+	/** Only answers {@code getType()} and {@code getName()}; also used by {@link LutEditorDialogTest}. */
 	static class TypeOnlySource< T extends NumericType< T > > implements Source< T >
 	{
 		private final T type;
@@ -178,11 +168,6 @@ public class PaletteConverterFactoryTest
 		assertFalse( PaletteConverterFactory.canApproximate( soc( new ARGBType(), argbConverter ) ) );
 	}
 
-	/**
-	 * A volatile counterpart that cannot be converted blocks the whole
-	 * conversion: converting only the non-volatile half would leave the source
-	 * rendering in one scheme while loading and another once loaded.
-	 */
 	@Test
 	public void testUnconvertibleVolatileCounterpartBlocksConversion()
 	{
@@ -217,11 +202,6 @@ public class PaletteConverterFactoryTest
 		assertEquals( 923.25, converted.getMax(), 0.0 );
 	}
 
-	/**
-	 * A collapsed range leaves the ramp nothing to stretch across, which the
-	 * new representation rejects outright while the legacy converter tolerated
-	 * it. It is widened by one raw unit rather than failing the conversion.
-	 */
 	@Test
 	public void testCollapsedRangeIsWidenedRatherThanRejected()
 	{
@@ -232,11 +212,6 @@ public class PaletteConverterFactoryTest
 		assertEquals( 43.0, converted.getMax(), 0.0 );
 	}
 
-	/**
-	 * Both halves of a source must render through one and the same wrapper, so
-	 * that an edit made through the LUT editor reaches the volatile converter
-	 * too rather than only taking hold once loading finishes.
-	 */
 	@Test
 	public void testVolatileCounterpartSharesTheSameWrapper()
 	{
@@ -255,12 +230,7 @@ public class PaletteConverterFactoryTest
 		assertSame( converted.getWrapper(), ( ( PaletteConverter< ? > ) volatileConverter ).getWrapper() );
 	}
 
-	/**
-	 * The legacy converter is its own reference here: it is asked for its
-	 * colors before the conversion and the new converter has to reproduce
-	 * them. The sample points avoid exact rounding ties, which the two
-	 * paths are allowed to break differently.
-	 */
+	/** The legacy converter is the reference; samples avoid rounding ties. */
 	@Test
 	public void testConvertedSourceRendersAsTheLegacyConverterDid()
 	{
@@ -338,10 +308,7 @@ public class PaletteConverterFactoryTest
 		return argbs;
 	}
 
-	/**
-	 * Compare rendered colors as hex strings, so a failure prints the two
-	 * ramps side by side instead of an index and two decimal ints.
-	 */
+	/** Hex strings, so a failure prints both ramps side by side. */
 	private static void assertColors( final int[] expected, final int[] actual )
 	{
 		assertEquals( hex( expected ), hex( actual ) );

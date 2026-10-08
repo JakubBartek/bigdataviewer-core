@@ -38,27 +38,9 @@ import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.RealType;
 
 /**
- * Renders a real-valued source through the color-mapping architecture in
- * {@code bdv.tools.brightness.palette}: each sample is handed to a
- * {@link PaletteWrapper}, which turns it into a color
- * ({@code rawValue -> boundary handling -> paletteValue -> RGB}). This is the
- * render entry point of the new color-mapping architecture; the LUT editor
- * configures the wrapper it renders through (see {@code PaletteWrapperBuilder}).
- * <p>
- * The converter's {@linkplain #getMin() min}/{@linkplain #getMax() max} are the
- * display range, driven by the brightness/contrast controls via
- * {@code ConverterSetup#setDisplayRange}. Every change to it is forwarded to
- * {@link PaletteWrapper#setRawDomain(double, double)}; the wrapper stays the
- * single source of truth for how a raw value becomes a color.
- * <p>
- * How much of that range the wrapper actually uses is its own business, and
- * differs by kind. A continuous mapping stretches its curve across the whole
- * window, so both ends matter. A discrete one is defined by a step size in raw
- * units -- so many raw values per color -- which fixes the width of the palette
- * independently of the window; there, only {@code min} moves the mapping, and
- * what happens past the last color stop is the wrapper's boundary condition
- * rather than a consequence of how wide the window is. See
- * {@code StepPresetFunc}.
+ * Renders a real-valued source through a {@link PaletteWrapper}. The display
+ * range ({@linkplain #getMin() min}/{@linkplain #getMax() max}) is forwarded to
+ * {@link PaletteWrapper#setRawDomain(double, double)} on every change.
  *
  * @param <R> source pixel type.
  */
@@ -84,7 +66,7 @@ public class PaletteConverter< R extends RealType< R > > extends AbstractLinearR
 		return wrapper;
 	}
 
-	/** Swap in a different wrapper (e.g. a different palette or discrete/continuous kind), re-applying the current display range to it. */
+	/** Swap in a different wrapper, re-applying the current display range to it. */
 	public void setWrapper( final PaletteWrapper wrapper )
 	{
 		this.wrapper = Objects.requireNonNull( wrapper, "wrapper" );
@@ -94,16 +76,7 @@ public class PaletteConverter< R extends RealType< R > > extends AbstractLinearR
 	@Override
 	public void convert( final R input, final ARGBType output )
 	{
-		// getRGBAForRaw, not getRGBForRaw, so a color stop's own alpha and a
-		// transparent SPECIAL-boundary (background) color both survive to the
-		// display.
-		//
-		// The sample is handed over as the double it already is: narrowing to
-		// float here would silently merge label ids above 2^24 (float cannot
-		// represent consecutive integers past 16,777,216, so half of every
-		// million ids above it collide with their neighbour), rendering two
-		// distinct labels in one color with nothing downstream able to tell
-		// them apart again.
+		// RGBA keeps a transparent SPECIAL boundary color
 		output.set( wrapper.getRGBAForRaw( input.getRealDouble() ) );
 	}
 
@@ -121,11 +94,7 @@ public class PaletteConverter< R extends RealType< R > > extends AbstractLinearR
 		syncDomain();
 	}
 
-	/**
-	 * Keep the wrapper's raw domain equal to the display range. Skipped while
-	 * the range is momentarily inverted (as it can be between a paired
-	 * {@code setMin}/{@code setMax}); the following call settles it.
-	 */
+	/** Skipped while the range is momentarily inverted between {@code setMin}/{@code setMax}. */
 	private void syncDomain()
 	{
 		if ( wrapper != null && max > min )
@@ -141,8 +110,7 @@ public class PaletteConverter< R extends RealType< R > > extends AbstractLinearR
 	@Override
 	public void setColor( final ARGBType c )
 	{
-		// A palette converter has no single editable color; its colors come
-		// from the wrapper's color scheme.
+		// colors come from the wrapper
 	}
 
 	@Override

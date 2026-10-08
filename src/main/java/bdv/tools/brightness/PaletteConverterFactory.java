@@ -43,27 +43,12 @@ import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.RealType;
 
 /**
- * Re-renders a source that was set up with a single-color converter (the
- * "legacy" {@code RealARGBColorConverter} and friends) through the color
- * mapping architecture in {@code bdv.tools.brightness.palette} instead, so
- * that {@link LutEditorDialog} can edit it.
- * <p>
- * The translation keeps the source looking as it did:
- * <ul>
- * <li>The display range is carried over as the new mapping's raw domain --
- * exactly, unless it was collapsed to a single value, which the new
- * representation cannot express and which is widened by one raw unit.</li>
- * <li>The transfer function becomes {@link LinearPresetFunc linear}, which is
- * what a single-color converter always is: it scales the raw value into the
- * display range and multiplies its color by the result.</li>
- * <li>The single color becomes a {@link LegacyBdvColorPalette}, the
- * black-to-color ramp that converter renders.</li>
- * </ul>
- * It is faithful below and inside the display range, up to a rounding tie
- * landing one unit apart in a channel. Above the range it is faithful only
- * for colors whose channels are each 0 or 255 -- see
- * {@link LegacyBdvColorPalette} for why the old converter keeps brightening
- * any other color there and a palette cannot.
+ * Replaces a single-color converter ({@code RealARGBColorConverter} and
+ * friends) with a {@link PaletteConverter} that looks the same, so that
+ * {@link LutEditorDialog} can edit it: same display range, a
+ * {@link LinearPresetFunc linear} shape and a {@link LegacyBdvColorPalette}.
+ * See that palette for where the two diverge. A collapsed display range is
+ * widened by one raw unit.
  *
  * @author Jakub Bartek
  */
@@ -73,14 +58,9 @@ public final class PaletteConverterFactory
 	{}
 
 	/**
-	 * Whether {@link #approximateInPlace} can do anything with {@code soc}:
-	 * its converter has to be a single-color one for there to be a color and a
-	 * range to read off, its samples have to be real-valued for
-	 * {@link PaletteConverter} to accept them, and the same has to hold for
-	 * its {@link SourceAndConverter#asVolatile() volatile} counterpart if it
-	 * has one -- converting only one of the two would leave the source
-	 * rendering under one color scheme while data is still loading and another
-	 * once it has arrived.
+	 * Requires a single-color converter over real-typed samples, for the
+	 * volatile counterpart too, so the source never renders with two different
+	 * schemes while loading.
 	 */
 	public static boolean canApproximate( final SourceAndConverter< ? > soc )
 	{
@@ -96,20 +76,13 @@ public final class PaletteConverterFactory
 	}
 
 	/**
-	 * Swap {@code soc}'s converter (and its volatile counterpart's) for
-	 * {@link PaletteConverter}s approximating the current one, and return the
-	 * new converter -- or {@code null} if {@link #canApproximate} says there is
-	 * nothing to convert.
+	 * Swap the converters of {@code soc} and its volatile counterpart, sharing
+	 * one {@link PresetPaletteWrapper}, and return the new one; {@code null} if
+	 * {@link #canApproximate} fails.
 	 * <p>
-	 * Both converters are handed the <em>same</em> {@link PresetPaletteWrapper}
-	 * instance, so an edit reaching one reaches the other: they render the same
-	 * pixels, differing only in whether the data has arrived yet, and there is
-	 * no mapping state either of them needs to hold separately.
-	 * <p>
-	 * This leaves the source's {@code ConverterSetup} pointing at the old
-	 * converter; the caller has to re-point it (see
-	 * {@link RealARGBColorConverterSetup#setConverters}), for which
-	 * {@link #colorConvertersOf} collects what it should now drive.
+	 * The caller must re-point the {@code ConverterSetup} (see
+	 * {@link RealARGBColorConverterSetup#setConverters} and
+	 * {@link #colorConvertersOf}).
 	 */
 	public static PaletteConverter< ? > approximateInPlace( final SourceAndConverter< ? > soc )
 	{
@@ -121,12 +94,7 @@ public final class PaletteConverterFactory
 		final double max = legacy.getMax();
 
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( paletteFor( legacy ) );
-		// A collapsed display range leaves the ramp nothing to stretch across,
-		// which PresetPaletteWrapper rejects outright. The legacy converter
-		// tolerates it (it renders a single flat color), so the range is
-		// widened by one raw unit rather than the conversion failing -- the
-		// user gets an editable source and can set a sensible range from the
-		// brightness controls.
+		// the legacy converter tolerates a collapsed range, the wrapper does not
 		final double hi = max > min ? max : min + 1;
 		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme,
 				new LinearPresetFunc( min, hi, scheme.getPaletteRangeLength() ) );
@@ -137,14 +105,7 @@ public final class PaletteConverterFactory
 		return converted;
 	}
 
-	/**
-	 * The {@link ColorConverter}s of {@code soc} and of its volatile
-	 * counterpart -- everything a {@code ConverterSetup} for {@code soc} has to
-	 * drive the display range of. Shared with
-	 * {@code BigDataViewer#createConverterSetup} so that the set of converters
-	 * a setup is built from and the set it is later re-pointed at are decided
-	 * in one place.
-	 */
+	/** The {@link ColorConverter}s of {@code soc} and its volatile counterpart, i.e. what its {@code ConverterSetup} drives. */
 	public static List< ColorConverter > colorConvertersOf( final SourceAndConverter< ? > soc )
 	{
 		final List< ColorConverter > converters = new ArrayList<>();
@@ -156,11 +117,7 @@ public final class PaletteConverterFactory
 		return converters;
 	}
 
-	/**
-	 * The palette {@code legacy} renders with (see {@link LegacyBdvColorPalette}),
-	 * falling back to the white ramp -- the old converter's own default color
-	 * -- for a converter with no color to read.
-	 */
+	/** Falls back to white, the old converter's default, when there is no color to read. */
 	static LegacyBdvColorPalette paletteFor( final ColorConverter legacy )
 	{
 		final ARGBType color = legacy.supportsColor() ? legacy.getColor() : null;
@@ -185,12 +142,7 @@ public final class PaletteConverterFactory
 			converters.add( ( ColorConverter ) converter );
 	}
 
-	/**
-	 * The source's pixel type is only known to be a {@code RealType} at
-	 * runtime (see {@link #isRealTyped}), which no signature can express
-	 * against a {@code SourceAndConverter<?>}; the raw types here are how that
-	 * check is cashed in.
-	 */
+	/** Raw types: the {@code RealType} is only checked at runtime ({@link #isRealTyped}). */
 	@SuppressWarnings( { "unchecked", "rawtypes" } )
 	private static PaletteConverter< ? > install( final SourceAndConverter< ? > soc, final PresetPaletteWrapper wrapper, final double min, final double max )
 	{

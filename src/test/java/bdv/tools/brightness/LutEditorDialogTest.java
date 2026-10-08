@@ -61,13 +61,8 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeFalse;
 
 /**
- * Lifecycle of the editor window and the contents of its palette chooser, as
- * opposed to the colour mapping it edits (which is covered by
- * {@link LutEditorMappingTest} and the converter tests).
- * <p>
- * The dialog follows the viewer's current-source selection by listening to the
- * {@code ViewerState}, which usually outlives it; what is asserted here is
- * that {@code dispose()} lets go of that state again.
+ * Window lifecycle and palette chooser contents; the mapping itself is
+ * covered by {@link LutEditorMappingTest} and the converter tests.
  */
 public class LutEditorDialogTest
 {
@@ -75,11 +70,7 @@ public class LutEditorDialogTest
 
 	private static final Palette GREEN_TO_RED = new Palette( new int[] { ARGBType.rgba( 0, 255, 0, 255 ), ARGBType.rgba( 255, 0, 0, 255 ) }, true );
 
-	/**
-	 * A disposed dialog left registered on a long-lived {@code ViewerState}
-	 * would keep itself and everything it edits alive for as long as the
-	 * viewer runs.
-	 */
+	/** Otherwise the long-lived {@code ViewerState} keeps the dialog alive. */
 	@Test
 	public void testDisposeUnregistersTheStateListener()
 	{
@@ -115,11 +106,6 @@ public class LutEditorDialogTest
 
 	// -- following the display range -----------------------------------------
 
-	/**
-	 * A display range changed outside the editor -- by the brightness dialog,
-	 * say -- shows up in it, and is what the editor's next edit pushes, rather
-	 * than the range the session opened with.
-	 */
 	@Test
 	public void testFollowsADisplayRangeChangedElsewhere() throws Exception
 	{
@@ -189,11 +175,7 @@ public class LutEditorDialogTest
 
 	// -- discrete palette defaults ------------------------------------------
 
-	/**
-	 * Switching from a continuous palette to a discrete one starts it at
-	 * min 1, step size 1, keeping the range's max; switching on to another
-	 * discrete palette keeps what the user has set since.
-	 */
+	/** Continuous to discrete resets to min 1, step 1; discrete to discrete keeps them. */
 	@Test
 	public void testDiscretePaletteStartsAtMinOneStepOne() throws Exception
 	{
@@ -375,12 +357,7 @@ public class LutEditorDialogTest
 
 	// -- converting a legacy source ------------------------------------------
 
-	/**
-	 * Showing the editor on a source with a single-color converter converts it
-	 * and opens on the palette it is now rendered with, listed and selected in
-	 * the chooser -- not on the neutral gray, which the first edit would push
-	 * over the source's color.
-	 */
+	/** Not the neutral gray, which the first edit would push over the source's color. */
 	@Test
 	public void testConvertedSourceOpensOnItsLegacyPalette()
 	{
@@ -417,11 +394,7 @@ public class LutEditorDialogTest
 		}
 	}
 
-	/**
-	 * imglib2's {@code RealARGBColorConverter} is a class copy in a class
-	 * loader of its own, which {@code Class.getSimpleName()} throws on -- the
-	 * status line has to name it without asking.
-	 */
+	/** {@code Class.getSimpleName()} throws on imglib2's class copy. */
 	@Test
 	public void testConverterKindNamesAClassCopiedConverter()
 	{

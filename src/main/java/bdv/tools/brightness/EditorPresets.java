@@ -53,25 +53,11 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 /**
- * Discovers, loads and saves {@link EditorPreset}s: the data-access side of
- * the LUT editor's "Setting" feature, deliberately kept free of any UI (see
- * {@link LutPalettes}, which this mirrors for the palette side of the
- * editor). There are two sources, merged by {@link #discoverNames()}:
- * <ul>
- * <li>Built-in presets, bundled read-only classpath resources directly under
- * {@value #BUILTIN_RESOURCE_DIR}.</li>
- * <li>User-saved presets, written by {@link #save(EditorPreset)} to a
- * {@value #USER_SUBDIR} subdirectory of that same resource directory --
- * kept out of version control via a {@code .gitignore} entry, rather than a
- * separate location entirely, so built-in and user-saved presets are easy to
- * find side by side on disk.</li>
- * </ul>
- * A user-saved preset takes precedence over a built-in one of the same name.
- * <p>
- * Since {@value #USER_SUBDIR} must be writable, this only works when
- * {@value #BUILTIN_RESOURCE_DIR} resolves to a real directory on the local
- * filesystem (e.g. running from an IDE or {@code target/classes}) -- not
- * when packaged inside a jar.
+ * Discovers, loads and saves {@link EditorPreset}s: built-in ones under
+ * {@value #BUILTIN_RESOURCE_DIR}, and user-saved ones in its
+ * {@value #USER_SUBDIR} subdirectory (git-ignored), which take precedence.
+ * Saving only works when the resource directory is on the filesystem, not in
+ * a jar.
  */
 public final class EditorPresets
 {
@@ -81,11 +67,7 @@ public final class EditorPresets
 
 	private static final String RESOURCE_EXTENSION = ".json";
 
-	/**
-	 * System property that, if set, overrides {@link #userDir()} entirely --
-	 * lets tests point saves/loads at a throwaway directory instead of
-	 * {@value #BUILTIN_RESOURCE_DIR}'s own {@value #USER_SUBDIR} subdirectory.
-	 */
+	/** Overrides {@link #userDir()}, for tests. */
 	static final String USER_DIR_OVERRIDE_PROPERTY = "bdv.tools.brightness.EditorPresets.userDir";
 
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -93,14 +75,7 @@ public final class EditorPresets
 	private EditorPresets()
 	{}
 
-	/**
-	 * The writable directory {@link #save(EditorPreset)} writes to: the
-	 * {@value #USER_SUBDIR} subdirectory of wherever {@value #BUILTIN_RESOURCE_DIR}
-	 * actually resolves to on disk -- or {@link #USER_DIR_OVERRIDE_PROPERTY}
-	 * verbatim, if set. {@code null} when there is no such directory (see
-	 * {@link #resolveBuiltinResourceDir()}), in which case user-saved presets
-	 * are simply unavailable; built-in ones still load normally.
-	 */
+	/** {@code null} if there is no writable directory; built-in presets still load. */
 	private static String userDir()
 	{
 		final String override = System.getProperty( USER_DIR_OVERRIDE_PROPERTY );
@@ -110,19 +85,7 @@ public final class EditorPresets
 		return builtinDir == null ? null : new File( builtinDir, USER_SUBDIR ).getAbsolutePath();
 	}
 
-	/**
-	 * The real filesystem directory {@value #BUILTIN_RESOURCE_DIR} resolves
-	 * to, or {@code null} if it cannot be found or is not an actual
-	 * directory on the local filesystem -- notably when running from a
-	 * packaged jar, whose {@code jar:} URL is not a hierarchical URI and so
-	 * cannot become a {@link File} at all.
-	 * <p>
-	 * Only {@link #userDir()} needs this. Built-in presets themselves are
-	 * read through the classloader instead (see {@link #discoverNames()},
-	 * {@link #load(String)}), which works either way -- so returning
-	 * {@code null} here must degrade to "no user-saved presets", never break
-	 * the built-in ones.
-	 */
+	/** {@code null} when not on the filesystem, e.g. in a jar. */
 	private static File resolveBuiltinResourceDir()
 	{
 		final URL dirUrl = EditorPresets.class.getClassLoader().getResource( BUILTIN_RESOURCE_DIR );
@@ -138,22 +101,13 @@ public final class EditorPresets
 		}
 	}
 
-	/**
-	 * The file a user-saved preset of this name lives in, or {@code null} if
-	 * there is no writable {@link #userDir()} at all.
-	 */
 	private static File userFile( final String name )
 	{
 		final String dir = userDir();
 		return dir == null ? null : new File( dir, canonicalName( name ) + RESOURCE_EXTENSION );
 	}
 
-	/**
-	 * The names of all available presets (built-in and user-saved, merged
-	 * and de-duplicated), sorted case-insensitively. A name is what
-	 * {@link #load(String)} expects and {@link #isUserDefined(String)}
-	 * classifies.
-	 */
+	/** Built-in and user-saved names, de-duplicated and sorted case-insensitively. */
 	public static List< String > discoverNames()
 	{
 		final TreeSet< String > sorted = new TreeSet<>( String.CASE_INSENSITIVE_ORDER );
@@ -206,12 +160,7 @@ public final class EditorPresets
 		return fileName.substring( 0, fileName.length() - RESOURCE_EXTENSION.length() );
 	}
 
-	/**
-	 * Whether {@code name} is (currently) backed by a user-saved file rather
-	 * than a built-in resource -- used by the UI to group the two kinds
-	 * separately. If both exist, the user-saved one is what {@link #load}
-	 * returns, so this reports {@code true}.
-	 */
+	/** {@code true} if a user-saved file exists, even when a built-in one does too. */
 	public static boolean isUserDefined( final String name )
 	{
 		final File file = userFile( name );
@@ -219,9 +168,7 @@ public final class EditorPresets
 	}
 
 	/**
-	 * Load the named preset, preferring a user-saved file over a built-in
-	 * resource of the same name, or {@code null} if neither exists or it
-	 * cannot be parsed.
+	 * Prefers the user-saved file; {@code null} if missing or not parseable.
 	 *
 	 * @param name
 	 * 		a name as returned by {@link #discoverNames()}.
@@ -255,21 +202,12 @@ public final class EditorPresets
 	}
 
 	/**
-	 * Save {@code preset} (under {@link EditorPreset#getName()}) to
-	 * {@link #userDir()}, creating the directory if needed and overwriting
-	 * any existing file of the same name -- including a built-in preset's
-	 * name, which this then takes precedence over (see {@link #load}).
+	 * Overwrites an existing file of the same name.
 	 *
 	 * @throws IllegalStateException
-	 * 		if there is no writable directory to save into at all (see
-	 * 		{@link #resolveBuiltinResourceDir()}); unlike the read paths,
-	 * 		which just degrade to "no user-saved presets", saving cannot
-	 * 		silently do nothing.
+	 * 		if there is no writable directory.
 	 * @throws IllegalArgumentException
-	 * 		if the preset's name is not already {@link #canonicalName canonical}
-	 * 		-- filing it under a different name than it carries would make
-	 * 		{@link #discoverNames()} (which reads names off file names)
-	 * 		disagree with {@link EditorPreset#getName()}.
+	 * 		if the name is not {@link #canonicalName canonical}.
 	 */
 	public static void save( final EditorPreset preset )
 	{
@@ -293,18 +231,8 @@ public final class EditorPresets
 	}
 
 	/**
-	 * A preset's canonical name: trimmed, with path separators and other
-	 * filesystem-significant characters replaced, since a preset is
-	 * identified by its file name and those would otherwise let it escape
-	 * {@link #userDir()} or collide with something there.
-	 * <p>
-	 * Public because callers must canonicalize a user-typed name
-	 * <em>before</em> comparing it against {@link #discoverNames()} or
-	 * storing it in an {@link EditorPreset}: names there are always already
-	 * canonical (they come from file names), so comparing a raw name against
-	 * them would miss an existing preset, and storing a raw name would leave
-	 * {@link EditorPreset#getName()} disagreeing with the name this class
-	 * actually files it under.
+	 * Trimmed, with filesystem-significant characters replaced. Callers must
+	 * canonicalize a typed name before comparing it with {@link #discoverNames()}.
 	 */
 	public static String canonicalName( final String name )
 	{

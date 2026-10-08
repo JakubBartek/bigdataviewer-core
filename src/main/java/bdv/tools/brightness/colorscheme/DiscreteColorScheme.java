@@ -28,17 +28,8 @@
 package bdv.tools.brightness.colorscheme;
 
 /**
- * A color scheme with {@code N} discrete color stops and no blending between
- * them -- suited to qualitative/categorical palettes (e.g. label ids), where
- * each stop is its own distinct color rather than a point on a gradient.
- * <p>
- * {@link #getPaletteRangeLength()} is {@code N}; the valid palette-value domain is
- * the half-open interval {@code [0, N)}. A palette value is truncated
- * (floored) to the stop whose unit-wide slot it falls into: for {@code N = 3},
- * {@code 0} and {@code 0.99} both land on stop {@code 0}, {@code 2.99} lands
- * on stop {@code 2}. A value outside {@code [0, N)} (e.g. {@code -0.001} or
- * {@code 3.0} for {@code N = 3}) is not an error -- it clamps to the nearest
- * edge stop ({@code 0} or {@code N - 1}) instead.
+ * {@code N} color stops without blending (e.g. label ids). The domain is the
+ * half-open interval {@code [0, N)}; a palette value is floored to its stop.
  */
 public class DiscreteColorScheme extends AbstractColorScheme
 {

@@ -30,12 +30,9 @@ package bdv.tools.brightness.colorscheme;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
- * Shared color-stop storage and RGB/RGBA mechanics for
- * {@link DiscreteColorScheme} and {@link ContinuousColorScheme}: the two only
- * differ in how a palette value resolves to a stop (or a blend of two) --
- * see {@link #colorAt(double)} -- and in {@link ColorScheme#getPaletteRangeLength()}.
- * Package-private: an implementation detail, not part of the public API in
- * {@link ColorScheme}.
+ * Shared color-stop storage for {@link DiscreteColorScheme} and
+ * {@link ContinuousColorScheme}, which differ only in {@link #colorAt(double)}
+ * and {@link ColorScheme#getPaletteRangeLength()}.
  */
 abstract class AbstractColorScheme implements ColorScheme
 {
@@ -49,12 +46,7 @@ abstract class AbstractColorScheme implements ColorScheme
 		this.stops = argbStops.clone();
 	}
 
-	/**
-	 * Builds the color stops from a {@link Palette}, one stop per palette stop,
-	 * in order. A palette's {@link Palette#isInterpolated()} is deliberately
-	 * not consulted: it is what picks <em>which</em> scheme to construct, not
-	 * something a scheme reinterprets once chosen.
-	 */
+	/** {@link Palette#isInterpolated()} is not consulted; it only picks which scheme to build. */
 	AbstractColorScheme( final Palette palette )
 	{
 		this( palette.getStops() );
@@ -72,13 +64,7 @@ abstract class AbstractColorScheme implements ColorScheme
 		return colorAt( paletteValue ) | 0xff000000;
 	}
 
-	/**
-	 * The packed ARGB color at {@code paletteValue}. {@code paletteValue} is
-	 * not assumed to already be inside this scheme's domain -- implementations
-	 * clamp it themselves, so a value outside {@code [0, getPaletteRangeLength()]}
-	 * (or half-open equivalent) resolves to its nearest edge stop rather than
-	 * throwing or reading out of bounds.
-	 */
+	/** The packed-ARGB color at {@code paletteValue}, clamped to the nearest edge stop. */
 	abstract int colorAt( double paletteValue );
 
 	/** Linearly interpolates each channel independently between two packed-ARGB stops, {@code t} in {@code [0, 1]}. */

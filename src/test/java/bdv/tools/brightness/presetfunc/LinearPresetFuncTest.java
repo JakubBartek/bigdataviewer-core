@@ -30,12 +30,7 @@ package bdv.tools.brightness.presetfunc;
 import org.junit.Assert;
 import org.junit.Test;
 
-/**
- * Test cases for {@link LinearPresetFunc}. Endpoint and out-of-range behavior
- * shared by every {@link PresetFunc} is covered generically by
- * {@link AbstractPresetFuncTest}; this only checks the shape distinctive to
- * this class: proportional, unlike the others.
- */
+/** Shape only; see {@link AbstractPresetFuncTest}. */
 public class LinearPresetFuncTest
 {
 	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */

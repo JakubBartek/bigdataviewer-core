@@ -55,20 +55,10 @@ import bdv.tools.brightness.colorscheme.Palette;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
- * Discovers and loads the built-in LUT (color palette) resources. This is the
- * data-access side of the LUT editor, deliberately kept free of any UI so the
- * discovery/parsing computation lives outside the (visual) dialog. The dialog
- * only asks this for names and colors.
- * <p>
- * A LUT resource is a JSON file with a {@code fixes_RGBA} array of
- * {@code [red, green, blue, alpha]} components (all in [0, 1]), one per
- * color, in order -- a color's index is simply its position in the array, so
- * colors are always evenly spaced (see {@link Palette}). The number of
- * colors is arbitrary (not tied to 256); colors between them are obtained by
- * linear interpolation. A top-level {@code color_interpolation} boolean declares whether the
- * palette is meant to be smoothly interpolated or used as discrete colors
- * (see {@link Palette#isInterpolated()}, set on the {@link Palette}
- * returned by {@link #load(String)}).
+ * Discovers and loads the built-in LUT resources: JSON files with a
+ * {@code fixes_RGBA} array of {@code [r, g, b, a]} in [0, 1], one per stop,
+ * and an optional {@code color_interpolation} boolean
+ * ({@link Palette#isInterpolated()}, default {@code true}).
  */
 public final class LutPalettes
 {
@@ -80,11 +70,7 @@ public final class LutPalettes
 	{
 	}
 
-	/**
-	 * The names of all available LUT resources, sorted case-insensitively.
-	 * A name is the resource file name without its {@code .json} extension,
-	 * and is what {@link #load(String)} expects.
-	 */
+	/** Resource file names without {@code .json}, sorted case-insensitively. */
 	public static List< String > discoverNames()
 	{
 		final List< String > names = new ArrayList<>();
@@ -128,18 +114,9 @@ public final class LutPalettes
 	}
 
 	/**
-	 * Load the named LUT resource as a {@link Palette}, or {@code null} if
-	 * it cannot be found or parsed. The returned palette's
-	 * {@link Palette#isInterpolated()} reflects the resource's
-	 * {@code color_interpolation} field (defaulting to {@code true} if the
-	 * resource does not declare it).
-	 * <p>
-	 * The name must match a discovered one exactly, case included. A bare
-	 * resource lookup would not guarantee that: read from a jar it is
-	 * case-sensitive, but read from a directory (an IDE run) it follows the
-	 * filesystem, which on Windows ignores case -- so {@code "Gray"} would load
-	 * {@code gray.json} there and nowhere else, and {@code LutEditorDialog}
-	 * would take the custom-colors "Gray" for a clash with it.
+	 * {@code null} if not found or not parseable. The name must match a
+	 * discovered one exactly: on Windows a directory lookup ignores case, so
+	 * {@code "Gray"} would otherwise load {@code gray.json}.
 	 *
 	 * @param name
 	 * 		a name as returned by {@link #discoverNames()}.
@@ -179,15 +156,7 @@ public final class LutPalettes
 		return Math.max( 0, Math.min( 255, ( int ) Math.round( v * 255.0 ) ) );
 	}
 
-	/**
-	 * Reverse of {@link #load(String)}: the name of the discovered LUT
-	 * resource whose colors exactly match {@code palette}, or {@code null} if
-	 * none do (e.g. {@code palette} isn't one of these resources at all, such
-	 * as {@link Palette#DEFAULT} or a palette set up some other way).
-	 * Used to recover a display name for a bare {@link Palette} read back
-	 * from a converter, which doesn't otherwise remember which resource (if
-	 * any) it was originally loaded from.
-	 */
+	/** Reverse of {@link #load(String)}; {@code null} if no resource matches. */
 	public static synchronized String findName( final Palette palette )
 	{
 		if ( palette == null )
@@ -198,16 +167,7 @@ public final class LutPalettes
 		return null;
 	}
 
-	/**
-	 * Every bundled palette, parsed once and kept for the life of the
-	 * process. Only {@link #findName} uses this: it would otherwise re-read
-	 * and re-parse all ~90 resources on every call, and it is called on the
-	 * EDT each time the LUT editor's selected source changes.
-	 * <p>
-	 * Safe to cache, since the bundled resources cannot change while the
-	 * process runs and a {@link Palette} is immutable, so sharing one instance
-	 * between callers cannot alias unrelated sources together.
-	 */
+	/** Parsed once: {@link #findName} runs on the EDT on every source change. */
 	private static Map< String, Palette > cachedPalettes()
 	{
 		if ( cachedPalettes == null )
@@ -227,13 +187,7 @@ public final class LutPalettes
 	/** Guarded by {@code LutPalettes.class}, via {@link #findName}. */
 	private static Map< String, Palette > cachedPalettes = null;
 
-	/**
-	 * {@link #discoverNames()} as a set compared exactly, for {@link #load} to
-	 * check against. Kept for the life of the process, like
-	 * {@link #cachedPalettes()} and for the same reason: {@link #load} runs on
-	 * the EDT for each palette the LUT editor resolves, and listing the
-	 * resource directory each time would walk it (or open the jar) again.
-	 */
+	/** Cached like {@link #cachedPalettes()}, so {@link #load} does not walk the resources each time. */
 	private static synchronized Set< String > exactNames()
 	{
 		if ( exactNames == null )
@@ -244,10 +198,6 @@ public final class LutPalettes
 	/** Guarded by {@code LutPalettes.class}, via {@link #exactNames()}. */
 	private static Set< String > exactNames = null;
 
-	/**
-	 * Read and parse the named LUT resource's root JSON object, or
-	 * {@code null} if it cannot be found or parsed.
-	 */
 	private static JsonObject readRoot( final String name )
 	{
 		final String path = LUT_RESOURCE_DIR + "/" + name + LUT_RESOURCE_EXTENSION;

@@ -30,13 +30,7 @@ package bdv.tools.brightness.presetfunc;
 import org.junit.Assert;
 import org.junit.Test;
 
-/**
- * Test cases for {@link CustomInterpPresetFunc}. Endpoint and out-of-range
- * behavior shared by every {@link PresetFunc} is covered generically by
- * {@link AbstractPresetFuncTest} (which includes this class in its
- * cross-implementation checks); this focuses on what is distinctive here:
- * knot configuration and piecewise-linear interpolation between them.
- */
+/** Shared behavior is covered by {@link AbstractPresetFuncTest}; this covers knots. */
 public class CustomInterpPresetFuncTest
 {
 	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
@@ -54,11 +48,6 @@ public class CustomInterpPresetFuncTest
 		Assert.assertEquals( 7.5f, f.getPaletteValueForRaw( 175f ), 1e-4f );
 	}
 
-	/**
-	 * A knot at (0.5, 0.8) makes the shape rise steeply through the first
-	 * half and flatten out through the second -- values computed by hand from
-	 * the piecewise-linear segments 0->0.5 and 0.5->1.
-	 */
 	@Test
 	public void testInteriorKnotBendsTheShape()
 	{
@@ -83,16 +72,7 @@ public class CustomInterpPresetFuncTest
 		Assert.assertEquals( 5.0f, f.getPaletteValueForRaw( 160f ), 1e-4f ); // t=0.6
 	}
 
-	/**
-	 * Knots that don't reach t=0 or t=1 are taken at face value, not stretched
-	 * to hit palette value 0/paletteRangeLength: the outermost knot's value simply
-	 * extends flat to the edge of the domain. Unlike the fixed shapes, a
-	 * user-defined curve is not rescaled to pin its endpoints -- doing so
-	 * would silently rewrite what the user asked for (see
-	 * {@link #testInvertedKnotsStayInverted()} and
-	 * {@link #testFlatKnotsStayFlat()} for the cases where that actively
-	 * broke).
-	 */
+	/** Not rescaled to pin the endpoints; the outermost knot extends flat. */
 	@Test
 	public void testKnotsNotSpanningTheFullDomainAreNotStretchedToTheEdges()
 	{
@@ -103,12 +83,7 @@ public class CustomInterpPresetFuncTest
 		Assert.assertEquals( 7f, f.getPaletteValueForRaw( 200f ), 1e-4f );
 	}
 
-	/**
-	 * A deliberately decreasing curve must stay decreasing. Rescaling the
-	 * shape onto {@code [0, 1]} the way the fixed shapes do would divide by a
-	 * negative span and hand back an <em>increasing</em> curve -- the exact
-	 * opposite of what was configured.
-	 */
+	/** Rescaling would divide by a negative span and flip it. */
 	@Test
 	public void testInvertedKnotsStayInverted()
 	{
@@ -122,10 +97,7 @@ public class CustomInterpPresetFuncTest
 		Assert.assertEquals( 0f, f.getPaletteValueForRaw( 200f ), 1e-4f );
 	}
 
-	/**
-	 * A completely flat curve must stay flat. Rescaling would divide by a zero
-	 * span here, turning every single lookup into NaN.
-	 */
+	/** Rescaling would divide by zero. */
 	@Test
 	public void testFlatKnotsStayFlat()
 	{

@@ -41,12 +41,7 @@ public class RealARGBColorConverterSetup implements ConverterSetup
 {
 	private final int id;
 
-	/**
-	 * The converters this setup drives. A mutable copy of what the caller
-	 * passed, not the caller's own list, because {@link #setConverters} needs
-	 * to be able to replace its contents (and a varargs constructor's
-	 * {@link Arrays#asList} would not allow that).
-	 */
+	/** A mutable copy, so {@link #setConverters} can replace its contents. */
 	private final List< ColorConverter > converters = new ArrayList<>();
 
 	private final Listeners.List< SetupChangeListener > listeners;
@@ -64,19 +59,9 @@ public class RealARGBColorConverterSetup implements ConverterSetup
 	}
 
 	/**
-	 * Point this setup at a different set of converters, keeping its identity.
-	 * <p>
-	 * Needed when a source's converter is swapped in place (see
-	 * {@code SourceAndConverter#setConverter}): this setup would otherwise go
-	 * on reading and writing the display range of the converter that is no
-	 * longer rendering anything. Replacing the converters rather than building
-	 * a fresh setup matters because a {@code ConverterSetup} is an identity
-	 * everything else holds on to -- {@code SetupAssignments}, the
-	 * brightness dialog's slider groups, {@code ConverterSetupBounds} -- none
-	 * of which would follow a substitute.
-	 * <p>
-	 * The new converters keep whatever display range they already carry; this
-	 * does not push the old one onto them.
+	 * Re-point this setup after {@code SourceAndConverter#setConverter}. The
+	 * setup's identity is kept because {@code SetupAssignments} and others hold
+	 * on to it. The new converters keep their own display range.
 	 */
 	public void setConverters( final List< ColorConverter > converters )
 	{

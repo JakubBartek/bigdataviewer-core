@@ -30,50 +30,15 @@ package bdv.tools.brightness.presetfunc;
 import java.util.Objects;
 
 /**
- * A user-defined, piecewise-linear shape through an arbitrary number of
- * control points ("knots"), for the cases the fixed shapes ({@link LinearPresetFunc},
- * {@link SigmoidPresetFunc}, etc.) cannot express.
+ * A user-defined, piecewise-linear shape through knots {@code (t, value)},
+ * both normalized to {@code [0, 1]} (domain fraction and palette-value
+ * fraction). Flat outside the outermost knots.
  * <p>
- * A knot is a {@code (t, value)} pair, both already normalized to this
- * function's own domain fraction -- {@code t} is how far across
- * {@code [getMin(), getMax()]} the knot sits (0 at {@link #getMin()}, 1 at
- * {@link #getMax()}), and {@code value} is how far across the palette-value
- * range the knot sits (0 at palette value 0, 1 at {@link #getPaletteRangeLength()}).
- * Deliberately <em>not</em> raw values, palette values, or window/UI pixel
- * coordinates: a caller that has any of those (e.g. a future curve-editing
- * widget working in on-screen pixels) converts to this normalized {@code [0,1]}
- * space before calling {@link #setKnots(double[], double[])}, the same way
- * {@code MappingCurvePanel} already converts pixel coordinates before ever
- * calling {@code Curve#addPoint} -- this class only ever works in its own
- * normalized domain, never anything presentation-specific.
- * <p>
- * Between two knots, the value is linearly interpolated; outside the first or
- * last knot's {@code t}, the value stays flat at that knot's value (unlike
- * {@code Curve#evaluate}, which extrapolates the first segment's slope below
- * its first point -- a needless asymmetry not worth reproducing here).
- * <p>
- * Unlike the fixed shapes in this package, the knot values are used
- * <em>as given</em>, not rescaled to pin {@code t = 0}/{@code t = 1} onto
- * exactly {@code 0}/{@code 1}. Those shapes are monotonically increasing by
- * construction, so
- * {@link AbstractPresetFunc#normalized(double, java.util.function.DoubleUnaryOperator)}
- * only ever pins their endpoints; applied to an arbitrary user-defined curve
- * it would instead silently rewrite the user's intent -- a deliberately
- * decreasing curve would come back increasing, and a deliberately flat one
- * would divide by zero. So a {@code CustomInterpPresetFunc} may map
- * {@link #getMin()}/{@link #getMax()} to something other than {@code 0}/
- * {@link #getPaletteRangeLength()} (whatever its outermost knots say), and may be
- * decreasing or flat; every other {@link PresetFunc} still guarantees the
- * exact endpoints. Knot values are constrained to {@code [0, 1]} instead, so
- * a palette value this produces still lands in
- * {@code [0, getPaletteRangeLength()]}.
- * <p>
- * This flat/clamped extrapolation is a property of the shape between {@code
- * t = 0} and {@code t = 1} -- it has nothing to do with, and does not
- * duplicate, what {@code PresetPaletteWrapper}'s {@code BoundaryCondition}
- * (CLAMP/CYCLE/SPECIAL) does for a raw value entirely outside
- * {@code [getMin(), getMax()]}; that decision is made before this class is
- * ever consulted, exactly as for every other {@link PresetFunc}.
+ * Knot values are used as given, not
+ * {@linkplain AbstractPresetFunc#normalized(double, java.util.function.DoubleUnaryOperator) normalized}:
+ * that would flip a deliberately decreasing curve and divide by zero on a
+ * flat one. So the endpoints need not map to {@code 0} and
+ * {@link #getPaletteRangeLength()}.
  */
 public class CustomInterpPresetFunc extends AbstractPresetFunc
 {
@@ -81,7 +46,7 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 
 	private double[] knotValues;
 
-	/** Starts with two knots, {@code (0, 0)} and {@code (1, 1)} -- the same shape as {@link LinearPresetFunc} until {@link #setKnots(double[], double[])} is called. */
+	/** Starts linear: knots {@code (0, 0)} and {@code (1, 1)}. */
 	public CustomInterpPresetFunc( final double min, final double max, final int paletteRangeLength )
 	{
 		super( min, max, paletteRangeLength );
@@ -89,14 +54,8 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 	}
 
 	/**
-	 * A piecewise-linear approximation of {@code shape}, over the same domain
-	 * and {@link #getPaletteRangeLength()}: {@code numKnots} knots evenly spaced
-	 * across {@code [shape.getMin(), shape.getMax()]}, each valued at
-	 * {@code shape.getPaletteValueForRaw(rawValue)}. Meant for seeding an
-	 * editable, draggable curve with one of the fixed shapes (see the class
-	 * javadoc) -- the result starts out tracing {@code shape}, but is a plain
-	 * {@code CustomInterpPresetFunc} afterwards, so its knots can be moved
-	 * independently of it.
+	 * {@code shape} sampled at {@code numKnots} evenly spaced knots, for seeding
+	 * an editable curve.
 	 *
 	 * @throws IllegalArgumentException if {@code numKnots} is less than 2.
 	 */
@@ -126,16 +85,11 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 	}
 
 	/**
-	 * Replace the control points defining this shape.
-	 *
-	 * @param ts     each knot's position, as a domain fraction in {@code [0, 1]}; must be
-	 *               strictly ascending.
-	 * @param values each knot's value, as a palette-value fraction in {@code [0, 1]}; same
-	 *               length as {@code ts}. Need not be ascending -- a decreasing run is a
-	 *               legitimate (inverted) curve, see the class javadoc.
-	 * @throws IllegalArgumentException if there are fewer than 2 knots, the two arrays have
-	 *                                  different lengths, {@code ts} is not strictly ascending,
-	 *                                  or any entry falls outside {@code [0, 1]}.
+	 * @param ts     domain fractions in {@code [0, 1]}, strictly ascending.
+	 * @param values palette-value fractions in {@code [0, 1]}; need not be ascending.
+	 * @throws IllegalArgumentException if there are fewer than 2 knots, the lengths differ,
+	 *                                  {@code ts} is not strictly ascending, or any entry is
+	 *                                  outside {@code [0, 1]}.
 	 */
 	public void setKnots( final double[] ts, final double[] values )
 	{
@@ -147,7 +101,7 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 			throw new IllegalArgumentException( "at least 2 knots are required, got " + ts.length );
 		for ( int i = 0; i < ts.length; i++ )
 		{
-			// Written as !(0 <= x <= 1) rather than (x < 0 || x > 1) so NaN is rejected too.
+			// negated so NaN is rejected too
 			if ( !( ts[ i ] >= 0.0 && ts[ i ] <= 1.0 ) )
 				throw new IllegalArgumentException( "knot t must be in [0, 1], got " + ts[ i ] + " at index " + i );
 			if ( !( values[ i ] >= 0.0 && values[ i ] <= 1.0 ) )
@@ -176,7 +130,7 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 		return knotValues.clone();
 	}
 
-	/** As {@link PresetFunc#withRange(double, double)}, carrying this function's current knots over unchanged (they are domain fractions, so independent of the raw range). */
+	/** Knots carry over unchanged; they are domain fractions. */
 	@Override
 	public CustomInterpPresetFunc withRange( final double min, final double max )
 	{
@@ -185,7 +139,6 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 		return copy;
 	}
 
-	/** The knot values as given -- deliberately not {@code normalized(...)}; see the class javadoc. */
 	@Override
 	double shape( final double t )
 	{

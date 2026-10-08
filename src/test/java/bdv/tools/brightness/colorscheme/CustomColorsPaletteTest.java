@@ -102,13 +102,7 @@ public class CustomColorsPaletteTest
 		assertEquals( "Grayscale", classics.keySet().iterator().next() );
 	}
 
-	/**
-	 * The editor lists palettes by name, falling back to the bundled resource
-	 * of that name -- and on a case-insensitive file system, {@code "Gray"}
-	 * finds {@code gray.json}. A classic named like a bundled palette in any
-	 * case would be shadowed by it, or rejected as a second palette under one
-	 * name, depending on where the resources are read from.
-	 */
+	/** Otherwise a case-insensitive filesystem lets a bundled palette shadow it. */
 	@Test
 	public void testNoClassicIsNamedLikeABundledPalette()
 	{

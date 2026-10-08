@@ -30,11 +30,7 @@ package bdv.tools.brightness;
 /**
  * Represents a piecewise-linear curve with control points.
  * Maps input values [0, 1] to output values [0, 255] via linear interpolation.
- * <p>
- * Control points are kept sorted by ascending x. Their number is small (a
- * preset's handful of points, plus whatever the user adds), so insert/remove
- * simply reallocate rather than maintaining spare capacity; the arrays are
- * primitive because {@link #evaluate} runs per rendered pixel.
+ * Control points are kept sorted by ascending x.
  */
 public class Curve
 {
@@ -143,10 +139,7 @@ public class Curve
 		return xs.length;
 	}
 
-	/**
-	 * Set the output value of the control point at the given index. Its x
-	 * position is left alone, so the points stay sorted.
-	 */
+	/** Set the output value of the control point at the given index. */
 	public void setPoint( final int index, final int y )
 	{
 		if ( index >= 0 && index < ys.length )
@@ -162,9 +155,7 @@ public class Curve
 		if ( xs.length < 2 )
 			return 0;
 
-		// Points are sorted, so the last one at or before x is the start of
-		// the segment containing x; past the final point, both ends collapse
-		// onto it and the flat branch below returns its value.
+		// past the last point lo == hi, handled by the flat branch
 		int lo = 0;
 		while ( lo + 1 < xs.length && xs[ lo + 1 ] <= x )
 			lo++;
@@ -177,10 +168,7 @@ public class Curve
 		return ( int ) Math.round( ys[ lo ] + t * ( ys[ hi ] - ys[ lo ] ) );
 	}
 
-	/**
-	 * Replace all control points with copies of the given x/y arrays, which
-	 * must be sorted by ascending x.
-	 */
+	/** Replace all control points with copies; {@code xs} must be ascending. */
 	public void setPoints( final double[] xs, final int[] ys )
 	{
 		this.xs = xs.clone();
@@ -189,30 +177,19 @@ public class Curve
 			this.ys[ i ] = clamp( ys[ i ] );
 	}
 
-	/**
-	 * Get a copy of the control points' x values, suitable for passing to
-	 * {@link #setPoints(double[], int[])} on another {@code Curve}.
-	 */
+	/** A copy of the control points' x values. */
 	public double[] xsArray()
 	{
 		return xs.clone();
 	}
 
-	/**
-	 * Get a copy of the control points' y values, suitable for passing to
-	 * {@link #setPoints(double[], int[])} on another {@code Curve}.
-	 */
+	/** A copy of the control points' y values. */
 	public int[] ysArray()
 	{
 		return ys.clone();
 	}
 
-	/**
-	 * Flip the curve vertically: each control point's y becomes
-	 * {@code 255 - y}, keeping its x unchanged. An increasing curve becomes
-	 * decreasing and vice versa (e.g. the default linear ramp 0-&gt;255
-	 * becomes 255-&gt;0).
-	 */
+	/** Flip the curve vertically: each y becomes {@code 255 - y}. */
 	public void invert()
 	{
 		for ( int i = 0; i < ys.length; i++ )

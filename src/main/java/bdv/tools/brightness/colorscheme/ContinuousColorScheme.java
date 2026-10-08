@@ -28,19 +28,9 @@
 package bdv.tools.brightness.colorscheme;
 
 /**
- * A color scheme with {@code N} color stops, linearly interpolated between
- * neighboring stops -- suited to continuous palettes (e.g. viridis), where
- * colors between stops are smoothly blended rather than each stop standing on
- * its own.
- * <p>
- * {@link #getPaletteRangeLength()} is {@code N - 1}: {@code N} stops have only
- * {@code N - 1} gaps between them. The valid palette-value domain is the
- * closed interval {@code [0, N - 1]} -- e.g. for {@code N = 3}: {@code 0} is
- * stop {@code 0}, {@code 2.0} is stop {@code 2} (the last one), and
- * {@code 0.99} blends 99% of the way from stop {@code 0} to stop {@code 1}. A
- * value outside {@code [0, N - 1]} (e.g. {@code -0.001} or {@code 2.01} for
- * {@code N = 3}) is not an error -- it clamps to the nearest edge stop
- * instead.
+ * {@code N} color stops, linearly interpolated (e.g. viridis). The domain is
+ * the closed interval {@code [0, N - 1]}: {@code N} stops have {@code N - 1}
+ * gaps.
  */
 public class ContinuousColorScheme extends AbstractColorScheme
 {

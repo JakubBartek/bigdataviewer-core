@@ -28,18 +28,9 @@
 package bdv.tools.brightness.colorscheme;
 
 /**
- * Converts a palette value into a color -- nothing else. A "palette value" is
- * a position already expressed in this scheme's own domain (see
- * {@link #getPaletteRangeLength()}), e.g. "the 2.5th color stop"; it is not a raw
- * image value.
- * <p>
- * Implementations must not know about raw image values, a raw value's
- * min/max, step size, boundary conditions, or any value-transformation
- * function -- turning a raw pixel value into a palette value is a separate
- * concern ({@code bdv.tools.brightness.palette}'s palette wrappers, and the
- * {@code bdv.tools.brightness.presetfunc} transforms they use), kept out of this
- * interface so a color scheme can be built, tested and swapped independently
- * of how it ends up being fed.
+ * Converts a palette value (a position in color stops, e.g. 2.5) into a color.
+ * Knows nothing about raw image values; that mapping lives in
+ * {@code bdv.tools.brightness.palette}.
  *
  * @see DiscreteColorScheme
  * @see ContinuousColorScheme
@@ -47,29 +38,14 @@ package bdv.tools.brightness.colorscheme;
 public interface ColorScheme
 {
 	/**
-	 * The color at {@code paletteValue}, packed as ARGB (see
-	 * {@link net.imglib2.type.numeric.ARGBType#rgba(int, int, int, int)}) with
-	 * alpha forced fully opaque ({@code 0xff}) regardless of the underlying
-	 * color stop's own alpha -- see {@link #getRGBA(double)} to read that alpha
-	 * instead.
-	 * <p>
-	 * {@code paletteValue} outside this scheme's domain (see
-	 * {@link #getPaletteRangeLength()}) is not an error: the nearest edge stop's
-	 * color is returned instead of throwing.
+	 * The packed-ARGB color at {@code paletteValue}, forced opaque. Values
+	 * outside the domain clamp to the nearest edge stop.
 	 */
 	int getRGB( double paletteValue );
 
-	/**
-	 * Like {@link #getRGB(double)}, but carrying the color stop's own alpha
-	 * component instead of forcing full opacity.
-	 */
+	/** Like {@link #getRGB(double)}, but keeping the stop's own alpha. */
 	int getRGBA( double paletteValue );
 
-	/**
-	 * The length of this scheme's valid palette-value domain, which always
-	 * starts at {@code 0}. How the far end is included differs by
-	 * implementation -- see {@link DiscreteColorScheme#getPaletteRangeLength()}
-	 * and {@link ContinuousColorScheme#getPaletteRangeLength()}.
-	 */
+	/** Length of the palette-value domain, which starts at {@code 0}. */
 	int getPaletteRangeLength();
 }

@@ -30,19 +30,10 @@ public class StartUI
 	private static final long SHUTDOWN_GRACE_MILLIS = 3000;
 
 	/**
-	 * On Windows, {@code System.exit} -- which is what IntelliJ's Stop button
-	 * calls -- can hang forever here, leaving a JVM behind that keeps the next
-	 * run from starting. The shutdown hooks run concurrently: AWT's own hook
-	 * stops the native toolkit thread ({@code AWT-Windows}), the EDT then
-	 * blocks in a native call that needs it, and SciJava's {@code Context}
-	 * hook waits on the EDT ({@code IJ1Helper.closeImageWindows} uses
-	 * {@code invokeAndWait}). SciJava offers no switch to skip its hook, so
-	 * this one halts the JVM once the others have had a fair chance to finish.
-	 * <p>
-	 * The hook itself only starts a daemon timer and returns: the JVM waits for
-	 * every hook, so sleeping in the hook would delay (and override the status
-	 * of) each clean exit, whereas a daemon thread dies with a JVM that shuts
-	 * down in time.
+	 * On Windows {@code System.exit} (IntelliJ's Stop) can hang: AWT's shutdown
+	 * hook stops the toolkit thread the EDT needs, while SciJava's hook waits on
+	 * the EDT. The hook only starts a daemon timer, so a clean exit is not
+	 * delayed.
 	 */
 	private static void haltIfShutdownHangs()
 	{

@@ -91,62 +91,25 @@ import net.imglib2.display.RealARGBColorConverter;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
- * A LUT editor dialog, laid out as a header strip over two columns:
- * <ul>
- * <li><b>Configuration</b>: the strip across the top -- a saved, reusable
- * combination of everything below it except the input value range (see
- * {@link EditorPreset}), which can be applied in one step or saved back under
- * a name of the user's choosing. It sits at the top not because it is the
- * control reached for most often, but because it is the one whose scope is
- * the whole window; it is styled to read as subordinate to what it
- * governs.</li>
- * <li><b>Data</b>: which color palette (LUT) is used to render the source,
- * and whether that palette is a smooth gradient or individually chosen
- * colors.</li>
- * <li><b>Function</b>: how a raw source value is turned into a position in
- * that palette -- a transfer function for a continuous palette, a step size
- * for a discrete one.</li>
- * <li><b>Mapping</b>: what happens to raw values past either end of the
- * input value range, independently for each end (see
- * {@link BoundaryCondition}).</li>
- * <li><b>Transfer function</b>: the graph, which also carries the controls
- * whose meaning is positional -- the input range at the ends of the x axis,
- * and the pencil beside the plot it edits (see {@link MappingCurvePanel}).</li>
- * </ul>
- * Which source is being edited is not chosen here: this window follows the
- * viewer's own current-source selection and names the source it is bound to in
- * its title (see {@link #beginSession}). It is not modal, so it can be left
- * open beside the viewer while sources are switched there.
+ * A non-modal LUT editor: a configuration strip ({@link EditorPreset}) over a
+ * settings column (palette, shape, {@link BoundaryCondition}s) and the
+ * {@link MappingCurvePanel} graph.
  * <p>
- * Edits take effect in the viewer immediately (see {@link #pushLiveEdits()})
- * and stay in effect -- there is nothing to confirm them with, and closing the
- * window keeps them. The one way back is "Reset", which restores the baseline
- * taken when the session's source was selected (see {@link #beginSession}).
+ * It edits the viewer's current source (see {@link #beginSession}). Edits are
+ * pushed live ({@link #pushLiveEdits()}) and kept on close; "Reset" restores
+ * the session's baseline.
  */
 public class LutEditorDialog extends JDialog
 {
 	private final ConverterSetups converterSetups;
 	private final ViewerState viewerState;
-	/** Never {@code null}: the constructor replaces a missing one with a no-op. */
+	/** Never {@code null}. */
 	private final Runnable repaintAction;
 
 	/**
-	 * Follow the viewer: which source this window edits is the viewer's own
-	 * current-source selection, and changing it there starts a new editing
-	 * session here (see {@link #syncToCurrentSource()}).
-	 * <p>
-	 * {@code CURRENT_SOURCE_CHANGED} is the only change worth listening for,
-	 * because it also covers the source list itself changing underneath:
-	 * {@code BasicViewerState} fires it when the first source arrives (there
-	 * was no current source before), when the current source is removed (the
-	 * first remaining one takes over), and when the sources are cleared (there
-	 * is no current source left).
-	 * <p>
-	 * Bounced onto the EDT, since a {@code ViewerState} change can be made from
-	 * any thread. Registered for the dialog's whole life and unregistered in
-	 * {@link #dispose()} rather than left to be collected with the window: the
-	 * {@code ViewerState} usually outlives this dialog, and would otherwise
-	 * keep it and everything it edits alive.
+	 * {@code CURRENT_SOURCE_CHANGED} also fires when sources are added,
+	 * removed or cleared. Unregistered in {@link #dispose()} because the
+	 * {@code ViewerState} outlives this dialog.
 	 */
 	private final ViewerStateChangeListener viewerStateListener = change ->
 	{
@@ -155,16 +118,8 @@ public class LutEditorDialog extends JDialog
 	};
 
 	/**
-	 * Follow the display range: the setup owns it, and the brightness dialog,
-	 * the source table or a script can move it while this window is open (see
-	 * {@link #followDisplayRange}).
-	 * <p>
-	 * Listens to every setup through {@link ConverterSetups#listeners()}
-	 * rather than to {@link #activeSetup} alone, so it neither has to move
-	 * from setup to setup with each session nor miss a setup that
-	 * {@link #repointConverterSetup} put in place. Bounced onto the EDT and
-	 * unregistered in {@link #dispose()} for the same reasons as
-	 * {@link #viewerStateListener}.
+	 * Listens to all setups, not just {@link #activeSetup}, so it need not move
+	 * between sessions or miss one put in place by {@link #repointConverterSetup}.
 	 */
 	private final SetupChangeListener setupChangeListener = setup ->
 			SwingUtilities.invokeLater( () -> followDisplayRange( setup ) );
@@ -174,13 +129,10 @@ public class LutEditorDialog extends JDialog
 	private final JButton buttonSaveEditorPreset;
 	private final JLabel labelStatus;
 
-	/** Whether the selected palette is used as a gradient or as individually chosen colors, and how many colors it has; see {@link #updateShapeControls}. */
 	private final JLabel labelPaletteKind;
 
-	/** How far the palette reaches at the current step size; see {@link #updateStepCoverageLabel}. */
 	private final JLabel labelStepCoverage;
 
-	/** What the graph is currently offering, if anything: how to edit the transfer function, or why it cannot be edited; see {@link #updateCurveHint()}. */
 	private final JLabel labelCurveHint;
 
 	private final GradientPreviewPanel panelPaletteSwatch;
@@ -191,112 +143,62 @@ public class LutEditorDialog extends JDialog
 	private final JButton buttonLeftSpecialColor;
 	private final JButton buttonRightSpecialColor;
 
-	/**
-	 * The shape controls, swapped by {@link #SHAPE_CARD_CONTINUOUS}/
-	 * {@link #SHAPE_CARD_DISCRETE}: a continuous palette is shaped by a preset
-	 * curve, a discrete one by a step size -- see {@link LutEditorMapping}.
-	 */
+	/** Continuous palettes are shaped by a curve, discrete ones by a step size. */
 	private final JPanel panelShape;
 	private final CardLayout layoutShape = new CardLayout();
 	private static final String SHAPE_CARD_CONTINUOUS = "continuous";
 	private static final String SHAPE_CARD_DISCRETE = "discrete";
 
-	/** Height of the help window's scrolling text box; see {@link #showHelp()}. */
 	private static final int HELP_HEIGHT = 420;
 
-	/** Ceiling on the help window's width; see {@link #showHelp()}. */
 	private static final int MAX_HELP_WIDTH = 720;
 
 	private final JComboBox< PresetShape > comboMappingPreset;
 	private final JButton buttonInvertCurve;
 	private final JTextField fieldStepSize;
 
-	/**
-	 * The palette and mapping currently being edited. Edits are pushed live
-	 * to {@link #activeLutConv} as they happen (see {@link #pushLiveEdits()}),
-	 * so they are visible in the viewer immediately.
-	 */
 	private Palette currentPalette = Palette.DEFAULT;
 
-	/** Name of {@link #currentPalette} in {@link #comboPalette}, or {@code null} if it doesn't (or isn't known to) correspond to one -- see {@link #loadIntoEditor}. */
+	/** {@code null} if not known to be listed in {@link #comboPalette}. */
 	private String currentPaletteName = null;
 
-	/**
-	 * Palettes listed in {@link #comboPalette} that are not bundled resources,
-	 * by name -- see {@link #addPalette}. A bundled palette is loaded from its
-	 * resource whenever it is picked; these have nowhere to be loaded from, so
-	 * the dialog keeps them for as long as it lives.
-	 */
+	/** Listed palettes that are not bundled resources, so cannot be reloaded by name. */
 	private final Map< String, Palette > addedPalettes = new HashMap<>();
 
-	/** The {@link #comboPalette} category that {@link #convertToPalette} files a converted source's palette under. */
 	private static final String LEGACY_PALETTE_CATEGORY = "Legacy BDV Colors";
 
-	/** The {@link #comboPalette} category listing {@link CustomColorsPalette#classics()}. */
 	private static final String CUSTOM_COLORS_CATEGORY = "Custom Colors";
 
-	/**
-	 * The input range minimum a discrete palette starts from (see
-	 * {@link #selectPalette}). A discrete palette is mostly used on a label
-	 * image, whose 0 is background: starting at 1 leaves it below the range,
-	 * for the below-range condition to paint, and gives the first label the
-	 * first color.
-	 */
+	/** Label images use 0 as background, so it falls below the range. */
 	private static final double DISCRETE_DEFAULT_RANGE_MIN = 1;
 
-	/** The step size a discrete palette starts from: one color per label id; see {@link #DISCRETE_DEFAULT_RANGE_MIN}. */
+	/** One color per label id. */
 	private static final double DISCRETE_DEFAULT_STEP_SIZE = 1;
 
 	private final LutEditorMapping mappingModel = new LutEditorMapping();
 
-	/** The input value range currently being edited; see {@link #currentPalette}. */
 	private double editedRangeMin = 0;
 	private double editedRangeMax = 255;
 
-	/**
-	 * The source this editing session belongs to (see {@link #beginSession}),
-	 * or {@code null} if there is none. Its name is what the window title
-	 * announces, and it is what {@link #syncToCurrentSource()} compares the
-	 * viewer's current source against to decide whether anything changed.
-	 */
+	/** {@code null} if there is no session. */
 	private SourceAndConverter< ? > sessionSource = null;
 
-	/** The setup/converter {@link #currentPalette} etc. are being live-pushed to; {@code null} if none is currently editable. */
+	/** {@code null} if nothing is editable. */
 	private PaletteConverter< ? > activeLutConv = null;
 
-	/**
-	 * The {@link SourceAndConverter#asVolatile() volatile} counterpart of
-	 * {@link #activeLutConv}, if the source has one and it is also a
-	 * {@link PaletteConverter}. Edits go to both: the volatile converter is
-	 * what renders while data is still loading, so leaving it behind would
-	 * show the old colors until the last block arrives and then snap.
-	 */
+	/** Edited alongside {@link #activeLutConv} so loading data shows the new colors too. */
 	private PaletteConverter< ? > activeVolatileLutConv = null;
 
 	private ConverterSetup activeSetup = null;
 
 	/**
-	 * The editor-facing configuration ({@link Palette} + editable
-	 * {@link LutEditorMapping}) last pushed to each {@link PaletteConverter}, so
-	 * re-selecting a source can restore what the editor last showed for it.
-	 * <p>
-	 * The converter itself only stores the derived {@link PaletteWrapper} it
-	 * renders through (which cannot be read back into the editor's richer
-	 * palette-plus-curve terms); this remembers those terms instead. Weakly
-	 * keyed so it does not keep converters (hence sources) alive. The display
-	 * range stored alongside is never read back from here -- it lives on the
-	 * setup and is always read back fresh (see {@link #beginSession}), so
-	 * brightness/contrast changes made outside this dialog are not clobbered.
+	 * The editor state last pushed to each converter, which only keeps the
+	 * derived wrapper. Weakly keyed. The stored range is never read back; the
+	 * setup owns it.
 	 */
 	private final Map< PaletteConverter< ? >, EditorState > converterStates = new WeakHashMap<>();
 
-	/**
-	 * Everything the editor shows, as one immutable snapshot: what
-	 * {@link #converterStates} remembers per converter and what
-	 * {@link #baseline} restores. Taken with {@link #captureEditorState()},
-	 * which copies the mapping so later edits cannot reach into it; the
-	 * palette is immutable and safe to share.
-	 */
+	/** Immutable snapshot; see {@link #captureEditorState()}. */
 	private static final class EditorState
 	{
 		final Palette palette;
@@ -315,33 +217,18 @@ public class LutEditorDialog extends JDialog
 		}
 	}
 
-	/**
-	 * The default palette, mapped through {@link #defaultMapping()} over
-	 * {@code [0, 255]}: what the editor shows when it has nothing better to go
-	 * on. One instance shared by every dialog, which is safe for the same
-	 * reason {@link #baseline} can be reset to repeatedly: an
-	 * {@link EditorState} is only ever read, and {@link #loadIntoEditor}
-	 * copies its mapping rather than editing it.
-	 */
+	/** Shown when there is nothing better; safe to share since states are only read. */
 	private static final EditorState NEUTRAL_STATE =
 			new EditorState( Palette.DEFAULT, LutPalettes.findName( Palette.DEFAULT ), defaultMapping(), 0, 255 );
 
-	/**
-	 * What the editor showed when {@link #beginSession} bound the current
-	 * source -- what "Reset" (see {@link #resetToSessionBaseline()}) restores
-	 * the live edits back to.
-	 */
+	/** What "Reset" restores; taken by {@link #beginSession}. */
 	private EditorState baseline;
 
-	/** Guards against control listeners (including the live-push one) firing while we are programmatically syncing them; set only by {@link #withoutFeedback}. */
+	/** Set only by {@link #withoutFeedback}. */
 	private boolean loadingControls = false;
 
-	/** The text {@link #updateStepSizeField()} last put in {@link #fieldStepSize}; see {@link #commitStepSizeField()} for why it is remembered. */
+	/** See {@link #commitStepSizeField()}. */
 	private String lastShownStepSize = "";
-
-	/**
-	Instantiate the editor dialog with empty/placeholder values
-	 */
 	public LutEditorDialog( final Frame owner, final ConverterSetups converterSetups, final ViewerState viewerState, final Runnable repaintAction )
 	{
 		super( owner, "LUT Editor", false );
@@ -374,8 +261,7 @@ public class LutEditorDialog extends JDialog
 		{
 			editedRangeMin = min;
 			editedRangeMax = max;
-			// An automatic step size is derived from the range, so the field
-			// showing it has to follow the range to keep telling the truth.
+			// an automatic step size depends on the range
 			updateStepSizeField();
 			pushLiveEdits();
 		} );
@@ -405,9 +291,7 @@ public class LutEditorDialog extends JDialog
 		installControlListeners();
 		viewerState.changeListeners().add( viewerStateListener );
 		converterSetups.listeners().add( setupChangeListener );
-		// Sessions begin only when the window is shown (see setVisible), but
-		// pack() needs filled-in controls to measure -- an empty label has no
-		// height -- so size the window around the neutral state.
+		// pack() needs filled-in controls; sessions only begin in setVisible
 		loadIntoEditor( NEUTRAL_STATE );
 		packAndMatchGraphWidth( panelLeftColumn, panelMappingCurveColumn );
 	}
@@ -415,23 +299,9 @@ public class LutEditorDialog extends JDialog
 	// -- Window lifecycle and following the viewer -------------------------
 
 	/**
-	 * Hiding the dialog -- via "Close", the window's own close button, or
-	 * toggling it closed with its keyboard shortcut, all of which just call
-	 * this -- leaves the live-pushed edits in place (see
-	 * {@link #pushLiveEdits()}); only "Reset" reverts them.
-	 * <p>
-	 * Becoming visible opens a new session (see {@link #beginSession}), so the
-	 * window always shows the source the viewer is on and takes its baseline
-	 * from what is on screen now -- including any display range the brightness
-	 * controls changed while this window was closed -- not from whenever it
-	 * was last closed. The previous session is dropped rather than reverted:
-	 * its edits were kept when the window was hidden.
-	 * <p>
-	 * The session is (re)started only once the window is on screen, because
-	 * starting one converts a source this editor cannot edit (see
-	 * {@link #convertToPalette}) and reports that in the status line. Done
-	 * while hidden, that would swap the converter of a source nobody asked to
-	 * edit, with no window to say so.
+	 * Hiding keeps the live edits. Showing starts a new session with a fresh
+	 * baseline; only then, because starting one may convert the source (see
+	 * {@link #convertToPalette}), which should not happen unseen.
 	 */
 	@Override
 	public void setVisible( final boolean visible )
@@ -445,22 +315,9 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Stop following the viewer, then dispose the window as usual.
-	 * <p>
-	 * Unregistering the listener does not recall the notifications it has
-	 * already turned into queued EDT work, and {@code BdvHandle.close()}
-	 * disposes this dialog and then drops the viewer. A
-	 * {@link #syncToCurrentSource()} still sitting on the queue is stopped by
-	 * the window being hidden instead: {@code Window.dispose()} hides it on the
-	 * EDT and waits for that before returning, so any queued sync either runs
-	 * before this returns, while the viewer is still there, or finds the
-	 * window hidden.
-	 * <p>
-	 * This is teardown, not hiding -- closing the window with "Close", its
-	 * close button or the keyboard shortcut goes through
-	 * {@link #setVisible(boolean)} and leaves the dialog reusable. A disposed
-	 * dialog is done: showing it again would give a window that no longer
-	 * follows the viewer's source selection.
+	 * Teardown, not hiding. Already-queued {@link #syncToCurrentSource()} calls
+	 * are stopped by the window being hidden, which {@code Window.dispose()}
+	 * does synchronously.
 	 */
 	@Override
 	public void dispose()
@@ -469,19 +326,7 @@ public class LutEditorDialog extends JDialog
 		converterSetups.listeners().remove( setupChangeListener );
 		super.dispose();
 	}
-	/**
-	 * Adopt the viewer's current source as this window's. A no-op when it
-	 * already is, so that a notification arriving after this dialog has
-	 * already reacted -- the listener is dispatched asynchronously, see
-	 * {@link #viewerStateListener} -- does not restart the session.
-	 * <p>
-	 * Also a no-op while the window is hidden: nobody would see that session,
-	 * and showing the window starts a fresh one anyway (see
-	 * {@link #setVisible(boolean)}). Until then the controls keep showing the
-	 * source the window was last open on. A disposed window is hidden too, so
-	 * this is also what stops a notification that arrives after the viewer
-	 * itself has gone (see {@link #dispose()}).
-	 */
+	/** No-op if the source is unchanged or the window is hidden (including disposed). */
 	private void syncToCurrentSource()
 	{
 		if ( !isVisible() )
@@ -494,19 +339,10 @@ public class LutEditorDialog extends JDialog
 	// -- Editing session ---------------------------------------------------
 
 	/**
-	 * Start a new editing session on {@code soc}: bind the window to that
-	 * source, load the source's current palette and mapping into the
-	 * controls, and take the baseline that {@link #resetToSessionBaseline()}
-	 * restores.
-	 * <p>
-	 * A source rendered by some other kind of converter is converted to one
-	 * this editor can edit, without asking (see {@link #convertToPalette}),
-	 * and the status line says so. If it cannot be converted -- or there is no
-	 * source at all -- the editor shows a neutral state pushed nowhere, rather
-	 * than whatever the previous source left behind.
-	 * <p>
-	 * Only ever called while the window is showing (see
-	 * {@link #setVisible(boolean)} and {@link #syncToCurrentSource()}).
+	 * Bind to {@code soc}, load its state and take the {@link #baseline}. Other
+	 * converters are converted without asking (see {@link #convertToPalette});
+	 * if that fails the editor shows the neutral state, pushed nowhere. Only
+	 * called while showing.
 	 */
 	private void beginSession( final SourceAndConverter< ? > soc )
 	{
@@ -532,33 +368,21 @@ public class LutEditorDialog extends JDialog
 		baseline = captureEditorState();
 	}
 
-	/**
-	 * The {@link PaletteConverter} rendering {@code soc}, or -- if it is
-	 * rendered by some other kind of converter -- the one it has just been
-	 * converted to (see {@link #convertToPalette}); {@code null} if it could
-	 * not be.
-	 */
+	/** {@code null} if it is not and cannot be converted to a {@link PaletteConverter}. */
 	private PaletteConverter< ? > editableConverterOf( final SourceAndConverter< ? > soc )
 	{
 		final PaletteConverter< ? > lutConv = asPaletteConverter( soc.getConverter() );
 		return lutConv != null ? lutConv : convertToPalette( soc );
 	}
 
-	/** The {@link PaletteConverter} behind {@code soc}'s volatile counterpart, if it has one; see {@link #activeVolatileLutConv}. */
 	private static PaletteConverter< ? > volatileConverterOf( final SourceAndConverter< ? > soc )
 	{
 		return soc.asVolatile() != null ? asPaletteConverter( soc.asVolatile().getConverter() ) : null;
 	}
 
 	/**
-	 * What the editor shows for a newly bound converter.
-	 * <p>
-	 * The converter renders through a {@link PaletteWrapper}, which cannot be
-	 * read back into the editor's palette-plus-curve terms; this restores what
-	 * the editor last pushed to it instead (see {@link #converterStates}),
-	 * falling back to the neutral state for one set up outside this dialog.
-	 * The range is the exception: it is always read fresh from {@code setup},
-	 * which owns it, so brightness/contrast changes made elsewhere are kept.
+	 * The remembered state (see {@link #converterStates}) or the neutral one,
+	 * with the range read fresh from {@code setup}.
 	 */
 	private EditorState initialStateFor( final PaletteConverter< ? > lutConv, final ConverterSetup setup )
 	{
@@ -569,32 +393,17 @@ public class LutEditorDialog extends JDialog
 		return new EditorState( look.palette, look.paletteName, look.mapping, min, max );
 	}
 
-	/** {@code converter} as a {@link PaletteConverter}, or {@code null} if it is some other implementation. */
 	private static PaletteConverter< ? > asPaletteConverter( final Converter< ?, ? > converter )
 	{
 		return converter instanceof PaletteConverter ? ( PaletteConverter< ? > ) converter : null;
 	}
 
 	/**
-	 * Re-render {@code soc}, which is rendered by a converter this editor does
-	 * not understand, through one that it does -- see
-	 * {@link PaletteConverterFactory}, which spells out how much of the
-	 * original setup survives that translation. Returns the converter now
-	 * rendering the source, or {@code null} if it could not be converted.
-	 * <p>
-	 * Not asked first: a single-color converter becomes a palette that renders
-	 * the same image (see {@link LegacyBdvColorPalette}), so the conversion
-	 * changes what can be edited, not what is shown. {@link #beginSession}
-	 * reports it in the status line instead.
-	 * <p>
-	 * The new converter's palette is listed in {@link #comboPalette} (see
-	 * {@link #addPalette}) and remembered as its editor state, so the editor
-	 * opens on the palette the source is actually rendered with -- and Reset
-	 * returns to it -- rather than on the neutral state, which would replace
-	 * the source's color with gray at the first edit. The remembered mapping
-	 * is linear and clamped at both ends, which is the mapping the conversion
-	 * sets up -- not {@link #defaultMapping()}, whose fixed colors would paint
-	 * the legacy converter's saturated pixels white at the first edit.
+	 * Converts via {@link PaletteConverterFactory}; not asked first, since the
+	 * image looks the same. The palette is listed and remembered so the editor
+	 * and Reset show the source's own color, with a clamped mapping (not
+	 * {@link #defaultMapping()}, whose fixed colors would paint saturated pixels
+	 * white). {@code null} if it cannot be converted.
 	 */
 	private PaletteConverter< ? > convertToPalette( final SourceAndConverter< ? > soc )
 	{
@@ -617,12 +426,7 @@ public class LutEditorDialog extends JDialog
 		return converted;
 	}
 
-	/**
-	 * How {@link #comboPalette} lists a converted source's palette: by its
-	 * color, as {@code #RRGGBB}, or {@code #AARRGGBB} when the color is not
-	 * opaque. Named by color rather than by source, so sources that shared a
-	 * color share one entry.
-	 */
+	/** {@code #RRGGBB}, or {@code #AARRGGBB} if not opaque; sources sharing a color share an entry. */
 	static String legacyPaletteName( final LegacyBdvColorPalette palette )
 	{
 		final int color = palette.getColor();
@@ -632,16 +436,9 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * How the status line names a converter: by the interface for a
-	 * {@link RealARGBColorConverter}, otherwise by its class name without the
-	 * package.
-	 * <p>
-	 * Not {@code Class.getSimpleName()}: imglib2 creates a
-	 * {@code RealARGBColorConverter} as a copy of a nested class loaded by a
-	 * class loader of its own (see {@code ClassCopyProvider}), and asking that
-	 * copy for its simple name looks up the enclosing class across the two
-	 * loaders and throws {@code IllegalAccessError}. Its own name would only
-	 * say {@code Imp} anyway.
+	 * Not {@code Class.getSimpleName()}: imglib2's {@code ClassCopyProvider}
+	 * copies of {@code RealARGBColorConverter} throw {@code IllegalAccessError}
+	 * for it.
 	 */
 	static String converterKind( final Converter< ?, ? > converter )
 	{
@@ -654,19 +451,9 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Re-point {@code soc}'s {@link ConverterSetup} at the converters now
-	 * rendering it, after {@link PaletteConverterFactory} swapped them: it
-	 * would otherwise go on reading and writing the display range of a
-	 * converter that renders nothing, and the brightness/contrast controls
-	 * would appear to do nothing.
-	 * <p>
-	 * Done in place where the setup allows it, because a {@code ConverterSetup}
-	 * is an identity that {@link SetupAssignments}, the brightness dialog and
-	 * {@code ConverterSetupBounds} all hold on to and would not follow to a
-	 * substitute. A setup of some other implementation has to be replaced
-	 * instead, which those holders do not see -- brightness for that source
-	 * keeps working through this dialog and the source table, but a group it
-	 * was put in by {@code SetupAssignments} will not follow it.
+	 * In place where possible, since {@link SetupAssignments} and others hold
+	 * on to the setup. Otherwise it is replaced, and {@code SetupAssignments}
+	 * groups will not follow.
 	 */
 	private void repointConverterSetup( final SourceAndConverter< ? > soc )
 	{
@@ -682,7 +469,6 @@ public class LutEditorDialog extends JDialog
 			converterSetups.put( soc, new RealARGBColorConverterSetup( setup.getSetupId(), converters ) );
 	}
 
-	/** The source's own name, or its setup id if there is no source to ask. */
 	private String sourceName( final SourceAndConverter< ? > soc )
 	{
 		if ( soc.getSpimSource() != null )
@@ -691,24 +477,12 @@ public class LutEditorDialog extends JDialog
 		return setup != null ? Integer.toString( setup.getSetupId() ) : "?";
 	}
 
-	/**
-	 * Name the source being edited in the window title. This dialog is not
-	 * modal and is meant to be left open beside the viewer, where it can
-	 * easily end up looking at a source other than the one the user has their
-	 * eye on -- the title is what says which.
-	 */
 	private void updateTitle()
 	{
 		setTitle( sessionSource == null ? "LUT Editor" : "LUT Editor - " + sourceName( sessionSource ) );
 	}
 
-	/**
-	 * A neutral mapping (linear, interpolated, a fixed black/white color past
-	 * either end) -- the editor's starting point for a source with no
-	 * remembered state. Matches what {@code BigDataViewer.createConverterToARGB}
-	 * renders a new source with, so opening the editor on one does not change
-	 * how it looks.
-	 */
+	/** Matches {@code BigDataViewer.createConverterToARGB}, so opening the editor changes nothing. */
 	private static LutEditorMapping defaultMapping()
 	{
 		final LutEditorMapping defaults = new LutEditorMapping();
@@ -723,15 +497,7 @@ public class LutEditorDialog extends JDialog
 
 	// -- Editor state and live edits ---------------------------------------
 
-	/**
-	 * Load {@code state} into the editor's own controls -- the inverse of
-	 * {@link #captureEditorState()} -- without touching {@link #activeLutConv}
-	 * itself (callers decide separately whether to push it there with
-	 * {@link #pushLiveEdits()}). Used for a newly selected source's
-	 * actually-applied state, a saved configuration, and the {@link #baseline}
-	 * when resetting. The mapping is copied in, so {@code state} is not
-	 * changed by later edits.
-	 */
+	/** Inverse of {@link #captureEditorState()}; does not push. The mapping is copied. */
 	private void loadIntoEditor( final EditorState state )
 	{
 		withoutFeedback( () ->
@@ -754,13 +520,7 @@ public class LutEditorDialog extends JDialog
 		} );
 	}
 
-	/**
-	 * Run {@code update}, which sets controls programmatically, with the
-	 * controls' own listeners muted (see {@link #loadingControls}): a combo
-	 * box reports a {@code setSelectedItem} exactly as it reports a click, and
-	 * each such report would otherwise be taken for a user edit and acted on
-	 * half-way through the update.
-	 */
+	/** Mutes control listeners, which cannot tell a programmatic change from a click. */
 	private void withoutFeedback( final Runnable update )
 	{
 		loadingControls = true;
@@ -774,11 +534,7 @@ public class LutEditorDialog extends JDialog
 		}
 	}
 
-	/**
-	 * Make {@code palette} the one being edited, and show it in the swatch and
-	 * the graph. Leaves {@link #comboPalette} alone, since this is also how a
-	 * pick made in it takes effect (see {@link #selectPalette}).
-	 */
+	/** Leaves {@link #comboPalette} alone; {@link #selectPalette} calls this too. */
 	private void setPalette( final Palette palette, final String paletteName )
 	{
 		currentPalette = palette;
@@ -788,14 +544,8 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Switch to the palette the user picked in {@link #comboPalette}.
-	 * <p>
-	 * Going from a continuous palette to a discrete one also starts the range
-	 * at {@link #DISCRETE_DEFAULT_RANGE_MIN} and the step size at
-	 * {@link #DISCRETE_DEFAULT_STEP_SIZE}: the range a continuous palette was
-	 * stretched over says nothing about where label ids begin or how far apart
-	 * they are. Between two discrete palettes both are kept, since by then
-	 * they are the user's own choice for this data.
+	 * Going from continuous to discrete resets the range minimum and step size
+	 * to the discrete defaults; between two discrete palettes they are kept.
 	 */
 	private void selectPalette( final String name )
 	{
@@ -808,18 +558,13 @@ public class LutEditorDialog extends JDialog
 		setPalette( palette, name );
 		labelStatus.setText( "" );
 
-		// Discrete or continuous follows the palette file's own declared kind,
-		// not a user choice: a palette that declares itself non-interpolated
-		// (e.g. a qualitative palette like tab10) is meant to be read as
-		// individual colors, not blended.
 		final boolean discrete = !palette.isInterpolated();
 		if ( discrete && !mappingModel.isDiscrete() )
 		{
 			withoutFeedback( () ->
 			{
 				editedRangeMin = DISCRETE_DEFAULT_RANGE_MIN;
-				// The display range has to stay non-empty; where the palette
-				// runs out is the one maximum that means something here.
+				// keep the range non-empty, ending where the palette runs out
 				if ( editedRangeMax <= editedRangeMin )
 					editedRangeMax = editedRangeMin + DISCRETE_DEFAULT_STEP_SIZE * new DiscreteColorScheme( palette ).getPaletteRangeLength();
 				panelMappingCurve.setRange( editedRangeMin, editedRangeMax );
@@ -835,21 +580,11 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * List {@code palette} in the palette chooser as {@code name}, under the
-	 * {@code category} header -- appended to that category, which is itself
-	 * appended to the end of the list if it is not there yet. From then on it
-	 * can be picked, named by a saved configuration and restored by Reset like
-	 * any bundled palette, for as long as this dialog lives.
-	 * <p>
-	 * Adding the same palette under the same name again does nothing, so a
-	 * caller that meets the same palette repeatedly -- as
-	 * {@link #convertToPalette} does for every source of one color -- need not
-	 * check first. Does not select it; the current selection is left alone.
-	 * Call on the EDT, like any change to a Swing component.
+	 * Append {@code palette} to {@code category} in the chooser, creating the
+	 * category at the end if needed. Re-adding the same palette is a no-op.
+	 * Does not select it. Call on the EDT.
 	 *
-	 * @throws IllegalArgumentException if {@code name} already names a
-	 *         different palette, bundled or added: the chooser lists palettes by
-	 *         name alone, so one name cannot stand for two.
+	 * @throws IllegalArgumentException if {@code name} already names a different palette.
 	 */
 	public void addPalette( final String category, final String name, final Palette palette )
 	{
@@ -871,7 +606,6 @@ public class LutEditorDialog extends JDialog
 				model.addElement( new CategoryHeader( category ) );
 				header = model.getSize() - 1;
 			}
-			// The end of the category: the next header, or the end of the list.
 			int end = header + 1;
 			while ( end < model.getSize() && !( model.getElementAt( end ) instanceof CategoryHeader ) )
 				end++;
@@ -879,7 +613,6 @@ public class LutEditorDialog extends JDialog
 		} );
 	}
 
-	/** Index of the {@link CategoryHeader} labeled {@code category} in {@code model}, or {@code -1}. */
 	private static int indexOfCategory( final GroupedComboModel model, final String category )
 	{
 		for ( int i = 0; i < model.getSize(); i++ )
@@ -891,48 +624,43 @@ public class LutEditorDialog extends JDialog
 		return -1;
 	}
 
-	/**
-	 * The palette {@code name} stands for in {@link #comboPalette}: one added
-	 * with {@link #addPalette}, otherwise the bundled resource of that name;
-	 * {@code null} if it is neither.
-	 */
+	/** An added palette, else the bundled resource; {@code null} if neither. */
 	private Palette resolvePalette( final String name )
 	{
 		final Palette added = addedPalettes.get( name );
 		return added != null ? added : LutPalettes.load( name );
 	}
 
-	/** The palette being edited; see {@link #currentPalette}. Package-private for tests. */
+	/** For tests. */
 	Palette getCurrentPalette()
 	{
 		return currentPalette;
 	}
 
-	/** The input value range being edited; see {@link #editedRangeMin}. Package-private for tests. */
+	/** For tests. */
 	double getEditedRangeMin()
 	{
 		return editedRangeMin;
 	}
 
-	/** The input value range being edited; see {@link #editedRangeMax}. Package-private for tests. */
+	/** For tests. */
 	double getEditedRangeMax()
 	{
 		return editedRangeMax;
 	}
 
-	/** The step size being edited, as {@link LutEditorMapping#getStepSize()}. Package-private for tests. */
+	/** For tests. */
 	double getStepSize()
 	{
 		return mappingModel.getStepSize();
 	}
 
-	/** The palette chooser; see {@link #comboPalette}. Package-private for tests. */
+	/** For tests. */
 	JComboBox< Object > getPaletteCombo()
 	{
 		return comboPalette;
 	}
 
-	/** What the editor currently shows, with the mapping copied so later edits cannot reach into the snapshot; see {@link EditorState}. */
 	private EditorState captureEditorState()
 	{
 		final LutEditorMapping mapping = new LutEditorMapping();
@@ -940,11 +668,6 @@ public class LutEditorDialog extends JDialog
 		return new EditorState( currentPalette, currentPaletteName, mapping, editedRangeMin, editedRangeMax );
 	}
 
-	/**
-	 * Put the session's baseline back: whatever the source looked like when
-	 * {@link #beginSession} bound it to this window. The only way to undo
-	 * edits, since they are live and closing the window keeps them.
-	 */
 	private void resetToSessionBaseline()
 	{
 		loadIntoEditor( baseline );
@@ -953,23 +676,10 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Translate what the editor shows -- {@link #currentPalette},
-	 * {@link #mappingModel}, {@link #editedRangeMin}/{@link #editedRangeMax}
-	 * -- into a {@link PaletteWrapper} and hand it to {@link #activeLutConv}
-	 * to render through, so edits are visible in the viewer immediately.
-	 * Wired as {@link #mappingModel}'s change listener; also called directly
-	 * wherever the range fields change, since {@link #mappingModel} itself
-	 * doesn't track those.
-	 * <p>
-	 * The editor-facing terms are remembered in {@link #converterStates} so
-	 * re-selecting this source can restore them. The display range still goes
-	 * to the setup (which also drives brightness/contrast), so it stays the
-	 * single owner of that range.
-	 * <p>
-	 * The same wrapper instance also goes to {@link #activeVolatileLutConv},
-	 * which is what renders the source until its data has finished loading;
-	 * it can be shared because the two converters describe the same mapping
-	 * of the same pixels.
+	 * Build a wrapper from the editor state and give it to both converters,
+	 * remember the state in {@link #converterStates}, and set the display range
+	 * on the setup, which owns it. {@link #mappingModel}'s change listener; also
+	 * called on range changes, which the model does not track.
 	 */
 	private void pushLiveEdits()
 	{
@@ -988,28 +698,10 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Show a display range that {@code setup} changed outside this window --
-	 * in the brightness dialog, the source table, a script -- if it is the
-	 * one being edited, and push the edits again with it.
-	 * <p>
-	 * Pushed again rather than only shown: the converter has already moved
-	 * its wrapper's domain to the new range (see {@link PaletteConverter}),
-	 * but an automatic step size is resolved from the range only when
-	 * {@link PaletteWrapperBuilder} builds a wrapper, so a discrete palette
-	 * would otherwise go on stepping at the old range's width while the step
-	 * size field showed the new one.
-	 * <p>
-	 * The range is read from the setup now, not taken from the order the
-	 * notifications arrived in: one caused by {@link #pushLiveEdits()} itself
-	 * finds the range already matching and stops there, and so does one that
-	 * a later change overtook while it waited on the EDT. A range with
-	 * {@code max <= min} is not adopted, because the editor cannot show one
-	 * and the converter does not render it either (it keeps its previous
-	 * domain until the range is valid again).
-	 * <p>
-	 * Ignored while the window is hidden, as {@link #syncToCurrentSource()}
-	 * is, for the same reasons: showing the window reads the range afresh
-	 * (see {@link #initialStateFor}), and a disposed window is hidden too.
+	 * Adopt a display range changed outside this window. Re-pushed, not just
+	 * shown, because an automatic step size is only resolved when a wrapper is
+	 * built. Read from the setup now, so stale or self-caused notifications
+	 * stop at the equality check. Ignores {@code max <= min} and a hidden window.
 	 */
 	private void followDisplayRange( final ConverterSetup setup )
 	{
@@ -1028,13 +720,7 @@ public class LutEditorDialog extends JDialog
 
 	// -- Configurations (saved presets) ------------------------------------
 
-	/**
-	 * Apply the saved {@link EditorPreset} called {@code name} (see
-	 * {@link #comboEditorPreset}): its palette, boundary conditions and
-	 * shape, live and immediately, same as any other edit here. Deliberately
-	 * leaves {@link #editedRangeMin}/{@link #editedRangeMax} alone -- a preset
-	 * is a reusable "look", not tied to any particular source's data range.
-	 */
+	/** Keeps the edited range; a preset is not tied to a source's data. */
 	private void applyEditorPreset( final String name )
 	{
 		final EditorPreset preset = EditorPresets.load( name );
@@ -1057,13 +743,6 @@ public class LutEditorDialog extends JDialog
 		labelStatus.setText( "" );
 	}
 
-	/**
-	 * The {@link LutEditorMapping} a saved {@link EditorPreset} describes, given
-	 * whether the palette it names is discrete -- shared by
-	 * {@link #applyEditorPreset} (which resolves {@code discrete} from the
-	 * palette it just loaded) and {@link #matchesEditorPreset} (which resolves
-	 * it from {@link #mappingModel}, without re-loading the palette).
-	 */
 	private static LutEditorMapping mappingFromPreset( final EditorPreset preset, final boolean discrete )
 	{
 		final LutEditorMapping mapping = new LutEditorMapping();
@@ -1072,9 +751,6 @@ public class LutEditorDialog extends JDialog
 		mapping.setLeftSpecialColor( preset.getLeftSpecialColor() );
 		mapping.setRightSpecialColor( preset.getRightSpecialColor() );
 		mapping.setDiscrete( discrete );
-		// Only the half of the saved shape the palette can actually use: a
-		// discrete palette maps through the step size and ignores the curve,
-		// a continuous one the other way round (see LutEditorMapping).
 		if ( discrete )
 			mapping.setStepSize( preset.getStepSize() );
 		else
@@ -1083,21 +759,8 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Deselect the configuration combo when it no longer describes what is
-	 * actually loaded -- e.g. after switching to a source whose applied
-	 * palette/mapping is not the one the previously selected configuration
-	 * saves, or after the user changed the palette or mapping by hand. Called
-	 * after every {@link #loadIntoEditor} and on every change to
-	 * {@link #mappingModel} (which a palette pick also makes, see
-	 * {@link #selectPalette}), so the combo cannot go on claiming a
-	 * configuration is in effect once the editor state has moved on from it.
-	 * <p>
-	 * Compared rather than cleared outright, so that a pick that changes
-	 * nothing -- re-choosing the boundary condition already in effect -- leaves
-	 * it selected. The input range is not part of a configuration (see
-	 * {@link #applyEditorPreset}) and is not held by {@link #mappingModel}, so
-	 * changing it never deselects. Only ever deselects: editing back to a
-	 * configuration's exact state does not select it again.
+	 * Deselect the configuration once the editor no longer matches it. Compared
+	 * rather than cleared, so a no-op pick keeps it; never re-selects.
 	 */
 	private void syncEditorPresetSelection()
 	{
@@ -1106,7 +769,6 @@ public class LutEditorDialog extends JDialog
 			comboEditorPreset.setSelectedItem( null );
 	}
 
-	/** Whether {@link #currentPalette}/{@link #currentPaletteName} and {@link #mappingModel} are exactly what {@code presetName} saves. */
 	private boolean matchesEditorPreset( final String presetName )
 	{
 		if ( currentPaletteName == null )
@@ -1117,17 +779,8 @@ public class LutEditorDialog extends JDialog
 		return mappingModel.hasSameState( mappingFromPreset( preset, mappingModel.isDiscrete() ) );
 	}
 
-	/**
-	 * Ask the user for a name and save the editor's current palette, boundary
-	 * conditions and shape as a reusable {@link EditorPreset}
-	 * (see {@link #applyEditorPreset}) under it, confirming first if that
-	 * would overwrite an existing one.
-	 */
 	private void promptAndSaveEditorPreset()
 	{
-		// Checked before prompting: nothing the user could type would make a
-		// palette-less configuration saveable, so asking for a name first would
-		// only waste their time.
 		if ( currentPaletteName == null )
 		{
 			labelStatus.setText( "Select a named palette before saving a configuration." );
@@ -1139,10 +792,7 @@ public class LutEditorDialog extends JDialog
 				JOptionPane.PLAIN_MESSAGE, null, null, selected instanceof String ? selected : "" );
 		if ( input == null )
 			return;
-		// Canonicalize up front: a preset is identified by its file name, so
-		// this is the name it will actually be stored and listed under -- and
-		// the only form that can be meaningfully compared against
-		// discoverNames() just below.
+		// canonical before comparing with discoverNames()
 		final String name = EditorPresets.canonicalName( ( String ) input );
 		if ( name.isEmpty() )
 		{
@@ -1168,9 +818,6 @@ public class LutEditorDialog extends JDialog
 		}
 		catch ( final RuntimeException e )
 		{
-			// Saving is the one preset operation that can't degrade silently
-			// (see EditorPresets#save) -- report it here rather than letting
-			// it escape into the button's action listener.
 			labelStatus.setText( "Failed to save configuration: " + e.getMessage() );
 			return;
 		}
@@ -1185,11 +832,6 @@ public class LutEditorDialog extends JDialog
 
 	// -- Syncing controls to the model -------------------------------------
 
-	/**
-	 * Sync the shape controls to {@link #mappingModel}: which card is showing
-	 * -- a continuous palette is shaped by a preset curve, a discrete one by a
-	 * step size (see {@link LutEditorMapping}) -- and that card's own value.
-	 */
 	private void updateShapeControls()
 	{
 		layoutShape.show( panelShape, mappingModel.isDiscrete() ? SHAPE_CARD_DISCRETE : SHAPE_CARD_CONTINUOUS );
@@ -1200,12 +842,7 @@ public class LutEditorDialog extends JDialog
 		updateCurveHint();
 	}
 
-	/**
-	 * Say what the graph is currently offering: how to edit the transfer
-	 * function while that is switched on, or -- for a discrete palette, where
-	 * the pencil is disabled -- why there is nothing there to edit. Silent
-	 * otherwise, since a hint that is always on screen stops being read.
-	 */
+	/** Empty unless editing or discrete; an always-on hint stops being read. */
 	private void updateCurveHint()
 	{
 		if ( mappingModel.isDiscrete() )
@@ -1216,21 +853,13 @@ public class LutEditorDialog extends JDialog
 			labelCurveHint.setText( "" );
 	}
 
-	/**
-	 * A boundary's color swatch is only live while that end is set to
-	 * {@link BoundaryCondition#SPECIAL}; under the other conditions the color
-	 * comes from the palette, so there is nothing to pick.
-	 */
 	private void updateSpecialColorButtonStates()
 	{
 		buttonLeftSpecialColor.setEnabled( mappingModel.getLeftBoundaryCondition() == BoundaryCondition.SPECIAL );
 		buttonRightSpecialColor.setEnabled( mappingModel.getRightBoundaryCondition() == BoundaryCondition.SPECIAL );
 	}
 
-	/**
-	 * Ask for one end's {@link BoundaryCondition#SPECIAL} color and store it.
-	 * Forced opaque: {@link JColorChooser} has no alpha channel to offer here.
-	 */
+	/** Forced opaque: {@link JColorChooser} offers no alpha. */
 	private void chooseSpecialColor( final boolean left )
 	{
 		final JButton button = left ? buttonLeftSpecialColor : buttonRightSpecialColor;
@@ -1246,13 +875,7 @@ public class LutEditorDialog extends JDialog
 			mappingModel.setRightSpecialColor( argb );
 	}
 
-	/**
-	 * Show the step size actually in effect -- the chosen one, or whatever
-	 * {@link PaletteWrapperBuilder} resolves {@link LutEditorMapping#AUTO_STEP_SIZE}
-	 * to for the current palette and range. Showing the resolved number rather
-	 * than an empty field means the user always starts editing from the value
-	 * they are actually looking at.
-	 */
+	/** Shows the resolved value of {@link LutEditorMapping#AUTO_STEP_SIZE}, not an empty field. */
 	private void updateStepSizeField()
 	{
 		final double stepSize = effectiveStepSize();
@@ -1261,15 +884,7 @@ public class LutEditorDialog extends JDialog
 		updateStepCoverageLabel( stepSize );
 	}
 
-	/**
-	 * Say, under the step size, how far the palette actually reaches: its N
-	 * colors at that width cover {@code [min, min + stepSize * N]}, and that
-	 * is where the palette runs out and the "above range" condition takes over
-	 * -- the same edge the graph marks (see {@link MappingCurvePanel}). It is
-	 * deliberately not the display range's maximum: the two part company as
-	 * soon as a step size is typed in, and which of them the colors follow is
-	 * exactly what is easy to get wrong here.
-	 */
+	/** {@code [min, min + stepSize * N]}, which differs from the display range once a step size is typed. */
 	private void updateStepCoverageLabel( final double stepSize )
 	{
 		final int colors = new DiscreteColorScheme( currentPalette ).getPaletteRangeLength();
@@ -1278,7 +893,6 @@ public class LutEditorDialog extends JDialog
 				+ " covers " + formatValue( editedRangeMin ) + " \u2013 " + formatValue( end ) );
 	}
 
-	/** The step size {@link #mappingModel} currently maps through; see {@link #updateStepSizeField()}. */
 	private double effectiveStepSize()
 	{
 		final double chosen = mappingModel.getStepSize();
@@ -1290,11 +904,8 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * Take a hand-typed step size, keeping the last good value if it does not
-	 * parse or is not positive. Text we put there ourselves is ignored: the
-	 * field shows the <em>resolved</em> value of an automatic step size, so
-	 * committing it back on a mere focus traversal would silently pin it down
-	 * as an explicit choice -- and leave the editor looking dirty.
+	 * Ignores unchanged text, so a focus traversal does not pin a resolved
+	 * automatic step size as an explicit one.
 	 */
 	private void commitStepSizeField()
 	{
@@ -1315,11 +926,7 @@ public class LutEditorDialog extends JDialog
 		updateStepSizeField();
 	}
 
-	/**
-	 * Format a range value the same way {@link MappingCurvePanel} formats
-	 * its min/max fields: as a plain integer when it is (numerically) one,
-	 * otherwise to 2 decimal places.
-	 */
+	/** As {@link MappingCurvePanel} formats its range fields. */
 	private static String formatValue( final double value )
 	{
 		if ( Math.abs( value - Math.round( value ) ) < 1e-6 )
@@ -1329,16 +936,7 @@ public class LutEditorDialog extends JDialog
 
 	// -- Layout ------------------------------------------------------------
 
-	/**
-	 * The configuration strip across the top of the window: a saved
-	 * combination that can be applied in one step, or saved back under a name.
-	 * <p>
-	 * Full width, above both columns, because it governs everything below it
-	 * -- but deliberately understated (a muted label, no group box, a rule to
-	 * separate it) rather than presented as the window's headline control,
-	 * which it is not: the palette and the input range are what actually get
-	 * touched on most visits here.
-	 */
+	/** Full width since it governs everything below, but understated since it is rarely used. */
 	private JPanel createConfigurationStrip()
 	{
 		final JPanel row = new JPanel( new BorderLayout( 8, 0 ) );
@@ -1360,20 +958,14 @@ public class LutEditorDialog extends JDialog
 		panelData.setBorder( BorderFactory.createTitledBorder( "Data" ) );
 		panelData.add( labeledRow( "Color palette:", comboPalette ) );
 		panelData.add( Box.createVerticalStrut( 4 ) );
-		// Left-aligned like every other row: a BoxLayout column asked to mix
-		// alignments reserves room for the widest child on BOTH sides of the
-		// alignment point, so one centered child was making the whole settings
-		// column about a hundred pixels wider than its widest row.
+		// mixed alignments make a BoxLayout column wider than its widest row
 		panelPaletteSwatch.setAlignmentX( Component.LEFT_ALIGNMENT );
 		panelData.add( panelPaletteSwatch );
 		panelData.add( Box.createVerticalStrut( 4 ) );
 		panelData.add( leftAligned( labelPaletteKind ) );
 		panelData.setAlignmentX( Component.LEFT_ALIGNMENT );
 
-		// One card or the other, never both: which one is showing follows the
-		// palette's own kind (see #updateShapeControls). A CardLayout rather
-		// than swapping visibility so the panel keeps the taller card's height
-		// either way, and the dialog does not resize as the palette changes.
+		// CardLayout keeps the taller card's height, so the dialog does not resize
 		panelShape.add( continuousShapeCard(), SHAPE_CARD_CONTINUOUS );
 		panelShape.add( discreteShapeCard(), SHAPE_CARD_DISCRETE );
 		panelShape.setAlignmentX( Component.LEFT_ALIGNMENT );
@@ -1394,7 +986,6 @@ public class LutEditorDialog extends JDialog
 		return column;
 	}
 
-	/** A continuous palette's shape: a predefined transfer function, optionally flipped. */
 	private JPanel continuousShapeCard()
 	{
 		final JPanel card = new JPanel();
@@ -1410,7 +1001,6 @@ public class LutEditorDialog extends JDialog
 		return card;
 	}
 
-	/** A discrete palette's shape: how many input values one color covers, and how far that takes the palette. */
 	private JPanel discreteShapeCard()
 	{
 		final JPanel card = new JPanel();
@@ -1422,7 +1012,6 @@ public class LutEditorDialog extends JDialog
 		return card;
 	}
 
-	/** The "Mapping" panel: what happens to raw values past either end of the input range, one labelled row per end. */
 	private JPanel createBoundaryGroup()
 	{
 		final JPanel panel = heightCapped( null );
@@ -1435,7 +1024,6 @@ public class LutEditorDialog extends JDialog
 		return panel;
 	}
 
-	/** The titled "Transfer function" panel around the interactive graph. */
 	private JPanel createMappingCurveColumn()
 	{
 		final JPanel column = new JPanel( new BorderLayout() );
@@ -1444,7 +1032,6 @@ public class LutEditorDialog extends JDialog
 		return column;
 	}
 
-	/** Reset, help and whatever the graph currently has to say on the left, Close on the right. */
 	private JPanel createBottomBar()
 	{
 		final JButton buttonReset = new JButton( "Reset" );
@@ -1475,11 +1062,7 @@ public class LutEditorDialog extends JDialog
 		return panelBottom;
 	}
 
-	/**
-	 * Wire up the persistent controls (the bottom bar's buttons wire
-	 * themselves, in {@link #createBottomBar()}, since nothing else refers to
-	 * them).
-	 */
+	/** The bottom bar's buttons are wired in {@link #createBottomBar()}. */
 	private void installControlListeners()
 	{
 		comboPalette.addActionListener( e ->
@@ -1552,51 +1135,28 @@ public class LutEditorDialog extends JDialog
 		} );
 	}
 
-	/**
-	 * Size the window to its contents, with the graph widened to line up with
-	 * the left column's titled panels.
-	 */
+	/** Size the window, with the graph as wide as the left column. */
 	private void packAndMatchGraphWidth( final JPanel panelLeftColumn, final JPanel panelMappingCurveColumn )
 	{
-		// A first pack() is needed before we can trust any preferred-size
-		// measurements below: JComboBox (and text components generally)
-		// under-measure their preferred width until the component hierarchy
-		// is actually realized (addNotify()) and real font metrics become
-		// available, so measuring panelLeftColumn's width before this point can
-		// be significantly too narrow.
+		// combo boxes under-measure until realized, so pack before measuring
 		pack();
 
-		// Match the left column's actual rendered width (not just the Data
-		// panel's own preferred width: BoxLayout stretches it to the column's
-		// width, which is the widest of Data/Function/Mapping), accounting for
-		// the curve column's own titled border insets so the two line up
-		// exactly.
 		final Insets insets = panelMappingCurveColumn.getBorder().getBorderInsets( panelMappingCurveColumn );
-		// Never narrower than the graph itself needs at minimum, in case the
-		// settings column should ever end up the narrower of the two.
 		final int targetGraphWidth = Math.max( panelLeftColumn.getWidth() - insets.left - insets.right,
 				panelMappingCurve.minimumGraphWidth() );
 		panelMappingCurve.setPreferredSize( new Dimension( targetGraphWidth, panelMappingCurve.getPreferredSize().height ) );
 
-		// Second pack() applies the corrected graph width to the final layout.
 		pack();
 		setMinimumSize( getPreferredSize() );
 	}
 
 	// -- Widget factories --------------------------------------------------
 
-	/**
-	 * The color palette chooser: every discovered palette, grouped under a
-	 * non-selectable {@link CategoryHeader} per {@link LutCategories} category.
-	 */
+	/** Grouped by {@link LutCategories}. */
 	private JComboBox< Object > createPaletteCombo()
 	{
 		final JComboBox< Object > combo = createGroupedCombo( "Select Palette" );
-		// Without a prototype the combo is as wide as its widest item, which
-		// is one of the bold category headers ("Perceptually Uniform
-		// Sequential") rather than any palette -- and that width then set the
-		// width of the whole settings column. Sized for the longest bundled
-		// palette name instead; the popup is free to be wider than the box.
+		// otherwise the widest category header sets the settings column width
 		combo.setPrototypeDisplayValue( "twilight_shifted_r" );
 		final GroupedComboModel model = ( GroupedComboModel ) combo.getModel();
 		for ( final Map.Entry< String, List< String > > category : LutCategories.groupByCategory( LutPalettes.discoverNames() ).entrySet() )
@@ -1608,30 +1168,15 @@ public class LutEditorDialog extends JDialog
 		return combo;
 	}
 
-	/**
-	 * The saved-configuration chooser (see {@link EditorPresets}): built-in and
-	 * user-saved configurations, grouped under a non-selectable
-	 * {@link CategoryHeader} each. Populated by {@link #refreshEditorPresetCombo}.
-	 */
 	private JComboBox< Object > createEditorPresetCombo()
 	{
 		final JComboBox< Object > combo = createGroupedCombo( "Select Configuration" );
-		// As for the palette combo -- and configuration names are the user's
-		// own, so there is no longest one to size to. It is stretched to the
-		// width of the strip anyway.
 		combo.setPrototypeDisplayValue( "Select Configuration" );
 		refreshEditorPresetCombo( combo );
 		return combo;
 	}
 
-	/**
-	 * Rebuild {@code combo}'s items from {@link EditorPresets#discoverNames()},
-	 * grouped into "My Configurations" (user-saved) and "Built-in",
-	 * preserving the current selection if it is still present. Called on
-	 * construction and again after {@link #promptAndSaveEditorPreset()}
-	 * adds/overwrites one -- with the listeners muted there, since the
-	 * selection it restores would otherwise be re-applied as if picked.
-	 */
+	/** Keeps the selection; call with listeners muted, or it is re-applied as if picked. */
 	private static void refreshEditorPresetCombo( final JComboBox< Object > combo )
 	{
 		final GroupedComboModel model = ( GroupedComboModel ) combo.getModel();
@@ -1659,13 +1204,7 @@ public class LutEditorDialog extends JDialog
 		combo.setSelectedItem( previouslySelected );
 	}
 
-	/**
-	 * A combo box that renders {@link CategoryHeader} items as bold,
-	 * unselectable group labels (see {@link GroupedComboModel}) among regular
-	 * {@code String} items, showing {@code placeholderText} when nothing is
-	 * selected. Shared by {@link #createPaletteCombo()} and
-	 * {@link #createEditorPresetCombo()}.
-	 */
+	/** Renders {@link CategoryHeader}s as bold, unselectable labels. */
 	private static JComboBox< Object > createGroupedCombo( final String placeholderText )
 	{
 		final JComboBox< Object > combo = new JComboBox<>( new GroupedComboModel() );
@@ -1698,12 +1237,6 @@ public class LutEditorDialog extends JDialog
 		return combo;
 	}
 
-	/**
-	 * A per-end boundary-condition chooser: what happens to raw values past
-	 * that end of the input range. Offers the render model's own
-	 * {@link BoundaryCondition}s directly, just relabeled for the UI (see
-	 * {@link #boundaryLabel}).
-	 */
 	private static JComboBox< BoundaryCondition > createBoundaryCombo()
 	{
 		final JComboBox< BoundaryCondition > combo = new JComboBox<>( BoundaryCondition.values() );
@@ -1722,7 +1255,6 @@ public class LutEditorDialog extends JDialog
 		return combo;
 	}
 
-	/** How a {@link BoundaryCondition} is named in this UI; see the enum itself for what each one actually does. */
 	private static String boundaryLabel( final BoundaryCondition condition )
 	{
 		switch ( condition )
@@ -1738,11 +1270,6 @@ public class LutEditorDialog extends JDialog
 		}
 	}
 
-	/**
-	 * The small swatch button that opens one end's fixed-color chooser. Starts
-	 * disabled: it is only meaningful while that end is set to
-	 * {@link BoundaryCondition#SPECIAL}.
-	 */
 	private static JButton createSpecialColorButton( final String toolTip, final int argb )
 	{
 		final JButton button = new JButton();
@@ -1758,7 +1285,6 @@ public class LutEditorDialog extends JDialog
 
 	// -- Layout helpers ----------------------------------------------------
 
-	/** Wrap {@code component} so a {@link BoxLayout} column leaves it at the left edge rather than centering it. */
 	private static JPanel leftAligned( final JComponent component )
 	{
 		final JPanel row = heightCapped( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
@@ -1768,15 +1294,8 @@ public class LutEditorDialog extends JDialog
 	}
 
 	/**
-	 * A panel that never grows taller than its contents need <em>now</em>.
-	 * <p>
-	 * A {@link BoxLayout} column stretches each child up to its maximum size,
-	 * so every child has to declare a ceiling -- but taking that ceiling once,
-	 * while the window is being built, silently freezes out anything with
-	 * nothing to show yet: an empty {@link JLabel} measures zero pixels high,
-	 * so a line that only gets its text when a palette is chosen would never
-	 * be given the room to appear. Computing the cap on demand is what lets
-	 * {@link #labelPaletteKind} and {@link #labelStepCoverage} turn up later.
+	 * Caps the height at the current preferred height, computed on demand: a
+	 * cap taken at build time would freeze an empty label at zero height.
 	 */
 	private static JPanel heightCapped( final LayoutManager layout )
 	{
@@ -1792,7 +1311,6 @@ public class LutEditorDialog extends JDialog
 		};
 	}
 
-	/** A label for something said <em>about</em> a control rather than by it: present, but not competing with the control itself. */
 	private static JLabel mutedLabel( final String text )
 	{
 		final JLabel label = new JLabel( text );
@@ -1801,12 +1319,7 @@ public class LutEditorDialog extends JDialog
 		return label;
 	}
 
-	/**
-	 * Wrap {@code component} so it renders at its own preferred size instead
-	 * of being stretched to fill whatever slot it lands in (e.g. a
-	 * {@link BorderLayout#CENTER}), which is what makes titled borders hug
-	 * their contents rather than the available space.
-	 */
+	/** Keeps {@code component} at its preferred size so titled borders hug it. */
 	private static JPanel hugContents( final JComponent component )
 	{
 		final JPanel wrapper = new JPanel( new FlowLayout( FlowLayout.LEFT, 0, 0 ) );
@@ -1853,13 +1366,7 @@ public class LutEditorDialog extends JDialog
 
 	// -- Help --------------------------------------------------------------
 
-	/**
-	 * The help text, in a box of its own rather than handed straight to a
-	 * {@link JOptionPane}: passed as a string it becomes a stack of labels as
-	 * tall as the text, which by now is taller than the screen. A fixed height
-	 * with a scroll bar keeps the window a sensible size however much the text
-	 * grows.
-	 */
+	/** In a scroll pane: as a plain string the dialog would be taller than the screen. */
 	private void showHelp()
 	{
 		final String message = String.join( "\n",
@@ -1932,10 +1439,7 @@ public class LutEditorDialog extends JDialog
 
 		final JTextArea text = new JTextArea( message );
 		text.setEditable( false );
-		// Monospaced on purpose: the text is hand-wrapped, and the boundary
-		// conditions are laid out in columns that only line up in a fixed-width
-		// font. Sized from the look and feel's own label font, so it still
-		// follows a UI scale change.
+		// monospaced for the hand-aligned columns, sized to follow UI scaling
 		final Font labelFont = UIManager.getFont( "Label.font" );
 		text.setFont( new Font( Font.MONOSPACED, Font.PLAIN, labelFont != null ? labelFont.getSize() : 12 ) );
 		text.setBackground( UIManager.getColor( "Panel.background" ) );
@@ -1943,9 +1447,6 @@ public class LutEditorDialog extends JDialog
 		text.setCaretPosition( 0 );
 
 		final JScrollPane scroll = new JScrollPane( text );
-		// Wide enough for the longest line, so that only the vertical bar is
-		// ever needed -- but capped, since one stray long line should not push
-		// the window off the side of the screen.
 		final int width = Math.min( text.getPreferredSize().width + 24, MAX_HELP_WIDTH );
 		scroll.setPreferredSize( new Dimension( width, HELP_HEIGHT ) );
 		scroll.getVerticalScrollBar().setUnitIncrement( 16 );
@@ -1955,12 +1456,7 @@ public class LutEditorDialog extends JDialog
 
 	// -- Nested classes ----------------------------------------------------
 
-	/**
-	 * A non-selectable row in a {@link #createGroupedCombo grouped combo},
-	 * labeling the names that follow it: a {@link LutCategories} category in
-	 * {@link #comboPalette}, or built-in vs. user-saved in
-	 * {@link #comboEditorPreset}.
-	 */
+	/** A non-selectable group label in a {@link #createGroupedCombo grouped combo}. */
 	private static final class CategoryHeader
 	{
 		private final String label;
@@ -1977,13 +1473,7 @@ public class LutEditorDialog extends JDialog
 		}
 	}
 
-	/**
-	 * A combo box model that refuses to ever make a {@link CategoryHeader}
-	 * the actual selected item -- clicking one, or landing on one via the
-	 * keyboard and pressing enter, leaves the previous selection in place.
-	 * The header rows still show up in the dropdown list itself, just not
-	 * as something that can be "chosen".
-	 */
+	/** Never selects a {@link CategoryHeader}; the previous selection stays. */
 	private static final class GroupedComboModel extends DefaultComboBoxModel< Object >
 	{
 		@Override
@@ -1997,11 +1487,7 @@ public class LutEditorDialog extends JDialog
 		private static final long serialVersionUID = 1L;
 	}
 
-	/**
-	 * A preview panel showing a color table as a horizontal bar, rendered
-	 * through the {@link ColorScheme} it maps to: a categorical (non-interpolated)
-	 * palette shows discrete color bands, a continuous one a smooth gradient.
-	 */
+	/** The palette as a horizontal bar, through its {@link ColorScheme}. */
 	private static class GradientPreviewPanel extends JPanel
 	{
 		private Palette palette = Palette.DEFAULT;

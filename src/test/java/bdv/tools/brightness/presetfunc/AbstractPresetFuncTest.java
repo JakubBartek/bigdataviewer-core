@@ -34,14 +34,7 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
-/**
- * Test cases for behavior every {@link PresetFunc} implementation shares
- * (constructor validation, {@code getMin}/{@code getMax}/{@code getPaletteRangeLength},
- * and the endpoint guarantee), checked generically across all of them rather
- * than repeating it in each one's own test class -- their individual test
- * classes instead focus on what is actually distinctive about each: its shape
- * in between.
- */
+/** Behavior every {@link PresetFunc} shares; per-class tests cover the shapes. */
 public class AbstractPresetFuncTest
 {
 	/** Mirrors every concrete {@link PresetFunc} constructor, so a test can build any of them from one fixture. */
@@ -51,16 +44,7 @@ public class AbstractPresetFuncTest
 		PresetFunc create( double min, double max, int paletteRangeLength );
 	}
 
-	/**
-	 * The shapes whose {@link PresetFunc#withRange(double, double)} stretches
-	 * them onto the new endpoints -- every implementation except
-	 * {@link StepPresetFunc}, whose step size is a quantity in raw units and so
-	 * deliberately survives a range change unscaled (see
-	 * {@link StepPresetFuncTest}). Only
-	 * {@link #testWithRangeStretchesTheSameShapeOntoTheNewEndpoints} needs to
-	 * make that distinction; every other test here runs against
-	 * {@link #ALL_CONSTRUCTORS}.
-	 */
+	/** All but {@link StepPresetFunc}, whose step size survives a range change. */
 	private static final List< PresetFuncFactory > RANGE_STRETCHING_CONSTRUCTORS = Arrays.asList(
 			LinearPresetFunc::new,
 			LogPresetFunc::new,
@@ -71,13 +55,7 @@ public class AbstractPresetFuncTest
 			AtanPresetFunc::new,
 			CustomInterpPresetFunc::new );
 
-	/**
-	 * One constructor reference per implementation, so the tests below run
-	 * against all of them without repeating themselves by hand.
-	 * {@link StepPresetFunc} takes a step size as well; built at its default
-	 * one it is a plain single pass over the palette, so it shares every
-	 * contract checked here.
-	 */
+	/** {@link StepPresetFunc} at its default step size is a plain single pass. */
 	private static final List< PresetFuncFactory > ALL_CONSTRUCTORS = concat( RANGE_STRETCHING_CONSTRUCTORS,
 			( min, max, n ) -> new StepPresetFunc( min, n, StepPresetFunc.defaultStepSize( min, max, n ) ) );
 
@@ -106,15 +84,7 @@ public class AbstractPresetFuncTest
 		}
 	}
 
-	/**
-	 * Each shape's two ends land exactly on palette value {@code 0} and
-	 * {@code getPaletteRangeLength()} -- this is what lets a
-	 * {@code PresetPaletteWrapper} rely on a {@link PresetFunc} feeding a
-	 * continuous color scheme's full domain, regardless of which shape was
-	 * chosen. {@link CustomInterpPresetFunc} only guarantees this for its
-	 * default knots (which is what {@link #build} produces); see its own test
-	 * class for why a user-defined curve is deliberately exempt.
-	 */
+	/** {@link CustomInterpPresetFunc} only guarantees this for its default knots. */
 	@Test
 	public void testEveryShapeReachesExactlyZeroAndPaletteRangeLengthAtTheEnds()
 	{
@@ -179,15 +149,7 @@ public class AbstractPresetFuncTest
 		}
 	}
 
-	/**
-	 * {@link PresetFunc#withRange(double, double)} keeps the shape and palette
-	 * range but moves the endpoints: at the new min/max the palette value is
-	 * the same 0/rangeLength as at the old ones, and a proportionally-placed
-	 * raw value maps to the same palette value as before -- i.e. the shape was
-	 * stretched, not distorted. Checked across every implementation that makes
-	 * this promise; see {@link #RANGE_STRETCHING_CONSTRUCTORS} for the one that
-	 * deliberately does not.
-	 */
+	/** Stretched, not distorted. */
 	@Test
 	public void testWithRangeStretchesTheSameShapeOntoTheNewEndpoints()
 	{

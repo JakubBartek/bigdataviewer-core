@@ -38,14 +38,7 @@ import bdv.tools.brightness.palette.PaletteWrapper;
 import bdv.tools.brightness.palette.PresetPaletteWrapper;
 import net.imglib2.type.numeric.ARGBType;
 
-/**
- * Test cases for {@link PaletteWrapperBuilder}: that the mapping's discrete
- * flag picks both the color scheme and which shape control feeds it (a curve
- * for continuous, a step size for discrete), and that the per-end boundary
- * conditions are carried across verbatim. Colors asserted are exact palette
- * stops or safely mid-band, so the expected values are deterministic rather
- * than empirically sampled.
- */
+/** Colors asserted are exact stops or mid-band, so no sampling is needed. */
 public class PaletteWrapperBuilderTest
 {
 	private static final int RED = ARGBType.rgba( 255, 0, 0, 255 );
@@ -113,16 +106,7 @@ public class PaletteWrapperBuilderTest
 		Assert.assertEquals( wrapper.getRGBForRaw( 0.1f ), wrapper.getRGBForRaw( 0.9f ) );
 	}
 
-	/**
-	 * A discrete palette's shape is its step size, not the curve: one color per
-	 * that many raw values. An explicit step size therefore decides how far the
-	 * palette reaches on its own, and the display range's top does not enter
-	 * into it -- with 3 stops at one raw unit each the palette covers
-	 * {@code [0, 3)} whether the range given was {@code [0, 6]} or anything
-	 * else. Past that, the boundary condition decides, so
-	 * {@link bdv.tools.brightness.palette.BoundaryCondition#CLAMP} holds the
-	 * last color rather than starting over.
-	 */
+	/** The display range's top does not matter; past the palette CLAMP holds the last color. */
 	@Test
 	public void testDiscreteStepSizeDecidesHowFarThePaletteReaches()
 	{
@@ -165,11 +149,7 @@ public class PaletteWrapperBuilderTest
 		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 5.5 ) );
 	}
 
-	/**
-	 * An unset step size ({@link LutEditorMapping#AUTO_STEP_SIZE}) resolves to
-	 * one pass across the range, which is what a discrete palette does with no
-	 * step size chosen: 3 stops over [0, 6] means 2 raw units each.
-	 */
+	/** 3 stops over [0, 6] means 2 raw units each. */
 	@Test
 	public void testDiscreteAutoStepSizeSpreadsThePaletteOnce()
 	{

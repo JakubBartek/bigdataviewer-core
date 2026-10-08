@@ -33,14 +33,7 @@ import org.junit.Test;
 
 import bdv.tools.brightness.palette.BoundaryCondition;
 
-/**
- * Test cases for {@link LutEditorMapping}, the LUT editor's editable mapping state.
- * It is a pure configuration holder (the raw-value-to-color mapping itself
- * lives in the color-mapping architecture, reached via
- * {@link PaletteWrapperBuilder}); these cover the state it owns -- curve,
- * presets, per-end boundary conditions and their colors, the discrete flag and
- * its step size -- and its copy/equality helpers.
- */
+/** State and copy/equality only; the color mapping is {@link PaletteWrapperBuilder}'s. */
 public class LutEditorMappingTest
 {
 	@Test
@@ -120,10 +113,7 @@ public class LutEditorMappingTest
 	@Test
 	public void testCopyFromCopiesStateAndDoesNotAlias()
 	{
-		// Deliberately left continuous: setDiscrete(true) forces the curve back
-		// to LINEAR (see testSetDiscreteForcesLinearCurve), which would fight
-		// the SIGMOID preset set up below -- the discrete flag's own copy
-		// behavior is covered by testHasSameStateDetectsEachField instead.
+		// continuous, since setDiscrete(true) would reset the SIGMOID curve
 		final LutEditorMapping source = new LutEditorMapping();
 		source.applyPreset( PresetShape.SIGMOID );
 		source.setLeftBoundaryCondition( BoundaryCondition.SPECIAL );
@@ -245,12 +235,6 @@ public class LutEditorMappingTest
 		Assert.assertEquals( 4, count[ 0 ] );
 	}
 
-	/**
-	 * A step size is a positive count of raw values, so anything else means
-	 * "no explicit choice" -- the model normalizes it to
-	 * {@link LutEditorMapping#AUTO_STEP_SIZE} rather than storing a value
-	 * {@link PaletteWrapperBuilder} would have to reject later.
-	 */
 	@Test
 	public void testNonPositiveStepSizeBecomesAuto()
 	{

@@ -28,72 +28,27 @@
 package bdv.tools.brightness.presetfunc;
 
 /**
- * Converts a raw image value into a palette value -- nothing else. Owns the
- * raw-value range it is defined over ({@link #getMin()}/{@link #getMax()})
- * and the length of the palette-value range it maps into
- * ({@link #getPaletteRangeLength()}, same meaning as
- * {@code ColorScheme#getPaletteRangeLength()}: a {@code paletteValue} this
- * produces is meant to land in {@code [0, getPaletteRangeLength()]}, ready to
- * feed a continuous color scheme with that same domain length).
- * <p>
- * Implementations must not know anything about RGB, RGBA, color schemes,
- * palettes, or boundary conditions -- turning a palette value into a color is
- * a separate concern ({@code ColorScheme}), and deciding what to do with a
- * raw value outside {@code [getMin(), getMax()]} is another
- * ({@code PresetPaletteWrapper}). This interface
- * only ever computes {@code paletteValue = f(rawValue)}; {@code getMin()}/
- * {@code getMax()} are exposed so a caller can make that boundary decision
- * without this class needing to know it is being made.
+ * Converts a raw image value over {@code [getMin(), getMax()]} into a palette
+ * value in {@code [0, getPaletteRangeLength()]}. Knows nothing about colors or
+ * boundary conditions.
  */
 public interface PresetFunc
 {
-	/**
-	 * Raw value this function's domain starts at. Maps to palette value
-	 * {@code 0} for every implementation here except
-	 * {@link CustomInterpPresetFunc}, whose shape is user-defined.
-	 */
+	/** Maps to palette value {@code 0}, except for {@link CustomInterpPresetFunc}. */
 	double getMin();
 
-	/**
-	 * Raw value this function's domain ends at. Maps to palette value
-	 * {@link #getPaletteRangeLength()} for every implementation here except
-	 * {@link CustomInterpPresetFunc}, whose shape is user-defined.
-	 */
+	/** Maps to {@link #getPaletteRangeLength()}, except for {@link CustomInterpPresetFunc}. */
 	double getMax();
 
-	/**
-	 * Length of the palette-value range {@link #getPaletteValueForRaw(double)}
-	 * maps into; see the class javadoc. An {@code int}, like
-	 * {@code ColorScheme#getPaletteRangeLength()}, because it has to equal the
-	 * color scheme's -- which is a stop count, and so always whole.
-	 */
+	/** Must equal the color scheme's, hence a whole stop count. */
 	int getPaletteRangeLength();
 
 	/**
-	 * {@code paletteValue = f(rawValue)}. Everything here is {@code double}, end
-	 * to end: a {@code float} cannot represent consecutive integers above 2^24,
-	 * so a label image with ids past 16,777,216 would collide two distinct
-	 * labels onto a single raw value before this function ever saw them -- and a
-	 * narrowing anywhere along the way reintroduces exactly the rounding the
-	 * discrete path has to be free of. {@code double} is exact on integers up to
-	 * 2^53, which no realistic raw value reaches.
-	 * <p>
-	 * {@code rawValue} is not assumed to
-	 * already be inside {@code [getMin(), getMax()]} -- implementations clamp
-	 * it themselves rather than producing an undefined or wildly
-	 * extrapolated result, but a caller that cares whether {@code rawValue}
-	 * was actually in range should check {@link #getMin()}/{@link #getMax()}
-	 * itself beforehand (see the class javadoc).
+	 * Clamps {@code rawValue} into the domain. All {@code double}: a
+	 * {@code float} merges integers above 2^24 (label ids).
 	 */
 	double getPaletteValueForRaw( double rawValue );
 
-	/**
-	 * A copy of this function with the same shape and
-	 * {@link #getPaletteRangeLength()} but a different input range -- i.e. the
-	 * same transformation stretched over a new {@code [min, max]}. This is how
-	 * a changing display range (a brightness/contrast adjustment) is applied
-	 * without disturbing which shape the user chose. {@code PresetFunc} is
-	 * otherwise immutable, so this returns a new instance rather than mutating.
-	 */
+	/** A copy with the same shape over a new {@code [min, max]}. */
 	PresetFunc withRange( double min, double max );
 }
