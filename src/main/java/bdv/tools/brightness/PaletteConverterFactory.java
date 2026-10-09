@@ -49,8 +49,6 @@ import net.imglib2.type.numeric.RealType;
  * {@link LinearPresetFunc linear} shape and a {@link LegacyBdvColorPalette}.
  * See that palette for where the two diverge. A collapsed display range is
  * widened by one raw unit.
- *
- * @author Jakub Bartek
  */
 public final class PaletteConverterFactory
 {

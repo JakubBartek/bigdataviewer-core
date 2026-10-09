@@ -38,8 +38,6 @@ import net.imglib2.type.numeric.ARGBType;
  * An opaque two-stop ramp from black up to one color, as for a fluorescence
  * channel. Unlike {@link LegacyBdvColorPalette} it ignores the color's alpha;
  * for an opaque color the two compare {@link #equals equal}.
- *
- * @author Jakub Bartek
  */
 public final class CustomColorsPalette extends Palette
 {

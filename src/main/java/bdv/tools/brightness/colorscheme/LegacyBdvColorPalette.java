@@ -43,8 +43,6 @@ import net.imglib2.type.numeric.ARGBType;
  * for colors whose channels are all 0 or 255.</li>
  * <li>Exact {@code .5} rounding ties can land one unit apart in a channel.</li>
  * </ul>
- *
- * @author Jakub Bartek
  */
 public final class LegacyBdvColorPalette extends Palette
 {
