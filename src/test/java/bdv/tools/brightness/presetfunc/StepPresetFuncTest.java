@@ -38,7 +38,7 @@ public class StepPresetFuncTest
 {
 	// -- the derived domain --------------------------------------------------
 
-	/** {@code getMax() == min + stepSize * paletteRangeLength}, no off-by-one. */
+	/** {@code getMax() == min + stepSize * schemeRange}, no off-by-one. */
 	@Test
 	public void testMaxIsDerivedFromMinAndStepSize()
 	{
@@ -50,21 +50,21 @@ public class StepPresetFuncTest
 	}
 
 	@Test
-	public void testEachStopOwnsOneStepSizeWorthOfRawValues()
+	public void testEachFixOwnsOneStepSizeWorthOfRawValues()
 	{
 		final StepPresetFunc f = new StepPresetFunc( 0, 3, 2.0 );
 
-		Assert.assertEquals( 0.0, f.getPaletteValueForRaw( 0 ), 1e-9 );
-		Assert.assertEquals( 0.5, f.getPaletteValueForRaw( 1 ), 1e-9 );
-		Assert.assertEquals( 1.0, f.getPaletteValueForRaw( 2 ), 1e-9 );
-		Assert.assertEquals( 2.0, f.getPaletteValueForRaw( 4 ), 1e-9 );
-		// getMax(): one past the last stop
-		Assert.assertEquals( 3.0, f.getPaletteValueForRaw( 6 ), 1e-9 );
+		Assert.assertEquals( 0.0, f.getSchemeValueForRaw( 0 ), 1e-9 );
+		Assert.assertEquals( 0.5, f.getSchemeValueForRaw( 1 ), 1e-9 );
+		Assert.assertEquals( 1.0, f.getSchemeValueForRaw( 2 ), 1e-9 );
+		Assert.assertEquals( 2.0, f.getSchemeValueForRaw( 4 ), 1e-9 );
+		// getMax(): one past the last fix
+		Assert.assertEquals( 3.0, f.getSchemeValueForRaw( 6 ), 1e-9 );
 	}
 
-	/** Repetition is {@code BoundaryCondition.CYCLE}'s job; see {@code PresetPaletteWrapperTest}. */
+	/** Repetition is {@code BoundaryCondition.CYCLE}'s job; see {@code PresetColorSchemeWrapperTest}. */
 	@Test
-	public void testSmallerStepSizeNarrowsTheDomainRatherThanRepeatingThePalette()
+	public void testSmallerStepSizeNarrowsTheDomainRatherThanRepeatingTheScheme()
 	{
 		final StepPresetFunc narrow = new StepPresetFunc( 0, 3, 1.0 );
 		final StepPresetFunc wide = new StepPresetFunc( 0, 3, 2.0 );
@@ -72,20 +72,20 @@ public class StepPresetFuncTest
 		Assert.assertEquals( 3.0, narrow.getMax(), 0.0 );
 		Assert.assertEquals( 6.0, wide.getMax(), 0.0 );
 		// past the narrow domain: clamped, not wrapped
-		Assert.assertEquals( 2.0, wide.getPaletteValueForRaw( 4 ), 1e-9 );
-		Assert.assertEquals( 3.0, narrow.getPaletteValueForRaw( 4 ), 1e-9 );
+		Assert.assertEquals( 2.0, wide.getSchemeValueForRaw( 4 ), 1e-9 );
+		Assert.assertEquals( 3.0, narrow.getSchemeValueForRaw( 4 ), 1e-9 );
 	}
 
-	/** A larger step size widens the domain; the palette is still traversed exactly once. */
+	/** A larger step size widens the domain; the scheme is still traversed exactly once. */
 	@Test
 	public void testLargerStepSizeWidensTheDomain()
 	{
 		final StepPresetFunc f = new StepPresetFunc( 0, 3, 6.0 );
 
 		Assert.assertEquals( 18.0, f.getMax(), 0.0 );
-		Assert.assertEquals( 0.0, f.getPaletteValueForRaw( 0 ), 1e-9 );
-		Assert.assertEquals( 1.0, f.getPaletteValueForRaw( 6 ), 1e-9 );
-		Assert.assertEquals( 3.0, f.getPaletteValueForRaw( 18 ), 1e-9 );
+		Assert.assertEquals( 0.0, f.getSchemeValueForRaw( 0 ), 1e-9 );
+		Assert.assertEquals( 1.0, f.getSchemeValueForRaw( 6 ), 1e-9 );
+		Assert.assertEquals( 3.0, f.getSchemeValueForRaw( 18 ), 1e-9 );
 	}
 
 	// -- the default step size -----------------------------------------------
@@ -100,21 +100,21 @@ public class StepPresetFuncTest
 		Assert.assertEquals( 6.0, f.getMax(), 0.0 );
 	}
 
-	/** The endpoint reaches {@code getPaletteRangeLength()} rather than wrapping to 0. */
+	/** The endpoint reaches {@code getSchemeRange()} rather than wrapping to 0. */
 	@Test
-	public void testDefaultStepSizeSpreadsThePaletteOnce()
+	public void testDefaultStepSizeSpreadsTheSchemeOnce()
 	{
 		final StepPresetFunc f = new StepPresetFunc( 0, 3, 2.0 );
 
-		Assert.assertEquals( 0.0, f.getPaletteValueForRaw( 0 ), 1e-6 );
-		Assert.assertEquals( 1.0, f.getPaletteValueForRaw( 2 ), 1e-6 );
-		Assert.assertEquals( 2.0, f.getPaletteValueForRaw( 4 ), 1e-6 );
-		Assert.assertEquals( 3.0, f.getPaletteValueForRaw( 6 ), 1e-6 );
+		Assert.assertEquals( 0.0, f.getSchemeValueForRaw( 0 ), 1e-6 );
+		Assert.assertEquals( 1.0, f.getSchemeValueForRaw( 2 ), 1e-6 );
+		Assert.assertEquals( 2.0, f.getSchemeValueForRaw( 4 ), 1e-6 );
+		Assert.assertEquals( 3.0, f.getSchemeValueForRaw( 6 ), 1e-6 );
 	}
 
 	// -- re-ranging ----------------------------------------------------------
 
-	/** Unlike every other {@link PresetFunc}, the shape is not stretched to the new range. */
+	/** Unlike every other {@link IPresetFunc}, the shape is not stretched to the new range. */
 	@Test
 	public void testWithRangeKeepsTheStepSizeAndIgnoresTheGivenMax()
 	{
@@ -127,8 +127,8 @@ public class StepPresetFuncTest
 
 		Assert.assertEquals( f.withRange( 10, 12 ).getMax(), f.withRange( 10, 1e9 ).getMax(), 0.0 );
 
-		// one raw unit is still one stop, exactly as before
-		Assert.assertEquals( 1.5, moved.getPaletteValueForRaw( 11.5 ), 1e-9 );
+		// one raw unit is still one fix, exactly as before
+		Assert.assertEquals( 1.5, moved.getSchemeValueForRaw( 11.5 ), 1e-9 );
 	}
 
 	@Test
@@ -141,36 +141,36 @@ public class StepPresetFuncTest
 		Assert.assertEquals( 3.0, f.getMax(), 0.0 );
 	}
 
-	// -- exactness at stop boundaries ----------------------------------------
+	// -- exactness at fix boundaries ----------------------------------------
 
 	/**
-	 * Regression: a boundary landing a hair low floors to the previous stop.
+	 * Regression: a boundary landing a hair low floors to the previous fix.
 	 * Round trips through a normalized fraction caused this, hidden while the
 	 * result was narrowed to {@code float}.
 	 */
 	@Test
-	public void testStopBoundariesAreExactWholeNumbers()
+	public void testFixBoundariesAreExactWholeNumbers()
 	{
 		final StepPresetFunc f = new StepPresetFunc( 0, 3, 1.0 );
 
-		Assert.assertEquals( 0.0, f.getPaletteValueForRaw( 0 ), 0.0 );
-		Assert.assertEquals( 1.0, f.getPaletteValueForRaw( 1 ), 0.0 );
-		Assert.assertEquals( 2.0, f.getPaletteValueForRaw( 2 ), 0.0 );
-		Assert.assertEquals( 3.0, f.getPaletteValueForRaw( 3 ), 0.0 );
+		Assert.assertEquals( 0.0, f.getSchemeValueForRaw( 0 ), 0.0 );
+		Assert.assertEquals( 1.0, f.getSchemeValueForRaw( 1 ), 0.0 );
+		Assert.assertEquals( 2.0, f.getSchemeValueForRaw( 2 ), 0.0 );
+		Assert.assertEquals( 3.0, f.getSchemeValueForRaw( 3 ), 0.0 );
 	}
 
 	// -- properties ----------------------------------------------------------
 
 	@Test
-	public void testOneRawUnitPerStopGivesEveryIntegerItsOwnStop()
+	public void testOneRawUnitPerFixGivesEveryIntegerItsOwnFix()
 	{
-		for ( int stops = 2; stops <= 64; stops++ )
+		for ( int fixes = 2; fixes <= 64; fixes++ )
 			for ( int min = -50; min <= 50; min += 5 )
 			{
-				final StepPresetFunc f = new StepPresetFunc( min, stops, 1.0 );
-				for ( int i = 0; i <= stops; i++ )
-					Assert.assertEquals( "stops=" + stops + " min=" + min + " raw=" + ( min + i ),
-							i, f.getPaletteValueForRaw( min + i ), 0.0 );
+				final StepPresetFunc f = new StepPresetFunc( min, fixes, 1.0 );
+				for ( int i = 0; i <= fixes; i++ )
+					Assert.assertEquals( "fixes=" + fixes + " min=" + min + " raw=" + ( min + i ),
+							i, f.getSchemeValueForRaw( min + i ), 0.0 );
 			}
 	}
 
@@ -179,41 +179,41 @@ public class StepPresetFuncTest
 	 * of ULPs of the quotient.
 	 */
 	@Test
-	public void testStopBoundariesResolveExactlyForNonDyadicStepSizesFarFromTheOrigin()
+	public void testFixBoundariesResolveExactlyForNonDyadicStepSizesFarFromTheOrigin()
 	{
 		final double[] awkwardStepSizes = { 0.3, 1.0 / 3.0, 0.7, 1.1, 7.7, 0.123456789, Math.PI };
 		final double[] awkwardOrigins = { 4610.39727228942, -8123.7, 0.1, -0.3, 65535.5 };
 
-		for ( int stops = 2; stops <= 40; stops++ )
+		for ( int fixes = 2; fixes <= 40; fixes++ )
 			for ( final double stepSize : awkwardStepSizes )
 				for ( final double min : awkwardOrigins )
 				{
-					final StepPresetFunc f = new StepPresetFunc( min, stops, stepSize );
-					for ( int k = 0; k <= stops; k++ )
-						Assert.assertEquals( "stops=" + stops + " step=" + stepSize + " min=" + min + " boundary=" + k,
-								k, Math.floor( f.getPaletteValueForRaw( min + k * stepSize ) ), 0.0 );
+					final StepPresetFunc f = new StepPresetFunc( min, fixes, stepSize );
+					for ( int k = 0; k <= fixes; k++ )
+						Assert.assertEquals( "fixes=" + fixes + " step=" + stepSize + " min=" + min + " boundary=" + k,
+								k, Math.floor( f.getSchemeValueForRaw( min + k * stepSize ) ), 0.0 );
 				}
 	}
 
 	/** Once failed for 580 of 7176 pairs, sending the top of the range to the first color. */
 	@Test
-	public void testDefaultStepSizeAlwaysReachesTheLastStop()
+	public void testDefaultStepSizeAlwaysReachesTheLastFix()
 	{
 		final double[] spans = { 1, 37, 255, 1000, 4095, 65535, 65536, 1e6 };
-		for ( int stops = 2; stops <= 300; stops++ )
+		for ( int fixes = 2; fixes <= 300; fixes++ )
 			for ( final double min : new double[] { 0, 1, -1000, 12.5 } )
 				for ( final double span : spans )
 				{
 					final double max = min + span;
-					final StepPresetFunc f = new StepPresetFunc( min, stops, StepPresetFunc.defaultStepSize( min, max, stops ) );
-					final String where = "stops=" + stops + " range=[" + min + "," + max + "]";
+					final StepPresetFunc f = new StepPresetFunc( min, fixes, StepPresetFunc.defaultStepSize( min, max, fixes ) );
+					final String where = "fixes=" + fixes + " range=[" + min + "," + max + "]";
 
 					// ULPs of the operands, not of max, which can be 0
 					final double spanUlps = 4 * Math.ulp( Math.max( Math.abs( min ), Math.abs( max ) ) );
 					Assert.assertEquals( where + " derived max", max, f.getMax(), spanUlps );
-					Assert.assertEquals( where + " at max", stops, f.getPaletteValueForRaw( max ), 1e-9 );
+					Assert.assertEquals( where + " at max", fixes, f.getSchemeValueForRaw( max ), 1e-9 );
 					Assert.assertTrue( where + " at max must not wrap to 0",
-							f.getPaletteValueForRaw( max ) > stops - 1 );
+							f.getSchemeValueForRaw( max ) > fixes - 1 );
 				}
 	}
 

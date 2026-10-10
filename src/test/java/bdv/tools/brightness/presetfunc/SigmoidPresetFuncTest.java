@@ -36,7 +36,7 @@ import org.junit.Test;
  */
 public class SigmoidPresetFuncTest
 {
-	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	/** min=100, max=200, schemeRange=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
 	private static SigmoidPresetFunc scaled()
 	{
 		return new SigmoidPresetFunc( 100f, 200f, 10 );
@@ -46,16 +46,16 @@ public class SigmoidPresetFuncTest
 	public void testShapeAtRepresentativeValues()
 	{
 		final SigmoidPresetFunc f = scaled();
-		Assert.assertEquals( 0.70104f, f.getPaletteValueForRaw( 125f ), 1e-3f );
-		Assert.assertEquals( 5.0f, f.getPaletteValueForRaw( 150f ), 1e-3f );
-		Assert.assertEquals( 9.29896f, f.getPaletteValueForRaw( 175f ), 1e-3f );
+		Assert.assertEquals( 0.70104f, f.getSchemeValueForRaw( 125f ), 1e-3f );
+		Assert.assertEquals( 5.0f, f.getSchemeValueForRaw( 150f ), 1e-3f );
+		Assert.assertEquals( 9.29896f, f.getSchemeValueForRaw( 175f ), 1e-3f );
 	}
 
 	/** The logistic is symmetric about the midpoint, so its normalized form must be self-symmetric there regardless of steepness. */
 	@Test
 	public void testMidpointIsExactlyHalfway()
 	{
-		Assert.assertEquals( 5f, scaled().getPaletteValueForRaw( 150f ), 1e-4f );
+		Assert.assertEquals( 5f, scaled().getSchemeValueForRaw( 150f ), 1e-4f );
 	}
 
 	/** Steep through the middle: two points equally spaced around the midpoint should straddle it more than a linear ramp would. */
@@ -66,8 +66,8 @@ public class SigmoidPresetFuncTest
 		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10 );
 
 		// Just past the midpoint, sigmoid should already be further along than linear.
-		Assert.assertTrue( sigmoid.getPaletteValueForRaw( 155f ) > linear.getPaletteValueForRaw( 155f ) );
+		Assert.assertTrue( sigmoid.getSchemeValueForRaw( 155f ) > linear.getSchemeValueForRaw( 155f ) );
 		// Symmetric point below the midpoint: sigmoid lags behind linear.
-		Assert.assertTrue( sigmoid.getPaletteValueForRaw( 145f ) < linear.getPaletteValueForRaw( 145f ) );
+		Assert.assertTrue( sigmoid.getSchemeValueForRaw( 145f ) < linear.getSchemeValueForRaw( 145f ) );
 	}
 }

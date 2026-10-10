@@ -31,14 +31,14 @@ import java.util.Objects;
 
 /**
  * A user-defined, piecewise-linear shape through knots {@code (t, value)},
- * both normalized to {@code [0, 1]} (domain fraction and palette-value
+ * both normalized to {@code [0, 1]} (domain fraction and scheme-value
  * fraction). Flat outside the outermost knots.
  * <p>
  * Knot values are used as given, not
  * {@linkplain AbstractPresetFunc#normalized(double, java.util.function.DoubleUnaryOperator) normalized}:
  * that would flip a deliberately decreasing curve and divide by zero on a
  * flat one. So the endpoints need not map to {@code 0} and
- * {@link #getPaletteRangeLength()}.
+ * {@link #getSchemeRange()}.
  */
 public class CustomInterpPresetFunc extends AbstractPresetFunc
 {
@@ -47,9 +47,9 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 	private double[] knotValues;
 
 	/** Starts linear: knots {@code (0, 0)} and {@code (1, 1)}. */
-	public CustomInterpPresetFunc( final double min, final double max, final int paletteRangeLength )
+	public CustomInterpPresetFunc( final double min, final double max, final int schemeRange )
 	{
-		super( min, max, paletteRangeLength );
+		super( min, max, schemeRange );
 		setKnots( new double[] { 0.0, 1.0 }, new double[] { 0.0, 1.0 } );
 	}
 
@@ -59,7 +59,7 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 	 *
 	 * @throws IllegalArgumentException if {@code numKnots} is less than 2.
 	 */
-	public static CustomInterpPresetFunc sampled( final PresetFunc shape, final int numKnots )
+	public static CustomInterpPresetFunc sampled( final IPresetFunc shape, final int numKnots )
 	{
 		Objects.requireNonNull( shape, "shape" );
 		if ( numKnots < 2 )
@@ -67,7 +67,7 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 
 		final double min = shape.getMin();
 		final double max = shape.getMax();
-		final int paletteRangeLength = shape.getPaletteRangeLength();
+		final int schemeRange = shape.getSchemeRange();
 
 		final double[] ts = new double[ numKnots ];
 		final double[] values = new double[ numKnots ];
@@ -76,17 +76,17 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 			final double t = i / ( double ) ( numKnots - 1 );
 			final double rawValue = min + t * ( max - min );
 			ts[ i ] = t;
-			values[ i ] = Math.max( 0.0, Math.min( 1.0, shape.getPaletteValueForRaw( rawValue ) / paletteRangeLength ) );
+			values[ i ] = Math.max( 0.0, Math.min( 1.0, shape.getSchemeValueForRaw( rawValue ) / schemeRange ) );
 		}
 
-		final CustomInterpPresetFunc result = new CustomInterpPresetFunc( min, max, paletteRangeLength );
+		final CustomInterpPresetFunc result = new CustomInterpPresetFunc( min, max, schemeRange );
 		result.setKnots( ts, values );
 		return result;
 	}
 
 	/**
 	 * @param ts     domain fractions in {@code [0, 1]}, strictly ascending.
-	 * @param values palette-value fractions in {@code [0, 1]}; need not be ascending.
+	 * @param values scheme-value fractions in {@code [0, 1]}; need not be ascending.
 	 * @throws IllegalArgumentException if there are fewer than 2 knots, the lengths differ,
 	 *                                  {@code ts} is not strictly ascending, or any entry is
 	 *                                  outside {@code [0, 1]}.
@@ -134,7 +134,7 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 	@Override
 	public CustomInterpPresetFunc withRange( final double min, final double max )
 	{
-		final CustomInterpPresetFunc copy = new CustomInterpPresetFunc( min, max, getPaletteRangeLength() );
+		final CustomInterpPresetFunc copy = new CustomInterpPresetFunc( min, max, getSchemeRange() );
 		copy.setKnots( knotTs, knotValues );
 		return copy;
 	}

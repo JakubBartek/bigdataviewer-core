@@ -28,9 +28,9 @@
 package bdv.tools.brightness.presetfunc;
 
 /**
- * One color stop per {@code stepSize} raw values (e.g. {@code stepSize = 1}
+ * One color fix per {@code stepSize} raw values (e.g. {@code stepSize = 1}
  * for label ids). The domain is derived, not given:
- * {@link #getMax()} is {@code min + stepSize * paletteRangeLength}, so a
+ * {@link #getMax()} is {@code min + stepSize * schemeRange}, so a
  * display range's maximum never affects colors and
  * {@link #withRange(double, double)} ignores {@code max}.
  * <p>
@@ -41,15 +41,15 @@ public class StepPresetFunc extends AbstractPresetFunc
 	private final double stepSize;
 
 	/**
-	 * @param min      raw value the first color stop starts at.
-	 * @param stepSize raw values per color stop; see {@link #defaultStepSize}.
+	 * @param min      raw value the first color fix starts at.
+	 * @param stepSize raw values per color fix; see {@link #defaultStepSize}.
 	 * @throws IllegalArgumentException if {@code stepSize} is not strictly positive, or
-	 *                                  {@code min} is too large for the palette's width to
+	 *                                  {@code min} is too large for the scheme's width to
 	 *                                  change it.
 	 */
-	public StepPresetFunc( final double min, final int paletteRangeLength, final double stepSize )
+	public StepPresetFunc( final double min, final int schemeRange, final double stepSize )
 	{
-		super( min, min + requirePositive( stepSize ) * paletteRangeLength, paletteRangeLength );
+		super( min, min + requirePositive( stepSize ) * schemeRange, schemeRange );
 		this.stepSize = stepSize;
 	}
 
@@ -61,13 +61,13 @@ public class StepPresetFunc extends AbstractPresetFunc
 		return stepSize;
 	}
 
-	/** The step size that spreads the palette exactly once across {@code [min, max]}. */
-	public static double defaultStepSize( final double min, final double max, final int paletteRangeLength )
+	/** The step size that spreads the scheme exactly once across {@code [min, max]}. */
+	public static double defaultStepSize( final double min, final double max, final int schemeRange )
 	{
-		return ( max - min ) / ( double ) paletteRangeLength;
+		return ( max - min ) / ( double ) schemeRange;
 	}
 
-	/** How many raw values one color stop covers. */
+	/** How many raw values one color fix covers. */
 	public double getStepSize()
 	{
 		return stepSize;
@@ -77,16 +77,16 @@ public class StepPresetFunc extends AbstractPresetFunc
 	@Override
 	public StepPresetFunc withRange( final double min, final double max )
 	{
-		return new StepPresetFunc( min, getPaletteRangeLength(), stepSize );
+		return new StepPresetFunc( min, getSchemeRange(), stepSize );
 	}
 
 	/**
-	 * Computed in stops, {@code (clampedRaw - min) / stepSize}, where boundaries
+	 * Computed in fixes, {@code (clampedRaw - min) / stepSize}, where boundaries
 	 * are integers. Going through a normalized {@code [0, 1]} fraction lands
-	 * them a hair below, one stop back.
+	 * them a hair below, one fix back.
 	 */
 	@Override
-	double paletteValueForClampedRaw( final double clampedRaw )
+	double schemeValueForClampedRaw( final double clampedRaw )
 	{
 		final double min = getMin();
 		// Tolerance in raw ULPs, since subtracting min cancels the low bits:
@@ -96,10 +96,10 @@ public class StepPresetFunc extends AbstractPresetFunc
 		return snappedToWhole( ( clampedRaw - min ) / stepSize, rawTolerance / stepSize );
 	}
 
-	/** Delegates to {@link #paletteValueForClampedRaw(double)} so there is one implementation. */
+	/** Delegates to {@link #schemeValueForClampedRaw(double)} so there is one implementation. */
 	@Override
 	double shape( final double t )
 	{
-		return paletteValueForClampedRaw( getMin() + t * ( getMax() - getMin() ) ) / getPaletteRangeLength();
+		return schemeValueForClampedRaw( getMin() + t * ( getMax() - getMin() ) ) / getSchemeRange();
 	}
 }

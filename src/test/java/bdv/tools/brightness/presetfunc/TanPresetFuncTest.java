@@ -36,7 +36,7 @@ import org.junit.Test;
  */
 public class TanPresetFuncTest
 {
-	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	/** min=100, max=200, schemeRange=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
 	private static TanPresetFunc scaled()
 	{
 		return new TanPresetFunc( 100f, 200f, 10 );
@@ -46,16 +46,16 @@ public class TanPresetFuncTest
 	public void testShapeAtRepresentativeValues()
 	{
 		final TanPresetFunc f = scaled();
-		Assert.assertEquals( 2.83311f, f.getPaletteValueForRaw( 125f ), 1e-3f );
-		Assert.assertEquals( 5.0f, f.getPaletteValueForRaw( 150f ), 1e-3f );
-		Assert.assertEquals( 7.16689f, f.getPaletteValueForRaw( 175f ), 1e-3f );
+		Assert.assertEquals( 2.83311f, f.getSchemeValueForRaw( 125f ), 1e-3f );
+		Assert.assertEquals( 5.0f, f.getSchemeValueForRaw( 150f ), 1e-3f );
+		Assert.assertEquals( 7.16689f, f.getSchemeValueForRaw( 175f ), 1e-3f );
 	}
 
 	/** Symmetric about the midpoint, same as the sigmoid-family shapes. */
 	@Test
 	public void testMidpointIsExactlyHalfway()
 	{
-		Assert.assertEquals( 5f, scaled().getPaletteValueForRaw( 150f ), 1e-4f );
+		Assert.assertEquals( 5f, scaled().getSchemeValueForRaw( 150f ), 1e-4f );
 	}
 
 	/** Unlike sigmoid/atan, steep at the edges and flat in the middle. */
@@ -65,7 +65,7 @@ public class TanPresetFuncTest
 		final TanPresetFunc tan = scaled();
 		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10 );
 
-		Assert.assertTrue( tan.getPaletteValueForRaw( 145f ) > linear.getPaletteValueForRaw( 145f ) );
-		Assert.assertTrue( tan.getPaletteValueForRaw( 155f ) < linear.getPaletteValueForRaw( 155f ) );
+		Assert.assertTrue( tan.getSchemeValueForRaw( 145f ) > linear.getSchemeValueForRaw( 145f ) );
+		Assert.assertTrue( tan.getSchemeValueForRaw( 155f ) < linear.getSchemeValueForRaw( 155f ) );
 	}
 }

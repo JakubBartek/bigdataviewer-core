@@ -35,9 +35,9 @@ public class LogPresetFunc extends AbstractPresetFunc
 {
 	private static final double K = 20.0;
 
-	public LogPresetFunc( final double min, final double max, final int paletteRangeLength )
+	public LogPresetFunc( final double min, final double max, final int schemeRange )
 	{
-		super( min, max, paletteRangeLength );
+		super( min, max, schemeRange );
 	}
 
 	@Override
@@ -49,6 +49,6 @@ public class LogPresetFunc extends AbstractPresetFunc
 	@Override
 	public LogPresetFunc withRange( final double min, final double max )
 	{
-		return new LogPresetFunc( min, max, getPaletteRangeLength() );
+		return new LogPresetFunc( min, max, getSchemeRange() );
 	}
 }

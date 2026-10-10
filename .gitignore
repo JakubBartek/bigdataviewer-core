@@ -13,5 +13,5 @@
 .idea/
 *.iml
 
-# User-saved LUT editor settings (see bdv.tools.brightness.EditorPresets)
+# User-saved LUT editor settings (see bdv.tools.brightness.editor.EditorPresetHelper)
 src/main/resources/bdv/ui/lut-editor-presets/user/

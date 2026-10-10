@@ -94,17 +94,16 @@ import bdv.tools.bookmarks.Bookmarks;
 import bdv.tools.bookmarks.BookmarksEditor;
 import bdv.tools.brightness.BrightnessDialog;
 import bdv.tools.brightness.ConverterSetup;
-import bdv.tools.brightness.LutEditorDialog;
-import bdv.tools.brightness.LutEditorMapping;
+import bdv.tools.brightness.editor.LutEditorDialog;
+import bdv.tools.brightness.editor.LutEditorMapping;
 import bdv.tools.brightness.MinMaxGroup;
-import bdv.tools.brightness.PaletteConverter;
-import bdv.tools.brightness.PaletteConverterFactory;
+import bdv.tools.brightness.converter.ColorSchemeConverter;
+import bdv.tools.brightness.converter.ColorSchemeConverterFactory;
 import bdv.tools.brightness.RealARGBColorConverterSetup;
 import bdv.tools.brightness.SetupAssignments;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
-import bdv.tools.brightness.colorscheme.Palette;
-import bdv.tools.brightness.palette.BoundaryCondition;
-import bdv.tools.brightness.palette.PresetPaletteWrapper;
+import bdv.tools.brightness.converter.BoundaryCondition;
+import bdv.tools.brightness.converter.PresetColorSchemeWrapper;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import bdv.tools.crop.CropDialog;
 import bdv.tools.transformation.ManualTransformation;
@@ -206,9 +205,9 @@ public class BigDataViewer
 	/**
 	 * Create standard converter from the given {@code type} to ARGB:
 	 * <ul>
-	 * <li>For {@code IntegerType}s a {@link PaletteConverter} over a default
+	 * <li>For {@code IntegerType}s a {@link ColorSchemeConverter} over a default
 	 * grayscale {@link ColorTable8} is returned.</li>
-	 * <li>For floating-point {@code RealType}s a {@link PaletteConverter} with a
+	 * <li>For floating-point {@code RealType}s a {@link ColorSchemeConverter} with a
 	 * default {@code [0, 1]} range over a grayscale {@link ColorTable8} is
 	 * returned.</li>
 	 * <li>For other {@code RealType}s a {@link RealARGBColorConverter} is
@@ -227,12 +226,12 @@ public class BigDataViewer
 			final IntegerType< ? > t = ( IntegerType< ? > ) type;
 			final double typeMin = Math.max( 0, Math.min( t.getMinValue(), 65535 ) );
 			final double typeMax = Math.max( 0, Math.min( t.getMaxValue(), 65535 ) );
-			return ( Converter< T, ARGBType > ) createPaletteConverter( typeMin, typeMax );
+			return ( Converter< T, ARGBType > ) createColorSchemeConverter( typeMin, typeMax );
 		}
 		else if ( type instanceof FloatType || type instanceof DoubleType
 				|| type instanceof VolatileFloatType || type instanceof VolatileDoubleType )
 		{
-			return ( Converter< T, ARGBType > ) createPaletteConverter( 0, 1 );
+			return ( Converter< T, ARGBType > ) createColorSchemeConverter( 0, 1 );
 		}
 		else if ( type instanceof AbstractVolatileNativeRealType )
 		{
@@ -240,7 +239,7 @@ public class BigDataViewer
 			AbstractVolatileNativeRealType< ?, ? > t = ( AbstractVolatileNativeRealType< ?, ? > ) type;
 			final double typeMin = Math.max( 0, Math.min( t.getMinValue(), 65535 ) );
 			final double typeMax = Math.max( 0, Math.min( t.getMaxValue(), 65535 ) );
-			return ( Converter< T, ARGBType > ) createPaletteConverter( typeMin, typeMax );
+			return ( Converter< T, ARGBType > ) createColorSchemeConverter( typeMin, typeMax );
 		}
 		else if ( type instanceof RealType )
 		{
@@ -261,15 +260,15 @@ public class BigDataViewer
 	 * Linear grayscale over {@code [min, max]}, with the LUT editor's default
 	 * out-of-range colors.
 	 */
-	private static < T extends RealType< T > > PaletteConverter< T > createPaletteConverter( final double min, final double max )
+	private static < T extends RealType< T > > ColorSchemeConverter< T > createColorSchemeConverter( final double min, final double max )
 	{
-		final ContinuousColorScheme scheme = new ContinuousColorScheme( Palette.of( new ColorTable8() ) );
+		final ContinuousColorScheme scheme = ContinuousColorScheme.of( new ColorTable8() );
 		final double hi = max > min ? max : min + 1;
-		final LinearPresetFunc preset = new LinearPresetFunc( min, hi, scheme.getPaletteRangeLength() );
-		final PresetPaletteWrapper wrapper = new PresetPaletteWrapper( scheme, preset, BoundaryCondition.SPECIAL, BoundaryCondition.SPECIAL );
+		final LinearPresetFunc preset = new LinearPresetFunc( min, hi, scheme.getRange() );
+		final PresetColorSchemeWrapper wrapper = new PresetColorSchemeWrapper( scheme, preset, BoundaryCondition.SPECIAL, BoundaryCondition.SPECIAL );
 		wrapper.setLeftSpecialColor( LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR );
 		wrapper.setRightSpecialColor( LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR );
-		return new PaletteConverter<>( wrapper, min, max );
+		return new ColorSchemeConverter<>( wrapper, min, max );
 	}
 
 	/**
@@ -288,7 +287,7 @@ public class BigDataViewer
 	 */
 	public static ConverterSetup createConverterSetup( final SourceAndConverter< ? > soc, final int setupId )
 	{
-		final List< ColorConverter > converters = PaletteConverterFactory.colorConvertersOf( soc );
+		final List< ColorConverter > converters = ColorSchemeConverterFactory.colorConvertersOf( soc );
 
 		if ( converters.isEmpty() )
 			return null;

@@ -36,9 +36,9 @@ public class AtanPresetFunc extends AbstractPresetFunc
 {
 	private static final double K = 6.0;
 
-	public AtanPresetFunc( final double min, final double max, final int paletteRangeLength )
+	public AtanPresetFunc( final double min, final double max, final int schemeRange )
 	{
-		super( min, max, paletteRangeLength );
+		super( min, max, schemeRange );
 	}
 
 	@Override
@@ -50,6 +50,6 @@ public class AtanPresetFunc extends AbstractPresetFunc
 	@Override
 	public AtanPresetFunc withRange( final double min, final double max )
 	{
-		return new AtanPresetFunc( min, max, getPaletteRangeLength() );
+		return new AtanPresetFunc( min, max, getSchemeRange() );
 	}
 }

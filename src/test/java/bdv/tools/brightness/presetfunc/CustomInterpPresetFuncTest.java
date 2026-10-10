@@ -33,7 +33,7 @@ import org.junit.Test;
 /** Shared behavior is covered by {@link AbstractPresetFuncTest}; this covers knots. */
 public class CustomInterpPresetFuncTest
 {
-	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	/** min=100, max=200, schemeRange=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
 	private static CustomInterpPresetFunc scaled()
 	{
 		return new CustomInterpPresetFunc( 100f, 200f, 10 );
@@ -43,9 +43,9 @@ public class CustomInterpPresetFuncTest
 	public void testDefaultKnotsAreLinear()
 	{
 		final CustomInterpPresetFunc f = scaled();
-		Assert.assertEquals( 2.5f, f.getPaletteValueForRaw( 125f ), 1e-4f );
-		Assert.assertEquals( 5.0f, f.getPaletteValueForRaw( 150f ), 1e-4f );
-		Assert.assertEquals( 7.5f, f.getPaletteValueForRaw( 175f ), 1e-4f );
+		Assert.assertEquals( 2.5f, f.getSchemeValueForRaw( 125f ), 1e-4f );
+		Assert.assertEquals( 5.0f, f.getSchemeValueForRaw( 150f ), 1e-4f );
+		Assert.assertEquals( 7.5f, f.getSchemeValueForRaw( 175f ), 1e-4f );
 	}
 
 	@Test
@@ -54,9 +54,9 @@ public class CustomInterpPresetFuncTest
 		final CustomInterpPresetFunc f = scaled();
 		f.setKnots( new double[] { 0.0, 0.5, 1.0 }, new double[] { 0.0, 0.8, 1.0 } );
 
-		Assert.assertEquals( 4.0f, f.getPaletteValueForRaw( 125f ), 1e-4f ); // t=0.25 -> 0.4 * 10
-		Assert.assertEquals( 8.0f, f.getPaletteValueForRaw( 150f ), 1e-4f ); // t=0.5 -> exactly the knot
-		Assert.assertEquals( 9.0f, f.getPaletteValueForRaw( 175f ), 1e-4f ); // t=0.75 -> 0.9 * 10
+		Assert.assertEquals( 4.0f, f.getSchemeValueForRaw( 125f ), 1e-4f ); // t=0.25 -> 0.4 * 10
+		Assert.assertEquals( 8.0f, f.getSchemeValueForRaw( 150f ), 1e-4f ); // t=0.5 -> exactly the knot
+		Assert.assertEquals( 9.0f, f.getSchemeValueForRaw( 175f ), 1e-4f ); // t=0.75 -> 0.9 * 10
 	}
 
 	/** Between two knots with equal values, the interpolated result must stay exactly flat. */
@@ -67,9 +67,9 @@ public class CustomInterpPresetFuncTest
 		f.setKnots( new double[] { 0.0, 0.3, 0.7, 1.0 }, new double[] { 0.0, 0.5, 0.5, 1.0 } );
 
 		// Anywhere strictly between the two 0.5-valued knots (t=0.3 and t=0.7) is exactly 5.0.
-		Assert.assertEquals( 5.0f, f.getPaletteValueForRaw( 140f ), 1e-4f ); // t=0.4
-		Assert.assertEquals( 5.0f, f.getPaletteValueForRaw( 150f ), 1e-4f ); // t=0.5
-		Assert.assertEquals( 5.0f, f.getPaletteValueForRaw( 160f ), 1e-4f ); // t=0.6
+		Assert.assertEquals( 5.0f, f.getSchemeValueForRaw( 140f ), 1e-4f ); // t=0.4
+		Assert.assertEquals( 5.0f, f.getSchemeValueForRaw( 150f ), 1e-4f ); // t=0.5
+		Assert.assertEquals( 5.0f, f.getSchemeValueForRaw( 160f ), 1e-4f ); // t=0.6
 	}
 
 	/** Not rescaled to pin the endpoints; the outermost knot extends flat. */
@@ -79,8 +79,8 @@ public class CustomInterpPresetFuncTest
 		final CustomInterpPresetFunc f = scaled();
 		f.setKnots( new double[] { 0.2, 0.8 }, new double[] { 0.3, 0.7 } );
 
-		Assert.assertEquals( 3f, f.getPaletteValueForRaw( 100f ), 1e-4f );
-		Assert.assertEquals( 7f, f.getPaletteValueForRaw( 200f ), 1e-4f );
+		Assert.assertEquals( 3f, f.getSchemeValueForRaw( 100f ), 1e-4f );
+		Assert.assertEquals( 7f, f.getSchemeValueForRaw( 200f ), 1e-4f );
 	}
 
 	/** Rescaling would divide by a negative span and flip it. */
@@ -90,11 +90,11 @@ public class CustomInterpPresetFuncTest
 		final CustomInterpPresetFunc f = scaled();
 		f.setKnots( new double[] { 0.0, 1.0 }, new double[] { 1.0, 0.0 } );
 
-		Assert.assertEquals( 10f, f.getPaletteValueForRaw( 100f ), 1e-4f );
-		Assert.assertEquals( 7.5f, f.getPaletteValueForRaw( 125f ), 1e-4f );
-		Assert.assertEquals( 5f, f.getPaletteValueForRaw( 150f ), 1e-4f );
-		Assert.assertEquals( 2.5f, f.getPaletteValueForRaw( 175f ), 1e-4f );
-		Assert.assertEquals( 0f, f.getPaletteValueForRaw( 200f ), 1e-4f );
+		Assert.assertEquals( 10f, f.getSchemeValueForRaw( 100f ), 1e-4f );
+		Assert.assertEquals( 7.5f, f.getSchemeValueForRaw( 125f ), 1e-4f );
+		Assert.assertEquals( 5f, f.getSchemeValueForRaw( 150f ), 1e-4f );
+		Assert.assertEquals( 2.5f, f.getSchemeValueForRaw( 175f ), 1e-4f );
+		Assert.assertEquals( 0f, f.getSchemeValueForRaw( 200f ), 1e-4f );
 	}
 
 	/** Rescaling would divide by zero. */
@@ -106,9 +106,9 @@ public class CustomInterpPresetFuncTest
 
 		for ( final double raw : new double[] { 100, 125, 150, 175, 200 } )
 		{
-			final double paletteValue = f.getPaletteValueForRaw( raw );
-			Assert.assertFalse( "NaN at raw=" + raw, Double.isNaN( paletteValue ) );
-			Assert.assertEquals( 5.0, paletteValue, 1e-4 );
+			final double schemeValue = f.getSchemeValueForRaw( raw );
+			Assert.assertFalse( "NaN at raw=" + raw, Double.isNaN( schemeValue ) );
+			Assert.assertEquals( 5.0, schemeValue, 1e-4 );
 		}
 	}
 
@@ -145,11 +145,11 @@ public class CustomInterpPresetFuncTest
 		f.setKnots( new double[] { 0.2, 0.5, 0.8 }, new double[] { 0.3, 0.6, 0.9 } );
 
 		// t=0 to t=0.2 is flat at the first knot's (rescaled) value, same as t=0.2 itself.
-		Assert.assertEquals( f.getPaletteValueForRaw( 120f ), f.getPaletteValueForRaw( 110f ), 1e-4f );
-		Assert.assertEquals( f.getPaletteValueForRaw( 120f ), f.getPaletteValueForRaw( 101f ), 1e-4f );
+		Assert.assertEquals( f.getSchemeValueForRaw( 120f ), f.getSchemeValueForRaw( 110f ), 1e-4f );
+		Assert.assertEquals( f.getSchemeValueForRaw( 120f ), f.getSchemeValueForRaw( 101f ), 1e-4f );
 		// t=0.8 to t=1 is flat at the last knot's (rescaled) value.
-		Assert.assertEquals( f.getPaletteValueForRaw( 180f ), f.getPaletteValueForRaw( 190f ), 1e-4f );
-		Assert.assertEquals( f.getPaletteValueForRaw( 180f ), f.getPaletteValueForRaw( 199f ), 1e-4f );
+		Assert.assertEquals( f.getSchemeValueForRaw( 180f ), f.getSchemeValueForRaw( 190f ), 1e-4f );
+		Assert.assertEquals( f.getSchemeValueForRaw( 180f ), f.getSchemeValueForRaw( 199f ), 1e-4f );
 	}
 
 	@Test
@@ -175,7 +175,7 @@ public class CustomInterpPresetFuncTest
 		Assert.assertArrayEquals( f.getKnotTs(), reranged.getKnotTs(), 1e-9 );
 		Assert.assertArrayEquals( f.getKnotValues(), reranged.getKnotValues(), 1e-9 );
 		// t=0.5 of the new range (raw 400) hits the interior knot, same 8.0 as raw 150 did.
-		Assert.assertEquals( 8.0f, reranged.getPaletteValueForRaw( 400f ), 1e-4f );
+		Assert.assertEquals( 8.0f, reranged.getSchemeValueForRaw( 400f ), 1e-4f );
 	}
 
 	/** Mutating an array returned by the getters must not affect the function's actual state. */
@@ -188,7 +188,7 @@ public class CustomInterpPresetFuncTest
 		f.getKnotTs()[ 1 ] = 999.0;
 		f.getKnotValues()[ 1 ] = -999.0;
 
-		Assert.assertEquals( 8.0f, f.getPaletteValueForRaw( 150f ), 1e-4f );
+		Assert.assertEquals( 8.0f, f.getSchemeValueForRaw( 150f ), 1e-4f );
 	}
 
 	@Test

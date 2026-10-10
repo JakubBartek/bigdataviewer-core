@@ -27,34 +27,39 @@
  */
 package bdv.tools.brightness.colorscheme;
 
+import java.util.Arrays;
+
 /**
- * {@code N} color stops without blending (e.g. label ids). The domain is the
- * half-open interval {@code [0, N)}; a palette value is floored to its stop.
+ * {@code N} color fixes without blending (e.g. label ids). The domain is the
+ * half-open interval {@code [0, N)}; a scheme value is floored to its fix.
  */
-public class DiscreteColorScheme extends AbstractColorScheme
-{
-	public DiscreteColorScheme( final int[] argbStops )
-	{
-		super( argbStops );
-	}
+public class DiscreteColorScheme extends AbstractColorScheme {
+    public DiscreteColorScheme(final int[] argbFixes) {
+        super(argbFixes);
+    }
 
-	/** See {@link AbstractColorScheme#AbstractColorScheme(Palette)}. */
-	public DiscreteColorScheme( final Palette palette )
-	{
-		super( palette );
-	}
+    @Override
+    public int getRange() {
+        return fixes.length;
+    }
 
-	@Override
-	public int getPaletteRangeLength()
-	{
-		return stops.length;
-	}
+    @Override
+    int colorAt(final double schemeValue) {
+        final int lastIndex = fixes.length - 1;
+        final int index = Math.max(0, Math.min(lastIndex, (int) Math.floor(schemeValue)));
+        return fixes[index];
+    }
 
-	@Override
-	int colorAt( final double paletteValue )
-	{
-		final int lastIndex = stops.length - 1;
-		final int index = Math.max( 0, Math.min( lastIndex, ( int ) Math.floor( paletteValue ) ) );
-		return stops[ index ];
-	}
+    /**
+     * Never equal to a {@link ContinuousColorScheme}, even with the same fixes.
+     */
+    @Override
+    public final boolean equals(final Object obj) {
+        return obj instanceof DiscreteColorScheme && hasSameFixes((DiscreteColorScheme) obj);
+    }
+
+    @Override
+    public final int hashCode() {
+        return Arrays.hashCode(fixes);
+    }
 }

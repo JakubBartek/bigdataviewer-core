@@ -5,10 +5,10 @@ import java.util.Arrays;
 import java.util.List;
 
 import bdv.tools.brightness.ConverterSetup;
-import bdv.tools.brightness.PaletteConverter;
+import bdv.tools.brightness.converter.ColorSchemeConverter;
 import bdv.tools.brightness.lut.DemoLutConnector;
-import bdv.tools.brightness.palette.BoundaryCondition;
-import bdv.tools.brightness.palette.PresetPaletteWrapper;
+import bdv.tools.brightness.converter.BoundaryCondition;
+import bdv.tools.brightness.converter.PresetColorSchemeWrapper;
 import bdv.tools.brightness.lut.DemoLutConnectorConverterSetup;
 import bdv.viewer.SourceAndConverter;
 import mpicbg.spim.data.sequence.FinalVoxelDimensions;
@@ -131,12 +131,12 @@ public class ExampleCirclesLabelsMultiSource2D {
      */
     @SuppressWarnings("unchecked")
     private static void makeBackgroundTransparent(final Converter<UnsignedByteType, ARGBType> converter) {
-        final PaletteConverter<UnsignedByteType> paletteConverter = (PaletteConverter<UnsignedByteType>) converter;
-        ((PresetPaletteWrapper) paletteConverter.getWrapper()).setLeftBoundaryCondition(BoundaryCondition.SPECIAL);
+        final ColorSchemeConverter<UnsignedByteType> colorSchemeConverter = (ColorSchemeConverter<UnsignedByteType>) converter;
+        ((PresetColorSchemeWrapper) colorSchemeConverter.getWrapper()).setLeftBoundaryCondition(BoundaryCondition.SPECIAL);
         // Put the background (0) just below the range so it hits the SPECIAL
         // (transparent) boundary, with the labels 1..N filling the range.
-        paletteConverter.setMin(1);
-        paletteConverter.setMax(NUMBER_OF_CIRCLES);
+        colorSchemeConverter.setMin(1);
+        colorSchemeConverter.setMax(NUMBER_OF_CIRCLES);
     }
 
     static <T extends RealType<T>>

@@ -35,9 +35,9 @@ public class SigmoidPresetFunc extends AbstractPresetFunc
 {
 	private static final double K = 10.0;
 
-	public SigmoidPresetFunc( final double min, final double max, final int paletteRangeLength )
+	public SigmoidPresetFunc( final double min, final double max, final int schemeRange )
 	{
-		super( min, max, paletteRangeLength );
+		super( min, max, schemeRange );
 	}
 
 	@Override
@@ -49,6 +49,6 @@ public class SigmoidPresetFunc extends AbstractPresetFunc
 	@Override
 	public SigmoidPresetFunc withRange( final double min, final double max )
 	{
-		return new SigmoidPresetFunc( min, max, getPaletteRangeLength() );
+		return new SigmoidPresetFunc( min, max, getSchemeRange() );
 	}
 }

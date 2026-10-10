@@ -36,7 +36,7 @@ import org.junit.Test;
  */
 public class ExpPresetFuncTest
 {
-	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	/** min=100, max=200, schemeRange=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
 	private static ExpPresetFunc scaled()
 	{
 		return new ExpPresetFunc( 100f, 200f, 10 );
@@ -46,9 +46,9 @@ public class ExpPresetFuncTest
 	public void testShapeAtRepresentativeValues()
 	{
 		final ExpPresetFunc f = scaled();
-		Assert.assertEquals( 0.32059f, f.getPaletteValueForRaw( 125f ), 1e-3f );
-		Assert.assertEquals( 1.19203f, f.getPaletteValueForRaw( 150f ), 1e-3f );
-		Assert.assertEquals( 3.56086f, f.getPaletteValueForRaw( 175f ), 1e-3f );
+		Assert.assertEquals( 0.32059f, f.getSchemeValueForRaw( 125f ), 1e-3f );
+		Assert.assertEquals( 1.19203f, f.getSchemeValueForRaw( 150f ), 1e-3f );
+		Assert.assertEquals( 3.56086f, f.getSchemeValueForRaw( 175f ), 1e-3f );
 	}
 
 	/** Mirror image of {@link LogPresetFunc}: stays low then rises quickly near the high end, so it lags a linear ramp near the low end. */
@@ -58,7 +58,7 @@ public class ExpPresetFuncTest
 		final ExpPresetFunc exp = scaled();
 		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10 );
 
-		Assert.assertTrue( exp.getPaletteValueForRaw( 110f ) < linear.getPaletteValueForRaw( 110f ) );
+		Assert.assertTrue( exp.getSchemeValueForRaw( 110f ) < linear.getSchemeValueForRaw( 110f ) );
 	}
 
 	/** Gains more in the last quarter of the range than in the first -- the opposite of {@link LogPresetFunc}. */
@@ -66,8 +66,8 @@ public class ExpPresetFuncTest
 	public void testGainsMoreInTheLastQuarterThanTheFirst()
 	{
 		final ExpPresetFunc f = scaled();
-		final double gainFirstQuarter = f.getPaletteValueForRaw( 125 ) - f.getPaletteValueForRaw( 100 );
-		final double gainLastQuarter = f.getPaletteValueForRaw( 200 ) - f.getPaletteValueForRaw( 175 );
+		final double gainFirstQuarter = f.getSchemeValueForRaw( 125 ) - f.getSchemeValueForRaw( 100 );
+		final double gainLastQuarter = f.getSchemeValueForRaw( 200 ) - f.getSchemeValueForRaw( 175 );
 		Assert.assertTrue( gainLastQuarter > gainFirstQuarter );
 	}
 }

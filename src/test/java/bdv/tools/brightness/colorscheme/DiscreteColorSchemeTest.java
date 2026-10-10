@@ -30,7 +30,6 @@ package bdv.tools.brightness.colorscheme;
 import org.junit.Assert;
 import org.junit.Test;
 
-import bdv.tools.brightness.LutPalettes;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
@@ -45,26 +44,26 @@ public class DiscreteColorSchemeTest
 	/** Alpha deliberately not 255, so getRGB (forces opaque) and getRGBA (keeps it) can be told apart. */
 	private static final int BLUE_HALF_ALPHA = ARGBType.rgba( 0, 0, 255, 128 );
 
-	private static DiscreteColorScheme threeStops()
+	private static DiscreteColorScheme threeFixes()
 	{
 		return new DiscreteColorScheme( new int[] { RED, GREEN, BLUE_HALF_ALPHA } );
 	}
 
 	@Test
-	public void testPaletteRangeLengthEqualsStopCount()
+	public void testRangeEqualsFixCount()
 	{
-		Assert.assertEquals( 3, threeStops().getPaletteRangeLength() );
-		Assert.assertEquals( 2, new DiscreteColorScheme( new int[] { RED, GREEN } ).getPaletteRangeLength() );
-		Assert.assertEquals( 10, new DiscreteColorScheme( new int[ 10 ] ).getPaletteRangeLength() );
+		Assert.assertEquals( 3, threeFixes().getRange() );
+		Assert.assertEquals( 2, new DiscreteColorScheme( new int[] { RED, GREEN } ).getRange() );
+		Assert.assertEquals( 10, new DiscreteColorScheme( new int[ 10 ] ).getRange() );
 	}
 
 	@Test
-	public void testConstructorRejectsFewerThanTwoStops()
+	public void testConstructorRejectsFewerThanTwoFixes()
 	{
 		try
 		{
 			new DiscreteColorScheme( new int[] { RED } );
-			Assert.fail( "expected IllegalArgumentException for a single color stop" );
+			Assert.fail( "expected IllegalArgumentException for a single color fix" );
 		}
 		catch ( final IllegalArgumentException expected )
 		{
@@ -72,7 +71,7 @@ public class DiscreteColorSchemeTest
 		try
 		{
 			new DiscreteColorScheme( new int[ 0 ] );
-			Assert.fail( "expected IllegalArgumentException for zero color stops" );
+			Assert.fail( "expected IllegalArgumentException for zero color fixes" );
 		}
 		catch ( final IllegalArgumentException expected )
 		{
@@ -81,38 +80,38 @@ public class DiscreteColorSchemeTest
 
 	/** The N = 3 examples from the requirements. */
 	@Test
-	public void testDomainBoundariesForThreeStops()
+	public void testDomainBoundariesForThreeFixes()
 	{
-		final DiscreteColorScheme scheme = threeStops();
+		final DiscreteColorScheme scheme = threeFixes();
 
-		// -0.001 is outside [0, 3) -- clamps to the first stop, not an error.
+		// -0.001 is outside [0, 3) -- clamps to the first fix, not an error.
 		Assert.assertEquals( RED, scheme.getRGBA( -0.001f ) );
 		Assert.assertEquals( RED, scheme.getRGBA( 0f ) );
 		Assert.assertEquals( RED, scheme.getRGBA( 0.99f ) );
 		Assert.assertEquals( BLUE_HALF_ALPHA, scheme.getRGBA( 2.99f ) );
-		// 3.0 is outside [0, 3) -- clamps to the last stop.
+		// 3.0 is outside [0, 3) -- clamps to the last fix.
 		Assert.assertEquals( BLUE_HALF_ALPHA, scheme.getRGBA( 3.0f ) );
 	}
 
 	@Test
-	public void testMiddleStopOwnsItsWholeUnitSlot()
+	public void testMiddleFixOwnsItsWholeUnitSlot()
 	{
-		final DiscreteColorScheme scheme = threeStops();
+		final DiscreteColorScheme scheme = threeFixes();
 		Assert.assertEquals( GREEN, scheme.getRGBA( 1.0f ) );
 		Assert.assertEquals( GREEN, scheme.getRGBA( 1.5f ) );
 		Assert.assertEquals( GREEN, scheme.getRGBA( 1.999f ) );
 	}
 
 	@Test
-	public void testGetRGBAKeepsStopsOwnAlpha()
+	public void testGetRGBAKeepsFixesOwnAlpha()
 	{
-		Assert.assertEquals( 128, ARGBType.alpha( threeStops().getRGBA( 2.5f ) ) );
+		Assert.assertEquals( 128, ARGBType.alpha( threeFixes().getRGBA( 2.5f ) ) );
 	}
 
 	@Test
-	public void testGetRGBForcesFullOpacityRegardlessOfStopAlpha()
+	public void testGetRGBForcesFullOpacityRegardlessOfFixAlpha()
 	{
-		final int rgb = threeStops().getRGB( 2.5f );
+		final int rgb = threeFixes().getRGB( 2.5f );
 		Assert.assertEquals( 255, ARGBType.alpha( rgb ) );
 		// ...but the color channels underneath are unaffected.
 		Assert.assertEquals( ARGBType.red( BLUE_HALF_ALPHA ), ARGBType.red( rgb ) );
@@ -121,24 +120,32 @@ public class DiscreteColorSchemeTest
 	}
 
 	@Test
-	public void testGetRGBAndGetRGBAAgreeOnFullyOpaqueStops()
+	public void testGetRGBAndGetRGBAAgreeOnFullyOpaqueFixes()
 	{
-		final DiscreteColorScheme scheme = threeStops();
+		final DiscreteColorScheme scheme = threeFixes();
 		Assert.assertEquals( scheme.getRGBA( 0f ), scheme.getRGB( 0f ) );
 		Assert.assertEquals( scheme.getRGBA( 1.2f ), scheme.getRGB( 1.2f ) );
 	}
 
 	@Test
-	public void testConstructFromExistingPalette()
+	public void testReproducesEveryFixExactlyWithinItsSlot()
 	{
-		final Palette tab10 = LutPalettes.load( "tab10" );
-		Assert.assertNotNull( tab10 );
+		final IColorScheme tab10 = ColorSchemeFactory.load( "tab10" );
+		Assert.assertTrue( tab10 instanceof DiscreteColorScheme );
 
-		final DiscreteColorScheme scheme = new DiscreteColorScheme( tab10 );
+		Assert.assertEquals( tab10.getFixCount(), tab10.getRange() );
+		for ( int i = 0; i < tab10.getFixCount(); i++ )
+			Assert.assertEquals( "fix " + i, tab10.getFix( i ), tab10.getRGBA( i + 0.5 ) );
+	}
 
-		Assert.assertEquals( tab10.getLength(), scheme.getPaletteRangeLength() );
-		for ( int i = 0; i < tab10.getLength(); i++ )
-			// Anywhere within stop i's unit slot must reproduce that stop exactly.
-			Assert.assertEquals( "stop " + i, tab10.getStop( i ), scheme.getRGBA( i + 0.5f ) );
+	/** {@code ColorSchemeFactory#findName} relies on this. */
+	@Test
+	public void testEqualityIsByValue()
+	{
+		final DiscreteColorScheme a = new DiscreteColorScheme( new int[] { 1, 2, 3 } );
+
+		Assert.assertEquals( a, new DiscreteColorScheme( new int[] { 1, 2, 3 } ) );
+		Assert.assertEquals( a.hashCode(), new DiscreteColorScheme( new int[] { 1, 2, 3 } ).hashCode() );
+		Assert.assertNotEquals( a, new DiscreteColorScheme( new int[] { 1, 2, 4 } ) );
 	}
 }

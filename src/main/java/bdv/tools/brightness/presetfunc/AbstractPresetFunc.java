@@ -30,10 +30,10 @@ package bdv.tools.brightness.presetfunc;
 import java.util.function.DoubleUnaryOperator;
 
 /**
- * Range storage and rescaling for every {@link PresetFunc}: a subclass only
+ * Range storage and rescaling for every {@link IPresetFunc}: a subclass only
  * implements {@link #shape(double)} over {@code [0, 1] -> [0, 1]}.
  */
-abstract class AbstractPresetFunc implements PresetFunc
+abstract class AbstractPresetFunc implements IPresetFunc
 {
 	/**
 	 * ULPs either side of a whole number that still count as it. Measured
@@ -45,18 +45,18 @@ abstract class AbstractPresetFunc implements PresetFunc
 
 	private final double max;
 
-	private final int paletteRangeLength;
+	private final int schemeRange;
 
-	AbstractPresetFunc( final double min, final double max, final int paletteRangeLength )
+	AbstractPresetFunc( final double min, final double max, final int schemeRange )
 	{
 		if ( !( max > min ) )
 			throw new IllegalArgumentException( "max must be strictly greater than min, got min=" + min + ", max=" + max );
-		if ( paletteRangeLength <= 0 )
-			throw new IllegalArgumentException( "paletteRangeLength must be strictly positive, got " + paletteRangeLength );
+		if ( schemeRange <= 0 )
+			throw new IllegalArgumentException( "schemeRange must be strictly positive, got " + schemeRange );
 
 		this.min = min;
 		this.max = max;
-		this.paletteRangeLength = paletteRangeLength;
+		this.schemeRange = schemeRange;
 	}
 
 	@Override
@@ -72,26 +72,26 @@ abstract class AbstractPresetFunc implements PresetFunc
 	}
 
 	@Override
-	public final int getPaletteRangeLength()
+	public final int getSchemeRange()
 	{
-		return paletteRangeLength;
+		return schemeRange;
 	}
 
 	@Override
-	public final double getPaletteValueForRaw( final double rawValue )
+	public final double getSchemeValueForRaw( final double rawValue )
 	{
 		final double clampedRaw = Math.max( min, Math.min( max, rawValue ) );
-		return paletteValueForClampedRaw( clampedRaw );
+		return schemeValueForClampedRaw( clampedRaw );
 	}
 
 	/**
 	 * Normalizes to {@code [0, 1]}, applies {@link #shape(double)} and scales
 	 * back up. Overridden by {@link StepPresetFunc}, for which that round trip
-	 * lands stop boundaries a hair off their integers.
+	 * lands fix boundaries a hair off their integers.
 	 */
-	double paletteValueForClampedRaw( final double clampedRaw )
+	double schemeValueForClampedRaw( final double clampedRaw )
 	{
-		return shape( ( clampedRaw - min ) / ( max - min ) ) * paletteRangeLength;
+		return shape( ( clampedRaw - min ) / ( max - min ) ) * schemeRange;
 	}
 
 	/**
@@ -103,7 +103,7 @@ abstract class AbstractPresetFunc implements PresetFunc
 
 	/**
 	 * {@code x} snapped to the nearest whole number when within
-	 * {@code tolerance} of it. Used where a value is floored onto a stop.
+	 * {@code tolerance} of it. Used where a value is floored onto a fix.
 	 * {@code tolerance} is explicit because a quotient whose numerator came from
 	 * a cancelling subtraction inherits the numerator's absolute error, which can
 	 * be far more than {@code x}'s own ULPs.

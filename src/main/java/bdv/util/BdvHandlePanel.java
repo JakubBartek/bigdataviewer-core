@@ -58,7 +58,7 @@ import bdv.tools.VisibilityAndGroupingDialog;
 import bdv.tools.bookmarks.Bookmarks;
 import bdv.tools.bookmarks.BookmarksEditor;
 import bdv.tools.brightness.BrightnessDialog;
-import bdv.tools.brightness.LutEditorDialog;
+import bdv.tools.brightness.editor.LutEditorDialog;
 import bdv.tools.brightness.ConverterSetup;
 import bdv.tools.brightness.SetupAssignments;
 import bdv.tools.transformation.ManualTransformationEditor;

@@ -27,58 +27,82 @@
  */
 package bdv.tools.brightness.colorscheme;
 
+import java.util.Arrays;
+
 import net.imglib2.type.numeric.ARGBType;
 
 /**
- * Shared color-stop storage for {@link DiscreteColorScheme} and
+ * Shared color-fix storage for {@link DiscreteColorScheme} and
  * {@link ContinuousColorScheme}, which differ only in {@link #colorAt(double)}
- * and {@link ColorScheme#getPaletteRangeLength()}.
+ * and {@link IColorScheme#getRange()}.
  */
-abstract class AbstractColorScheme implements ColorScheme
-{
-	/** Color stops, packed ARGB (see {@link ARGBType#rgba(int, int, int, int)}); always at least 2. */
-	final int[] stops;
+abstract class AbstractColorScheme implements IColorScheme {
+    /**
+     * Color fixes, packed ARGB (see {@link ARGBType#rgba(int, int, int, int)}); always at least 2.
+     */
+    final int[] fixes;
 
-	AbstractColorScheme( final int[] argbStops )
-	{
-		if ( argbStops.length < 2 )
-			throw new IllegalArgumentException( "a color scheme needs at least 2 color stops, got " + argbStops.length );
-		this.stops = argbStops.clone();
-	}
+    /**
+     * @param argbFixes copied, so a scheme is immutable and can be shared.
+     */
+    AbstractColorScheme(final int[] argbFixes) {
+        if (argbFixes.length < 2) {
+            throw new IllegalArgumentException("a color scheme needs at least 2 color fixes, got " + argbFixes.length);
+        }
+        this.fixes = argbFixes.clone();
+    }
 
-	/** {@link Palette#isInterpolated()} is not consulted; it only picks which scheme to build. */
-	AbstractColorScheme( final Palette palette )
-	{
-		this( palette.getStops() );
-	}
+    @Override
+    public final int getRGBA(final double schemeValue) {
+        return colorAt(schemeValue);
+    }
 
-	@Override
-	public final int getRGBA( final double paletteValue )
-	{
-		return colorAt( paletteValue );
-	}
+    @Override
+    public final int getRGB(final double schemeValue) {
+        return colorAt(schemeValue) | 0xff000000;
+    }
 
-	@Override
-	public final int getRGB( final double paletteValue )
-	{
-		return colorAt( paletteValue ) | 0xff000000;
-	}
+    @Override
+    public final int getFixCount() {
+        return fixes.length;
+    }
 
-	/** The packed-ARGB color at {@code paletteValue}, clamped to the nearest edge stop. */
-	abstract int colorAt( double paletteValue );
+    @Override
+    public final int getFix(final int index) {
+        return fixes[index];
+    }
 
-	/** Linearly interpolates each channel independently between two packed-ARGB stops, {@code t} in {@code [0, 1]}. */
-	static int interpolateColor( final int fromARGB, final int toARGB, final double t )
-	{
-		final int r = interpolateChannel( ARGBType.red( fromARGB ), ARGBType.red( toARGB ), t );
-		final int g = interpolateChannel( ARGBType.green( fromARGB ), ARGBType.green( toARGB ), t );
-		final int b = interpolateChannel( ARGBType.blue( fromARGB ), ARGBType.blue( toARGB ), t );
-		final int a = interpolateChannel( ARGBType.alpha( fromARGB ), ARGBType.alpha( toARGB ), t );
-		return ARGBType.rgba( r, g, b, a );
-	}
+    @Override
+    public final int[] getFixes() {
+        return fixes.clone();
+    }
 
-	private static int interpolateChannel( final int from, final int to, final double t )
-	{
-		return ( int ) Math.round( from + t * ( to - from ) );
-	}
+    final boolean hasSameFixes(final AbstractColorScheme other) {
+        return Arrays.equals(fixes, other.fixes);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getSimpleName() + "[" + fixes.length + " fixes]";
+    }
+
+    /**
+     * The packed-ARGB color at {@code schemeValue}, clamped to the nearest edge fix.
+     */
+    abstract int colorAt(double schemeValue);
+
+    /**
+     * Linearly interpolates each channel independently between two packed-ARGB fixes, {@code t} in {@code [0, 1]}.
+     */
+    static int interpolateColor(final int fromARGB, final int toARGB, final double t) {
+        final int r = interpolateValue(ARGBType.red(fromARGB), ARGBType.red(toARGB), t);
+        final int g = interpolateValue(ARGBType.green(fromARGB), ARGBType.green(toARGB), t);
+        final int b = interpolateValue(ARGBType.blue(fromARGB), ARGBType.blue(toARGB), t);
+        final int a = interpolateValue(ARGBType.alpha(fromARGB), ARGBType.alpha(toARGB), t);
+        return ARGBType.rgba(r, g, b, a);
+    }
+
+    private static int interpolateValue(final int from, final int to, final double t) {
+        return (int) Math.round(from + t * (to - from));
+    }
 }

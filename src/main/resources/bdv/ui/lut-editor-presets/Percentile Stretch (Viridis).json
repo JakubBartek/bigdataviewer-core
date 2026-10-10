@@ -1,6 +1,6 @@
 {
   "name": "Percentile Stretch (Viridis)",
-  "paletteName": "viridis",
+  "colorSchemeName": "viridis",
   "leftBoundaryCondition": "CLAMP",
   "rightBoundaryCondition": "CLAMP",
   "leftSpecialColor": -16777216,

@@ -36,7 +36,7 @@ import org.junit.Test;
  */
 public class AlphaSigmoidPresetFuncTest
 {
-	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	/** min=100, max=200, schemeRange=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
 	private static AlphaSigmoidPresetFunc scaled()
 	{
 		return new AlphaSigmoidPresetFunc( 100f, 200f, 10 );
@@ -46,16 +46,16 @@ public class AlphaSigmoidPresetFuncTest
 	public void testShapeAtRepresentativeValues()
 	{
 		final AlphaSigmoidPresetFunc f = scaled();
-		Assert.assertEquals( 3.66025f, f.getPaletteValueForRaw( 125f ), 1e-3f );
-		Assert.assertEquals( 5.0f, f.getPaletteValueForRaw( 150f ), 1e-3f );
-		Assert.assertEquals( 6.33975f, f.getPaletteValueForRaw( 175f ), 1e-3f );
+		Assert.assertEquals( 3.66025f, f.getSchemeValueForRaw( 125f ), 1e-3f );
+		Assert.assertEquals( 5.0f, f.getSchemeValueForRaw( 150f ), 1e-3f );
+		Assert.assertEquals( 6.33975f, f.getSchemeValueForRaw( 175f ), 1e-3f );
 	}
 
 	/** Like the plain sigmoid, symmetric about the midpoint. */
 	@Test
 	public void testMidpointIsExactlyHalfway()
 	{
-		Assert.assertEquals( 5f, scaled().getPaletteValueForRaw( 150f ), 1e-4f );
+		Assert.assertEquals( 5f, scaled().getSchemeValueForRaw( 150f ), 1e-4f );
 	}
 
 	/** Unlike the plain sigmoid, alpha=0.5 is steep at the edges and flat in the middle. */
@@ -65,7 +65,7 @@ public class AlphaSigmoidPresetFuncTest
 		final AlphaSigmoidPresetFunc alphaSigmoid = scaled();
 		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10 );
 
-		Assert.assertTrue( alphaSigmoid.getPaletteValueForRaw( 145f ) > linear.getPaletteValueForRaw( 145f ) );
-		Assert.assertTrue( alphaSigmoid.getPaletteValueForRaw( 155f ) < linear.getPaletteValueForRaw( 155f ) );
+		Assert.assertTrue( alphaSigmoid.getSchemeValueForRaw( 145f ) > linear.getSchemeValueForRaw( 145f ) );
+		Assert.assertTrue( alphaSigmoid.getSchemeValueForRaw( 155f ) < linear.getSchemeValueForRaw( 155f ) );
 	}
 }

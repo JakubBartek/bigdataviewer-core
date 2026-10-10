@@ -266,4 +266,15 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+
+	<profiles>
+		<!-- Fast inner-loop run: brightness tests only, skipping the enforcer's ~90 s of release checks. -->
+		<profile>
+			<id>quick</id>
+			<properties>
+				<test>bdv.tools.brightness.**</test>
+				<enforcer.skip>true</enforcer.skip>
+			</properties>
+		</profile>
+	</profiles>
 </project>

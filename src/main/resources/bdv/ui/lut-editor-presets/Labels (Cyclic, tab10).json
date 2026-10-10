@@ -1,6 +1,6 @@
 {
   "name": "Labels (Cyclic, tab10)",
-  "paletteName": "tab10",
+  "colorSchemeName": "tab10",
   "leftBoundaryCondition": "SPECIAL",
   "rightBoundaryCondition": "CYCLE",
   "leftSpecialColor": -16777216,

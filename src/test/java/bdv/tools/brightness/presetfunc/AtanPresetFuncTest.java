@@ -36,7 +36,7 @@ import org.junit.Test;
  */
 public class AtanPresetFuncTest
 {
-	/** min=100, max=200, paletteRangeLength=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
+	/** min=100, max=200, schemeRange=10, so raw 125/150/175 are t=0.25/0.5/0.75. */
 	private static AtanPresetFunc scaled()
 	{
 		return new AtanPresetFunc( 100f, 200f, 10 );
@@ -46,16 +46,16 @@ public class AtanPresetFuncTest
 	public void testShapeAtRepresentativeValues()
 	{
 		final AtanPresetFunc f = scaled();
-		Assert.assertEquals( 1.06582f, f.getPaletteValueForRaw( 125f ), 1e-3f );
-		Assert.assertEquals( 5.0f, f.getPaletteValueForRaw( 150f ), 1e-3f );
-		Assert.assertEquals( 8.93418f, f.getPaletteValueForRaw( 175f ), 1e-3f );
+		Assert.assertEquals( 1.06582f, f.getSchemeValueForRaw( 125f ), 1e-3f );
+		Assert.assertEquals( 5.0f, f.getSchemeValueForRaw( 150f ), 1e-3f );
+		Assert.assertEquals( 8.93418f, f.getSchemeValueForRaw( 175f ), 1e-3f );
 	}
 
 	/** Symmetric about the midpoint, same as the sigmoid-family shapes. */
 	@Test
 	public void testMidpointIsExactlyHalfway()
 	{
-		Assert.assertEquals( 5f, scaled().getPaletteValueForRaw( 150f ), 1e-4f );
+		Assert.assertEquals( 5f, scaled().getSchemeValueForRaw( 150f ), 1e-4f );
 	}
 
 	/** Steepest of the sigmoid-family shapes through the middle, given k=6. */
@@ -65,7 +65,7 @@ public class AtanPresetFuncTest
 		final AtanPresetFunc atan = scaled();
 		final LinearPresetFunc linear = new LinearPresetFunc( 100f, 200f, 10 );
 
-		Assert.assertTrue( atan.getPaletteValueForRaw( 155f ) > linear.getPaletteValueForRaw( 155f ) );
-		Assert.assertTrue( atan.getPaletteValueForRaw( 145f ) < linear.getPaletteValueForRaw( 145f ) );
+		Assert.assertTrue( atan.getSchemeValueForRaw( 155f ) > linear.getSchemeValueForRaw( 155f ) );
+		Assert.assertTrue( atan.getSchemeValueForRaw( 145f ) < linear.getSchemeValueForRaw( 145f ) );
 	}
 }
