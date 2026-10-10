@@ -79,7 +79,6 @@ import bdv.tools.brightness.converter.ColorSchemeConverterFactory;
 import bdv.tools.brightness.converter.IColorSchemeWrapper;
 import bdv.tools.brightness.colorscheme.IColorScheme;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
-import bdv.tools.brightness.colorscheme.CustomColorsScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
 import bdv.tools.brightness.colorscheme.LegacyBdvColorScheme;
 import bdv.tools.brightness.colorscheme.ColorSchemeCategoryHelper;
@@ -180,8 +179,6 @@ public class LutEditorDialog extends JDialog {
 
     private static final String LEGACY_SCHEME_CATEGORY = "Legacy BDV Colors";
 
-    private static final String CUSTOM_COLORS_CATEGORY = "Custom Colors";
-
     /**
      * Label images use 0 as background, so it falls below the range.
      */
@@ -270,7 +267,6 @@ public class LutEditorDialog extends JDialog {
 
         // -- Widgets ---------------------------------------------------------
         comboColorScheme = createColorSchemeCombo();
-        CustomColorsScheme.classics().forEach((name, scheme) -> addColorScheme(CUSTOM_COLORS_CATEGORY, name, scheme));
         comboEditorPreset = createEditorPresetCombo();
         buttonSaveEditorPreset = new JButton("Save as...");
         buttonSaveEditorPreset.setFocusable(false);
