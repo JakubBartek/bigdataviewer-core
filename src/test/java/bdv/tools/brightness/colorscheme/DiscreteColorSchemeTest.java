@@ -130,7 +130,7 @@ public class DiscreteColorSchemeTest
 	@Test
 	public void testReproducesEveryFixExactlyWithinItsSlot()
 	{
-		final IColorScheme tab10 = ColorSchemeFactory.load( "tab10" );
+		final IColorScheme tab10 = ColorSchemeFactory.loadFromJson( "tab10" );
 		Assert.assertTrue( tab10 instanceof DiscreteColorScheme );
 
 		Assert.assertEquals( tab10.getFixCount(), tab10.getRange() );

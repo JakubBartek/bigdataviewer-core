@@ -51,13 +51,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import net.imglib2.display.ColorConverter;
 import net.imglib2.type.numeric.ARGBType;
 
 /**
- * Discovers and loads the built-in color scheme resources: JSON files with a
+ * Creates color schemes from color fixes, from the built-in resources, or from
+ * a legacy single-color converter. A resource is a JSON file with a
  * {@code fixes_RGBA} array of {@code [r, g, b, a]} in [0, 1], one per fix,
- * and an optional {@code color_interpolation} boolean (default {@code true}),
- * which picks {@link ContinuousColorScheme} over {@link DiscreteColorScheme}.
+ * and an optional {@code color_interpolation} boolean (default {@code true}).
  */
 public final class ColorSchemeFactory {
     private static final String RESOURCE_DIR = "bdv/ui/colorschemes";
@@ -106,13 +107,21 @@ public final class ColorSchemeFactory {
     }
 
     /**
+     * @param argbFixes at least two packed ARGB colors.
+     * @param interpolated picks {@link ContinuousColorScheme} over {@link DiscreteColorScheme}.
+     */
+    public static IColorScheme load(final int[] argbFixes, final boolean interpolated) {
+        return interpolated ? new ContinuousColorScheme(argbFixes) : new DiscreteColorScheme(argbFixes);
+    }
+
+    /**
      * {@code null} if not found or not parseable. The name must match a
      * discovered one exactly: on Windows a directory lookup ignores case, so
      * {@code "Gray"} would otherwise load {@code gray.json}.
      *
      * @param name a name as returned by {@link #discoverNames()}.
      */
-    public static IColorScheme load(final String name) {
+    public static IColorScheme loadFromJson(final String name) {
         if (!exactNames().contains(name)) {
             return null;
         }
@@ -140,11 +149,24 @@ public final class ColorSchemeFactory {
                     ColorSchemeHelpers.unitToChannel(rgba.get(3).getAsDouble()));
         }
         final boolean interpolated = !root.has("color_interpolation") || root.get("color_interpolation").getAsBoolean();
-        return interpolated ? new ContinuousColorScheme(fixes) : new DiscreteColorScheme(fixes);
+        return load(fixes, interpolated);
     }
 
     /**
-     * Reverse of {@link #load(String)}; {@code null} if no resource matches.
+     * Falls back to white, the old converter's default, when there is no color to read.
+     */
+    public static LegacyBdvColorScheme loadFromLegacyConverter(final ColorConverter legacy) {
+        final ARGBType color = legacy.supportsColor() ? legacy.getColor() : null;
+        return new LegacyBdvColorScheme(color != null ? color.get() : DEFAULT_LEGACY_COLOR);
+    }
+
+    /**
+     * The color a {@code RealARGBColorConverter} starts out with.
+     */
+    private static final int DEFAULT_LEGACY_COLOR = ARGBType.rgba(255, 255, 255, 255);
+
+    /**
+     * Reverse of {@link #loadFromJson(String)}; {@code null} if no resource matches.
      */
     public static synchronized String findName(final IColorScheme scheme) {
         if (scheme == null) {
@@ -165,7 +187,7 @@ public final class ColorSchemeFactory {
         if (cachedSchemes == null) {
             final Map<String, IColorScheme> schemes = new LinkedHashMap<>();
             for (final String name : discoverNames()) {
-                final IColorScheme scheme = load(name);
+                final IColorScheme scheme = loadFromJson(name);
                 if (scheme != null) {
                     schemes.put(name, scheme);
                 }
@@ -181,7 +203,7 @@ public final class ColorSchemeFactory {
     private static Map<String, IColorScheme> cachedSchemes = null;
 
     /**
-     * Cached like {@link #cachedSchemes()}, so {@link #load} does not walk the resources each time.
+     * Cached like {@link #cachedSchemes()}, so {@link #loadFromJson} does not walk the resources each time.
      */
     private static synchronized Set<String> exactNames() {
         if (exactNames == null) {

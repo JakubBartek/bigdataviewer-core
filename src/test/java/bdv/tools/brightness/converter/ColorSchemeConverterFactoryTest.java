@@ -39,6 +39,7 @@ import java.util.List;
 
 import org.junit.Test;
 
+import bdv.tools.brightness.colorscheme.ColorSchemeFactory;
 import bdv.tools.brightness.colorscheme.LegacyBdvColorScheme;
 import bdv.viewer.Interpolation;
 import bdv.viewer.Source;
@@ -254,7 +255,7 @@ public class ColorSchemeConverterFactoryTest
 
 		final ColorSchemeConverter< ? > converted = ColorSchemeConverterFactory.approximateInPlace( source );
 
-		assertEquals( new LegacyBdvColorScheme( color ), ColorSchemeConverterFactory.schemeFor( legacy( 0, 255, color ) ) );
+		assertEquals( new LegacyBdvColorScheme( color ), ColorSchemeFactory.loadFromLegacyConverter( legacy( 0, 255, color ) ) );
 		assertColors( new int[] { color }, render( converted, 255 ) );
 	}
 

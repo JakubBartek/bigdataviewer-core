@@ -439,7 +439,7 @@ public class LutEditorDialog extends JDialog {
         if (!ColorSchemeConverterFactory.canApproximate(soc)) {
             return null;
         }
-        final LegacyBdvColorScheme scheme = ColorSchemeConverterFactory.schemeFor((ColorConverter) soc.getConverter());
+        final LegacyBdvColorScheme scheme = ColorSchemeFactory.loadFromLegacyConverter((ColorConverter) soc.getConverter());
         final ColorSchemeConverter<?> converted = ColorSchemeConverterFactory.approximateInPlace(soc);
         if (converted == null) {
             return null;
@@ -665,7 +665,7 @@ public class LutEditorDialog extends JDialog {
      */
     private IColorScheme resolveScheme(final String name) {
         final IColorScheme added = addedSchemes.get(name);
-        return added != null ? added : ColorSchemeFactory.load(name);
+        return added != null ? added : ColorSchemeFactory.loadFromJson(name);
     }
 
     /**

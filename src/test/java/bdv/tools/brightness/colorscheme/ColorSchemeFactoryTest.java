@@ -35,8 +35,11 @@ import java.util.Set;
 import org.junit.Assert;
 import org.junit.Test;
 
+import net.imglib2.display.ColorConverter;
 import net.imglib2.display.ColorTable8;
+import net.imglib2.display.RealARGBColorConverter;
 import net.imglib2.type.numeric.ARGBType;
+import net.imglib2.type.numeric.real.DoubleType;
 
 /** Loads the actual bundled color scheme resources. */
 public class ColorSchemeFactoryTest
@@ -61,21 +64,21 @@ public class ColorSchemeFactoryTest
 	}
 
 	@Test
-	public void testLoadReturnsNullForUnknownName()
+	public void testLoadFromJsonReturnsNullForUnknownName()
 	{
-		Assert.assertNull( ColorSchemeFactory.load( "this-scheme-does-not-exist" ) );
+		Assert.assertNull( ColorSchemeFactory.loadFromJson( "this-scheme-does-not-exist" ) );
 	}
 
 	/** A case-insensitive filesystem would find {@code gray.json}; {@code LutEditorDialog} relies on {@code null}. */
 	@Test
-	public void testLoadDoesNotMatchGrayToBundledGray()
+	public void testLoadFromJsonDoesNotMatchGrayToBundledGray()
 	{
-		Assert.assertNotNull( ColorSchemeFactory.load( "gray" ) );
-		Assert.assertNull( ColorSchemeFactory.load( "Gray" ) );
+		Assert.assertNotNull( ColorSchemeFactory.loadFromJson( "gray" ) );
+		Assert.assertNull( ColorSchemeFactory.loadFromJson( "Gray" ) );
 	}
 
 	@Test
-	public void testLoadMatchesNamesCaseSensitively()
+	public void testLoadFromJsonMatchesNamesCaseSensitively()
 	{
 		final List< String > names = ColorSchemeFactory.discoverNames();
 		final Set< String > exact = new HashSet<>( names );
@@ -87,7 +90,7 @@ public class ColorSchemeFactoryTest
 			variants.add( swapCase( name.substring( 0, 1 ) ) + name.substring( 1 ) );
 			for ( final String variant : variants )
 				if ( !exact.contains( variant ) )
-					Assert.assertNull( "load( \"" + variant + "\" ) should not resolve to " + name, ColorSchemeFactory.load( variant ) );
+					Assert.assertNull( "loadFromJson( \"" + variant + "\" ) should not resolve to " + name, ColorSchemeFactory.loadFromJson( variant ) );
 		}
 	}
 
@@ -101,9 +104,9 @@ public class ColorSchemeFactoryTest
 
 	/** Accent.json has 8 entries; count and order are preserved. */
 	@Test
-	public void testLoadParsesFixesRGBA()
+	public void testLoadFromJsonParsesFixesRGBA()
 	{
-		final IColorScheme scheme = ColorSchemeFactory.load( "Accent" );
+		final IColorScheme scheme = ColorSchemeFactory.loadFromJson( "Accent" );
 
 		Assert.assertNotNull( scheme );
 		Assert.assertEquals( 8, scheme.getFixCount() );
@@ -118,37 +121,95 @@ public class ColorSchemeFactoryTest
 
 	/** Value comparison only: a {@link IColorScheme} is immutable, so sharing an instance is fine. */
 	@Test
-	public void testLoadIsRepeatable()
+	public void testLoadFromJsonIsRepeatable()
 	{
-		final IColorScheme first = ColorSchemeFactory.load( "tab10" );
-		final IColorScheme second = ColorSchemeFactory.load( "tab10" );
+		final IColorScheme first = ColorSchemeFactory.loadFromJson( "tab10" );
+		final IColorScheme second = ColorSchemeFactory.loadFromJson( "tab10" );
 
 		Assert.assertEquals( first, second );
 		Assert.assertEquals( first.getFixCount(), second.getFixCount() );
 	}
 
 	@Test
-	public void testLoadHandlesLargeContinuousScheme()
+	public void testLoadFromJsonHandlesLargeContinuousScheme()
 	{
-		final IColorScheme scheme = ColorSchemeFactory.load( "viridis" );
+		final IColorScheme scheme = ColorSchemeFactory.loadFromJson( "viridis" );
 
 		Assert.assertNotNull( scheme );
 		Assert.assertEquals( 256, scheme.getFixCount() );
 	}
 
 	@Test
-	public void testLoadReflectsColorInterpolationDeclaration()
+	public void testLoadFromJsonReflectsColorInterpolationDeclaration()
 	{
-		Assert.assertTrue( ColorSchemeFactory.load( "Accent" ) instanceof DiscreteColorScheme );
-		Assert.assertTrue( ColorSchemeFactory.load( "viridis" ) instanceof ContinuousColorScheme );
+		Assert.assertTrue( ColorSchemeFactory.loadFromJson( "Accent" ) instanceof DiscreteColorScheme );
+		Assert.assertTrue( ColorSchemeFactory.loadFromJson( "viridis" ) instanceof ContinuousColorScheme );
 	}
+
+    @Test
+    public void testLoadPicksSchemeKindFromInterpolated() {
+        final int[] fixes = {ARGBType.rgba(255, 0, 0, 255), ARGBType.rgba(0, 0, 255, 255)};
+
+        Assert.assertEquals(new ContinuousColorScheme(fixes), ColorSchemeFactory.load(fixes, true));
+        Assert.assertEquals(new DiscreteColorScheme(fixes), ColorSchemeFactory.load(fixes, false));
+    }
+
+    @Test
+    public void testLoadFromLegacyConverterRampsToItsColor() {
+        final int color = ARGBType.rgba(30, 200, 90, 128);
+        final RealARGBColorConverter<DoubleType> legacy = RealARGBColorConverter.create(new DoubleType(), 0, 255);
+        legacy.setColor(new ARGBType(color));
+
+        Assert.assertEquals(new LegacyBdvColorScheme(color), ColorSchemeFactory.loadFromLegacyConverter(legacy));
+    }
+
+    @Test
+    public void testLoadFromLegacyConverterWithoutColorRampsToWhite() {
+        final ColorConverter colorless = new ColorConverter() {
+            @Override
+            public ARGBType getColor() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void setColor(final ARGBType c) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean supportsColor() {
+                return false;
+            }
+
+            @Override
+            public double getMin() {
+                return 0;
+            }
+
+            @Override
+            public double getMax() {
+                return 255;
+            }
+
+            @Override
+            public void setMin(final double min) {
+            }
+
+            @Override
+            public void setMax(final double max) {
+            }
+        };
+
+        Assert.assertEquals(new LegacyBdvColorScheme(ARGBType.rgba(255, 255, 255, 255)),
+                ColorSchemeFactory.loadFromLegacyConverter(colorless));
+    }
 
 	/** By value, not identity. */
 	@Test
 	public void testFindNameRecoversLoadedSchemesName()
 	{
-		Assert.assertEquals( "tab10", ColorSchemeFactory.findName( ColorSchemeFactory.load( "tab10" ) ) );
-		Assert.assertEquals( "viridis", ColorSchemeFactory.findName( ColorSchemeFactory.load( "viridis" ) ) );
+		Assert.assertEquals( "tab10", ColorSchemeFactory.findName( ColorSchemeFactory.loadFromJson( "tab10" ) ) );
+		Assert.assertEquals( "viridis", ColorSchemeFactory.findName( ColorSchemeFactory.loadFromJson( "viridis" ) ) );
 	}
 
 	@Test
@@ -168,10 +229,10 @@ public class ColorSchemeFactoryTest
 	@Test
 	public void testFindNameCacheIsReusable()
 	{
-		Assert.assertEquals( "tab10", ColorSchemeFactory.findName( ColorSchemeFactory.load( "tab10" ) ) );
+		Assert.assertEquals( "tab10", ColorSchemeFactory.findName( ColorSchemeFactory.loadFromJson( "tab10" ) ) );
 
-		final IColorScheme first = ColorSchemeFactory.load( "tab10" );
+		final IColorScheme first = ColorSchemeFactory.loadFromJson( "tab10" );
 		Assert.assertEquals( "tab10", ColorSchemeFactory.findName( first ) );
-		Assert.assertEquals( "viridis", ColorSchemeFactory.findName( ColorSchemeFactory.load( "viridis" ) ) );
+		Assert.assertEquals( "viridis", ColorSchemeFactory.findName( ColorSchemeFactory.loadFromJson( "viridis" ) ) );
 	}
 }

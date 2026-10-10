@@ -31,6 +31,7 @@ package bdv.tools.brightness.converter;
 import java.util.ArrayList;
 import java.util.List;
 
+import bdv.tools.brightness.colorscheme.ColorSchemeFactory;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.LegacyBdvColorScheme;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
@@ -91,7 +92,7 @@ public final class ColorSchemeConverterFactory {
         final double min = legacy.getMin();
         final double max = legacy.getMax();
 
-        final ContinuousColorScheme scheme = schemeFor(legacy);
+        final ContinuousColorScheme scheme = ColorSchemeFactory.loadFromLegacyConverter(legacy);
         // the legacy converter tolerates a collapsed range, the wrapper does not
         final double hi = max > min ? max : min + 1;
         final PresetColorSchemeWrapper wrapper = new PresetColorSchemeWrapper(scheme,
@@ -115,19 +116,6 @@ public final class ColorSchemeConverterFactory {
         }
         return converters;
     }
-
-    /**
-     * Falls back to white, the old converter's default, when there is no color to read.
-     */
-    public static LegacyBdvColorScheme schemeFor(final ColorConverter legacy) {
-        final ARGBType color = legacy.supportsColor() ? legacy.getColor() : null;
-        return new LegacyBdvColorScheme(color != null ? color.get() : DEFAULT_LEGACY_COLOR);
-    }
-
-    /**
-     * The color a {@code RealARGBColorConverter} starts out with.
-     */
-    private static final int DEFAULT_LEGACY_COLOR = ARGBType.rgba(255, 255, 255, 255);
 
     private static boolean isRealTyped(final SourceAndConverter<?> soc) {
         final Source<?> source = soc.getSpimSource();

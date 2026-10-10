@@ -141,7 +141,7 @@ public class ContinuousColorSchemeTest
 	@Test
 	public void testReproducesEveryFixExactlyAtItsIndex()
 	{
-		final IColorScheme viridis = ColorSchemeFactory.load( "viridis" );
+		final IColorScheme viridis = ColorSchemeFactory.loadFromJson( "viridis" );
 		Assert.assertTrue( viridis instanceof ContinuousColorScheme );
 
 		for ( int i = 0; i < viridis.getFixCount(); i++ )

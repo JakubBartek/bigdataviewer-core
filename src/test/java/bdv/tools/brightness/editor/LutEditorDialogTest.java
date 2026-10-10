@@ -284,7 +284,7 @@ public class LutEditorDialogTest
 			{
 				dialog.getColorSchemeCombo().setSelectedItem( name );
 				final ColorSchemeConverter< ? > converter = ( ColorSchemeConverter< ? > ) soc.getConverter();
-				assertEquals( name, ColorSchemeFactory.load( name ), converter.getWrapper().getColorScheme() );
+				assertEquals( name, ColorSchemeFactory.loadFromJson( name ), converter.getWrapper().getColorScheme() );
 			}
 		}
 		finally
