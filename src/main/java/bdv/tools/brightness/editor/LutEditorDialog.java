@@ -83,6 +83,7 @@ import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
 import bdv.tools.brightness.colorscheme.LegacyBdvColorScheme;
 import bdv.tools.brightness.colorscheme.ColorSchemeCategoryHelper;
 import bdv.tools.brightness.colorscheme.ColorSchemeFactory;
+import bdv.tools.brightness.colorscheme.ColorSchemeHelpers;
 import bdv.tools.brightness.presetfunc.StepPresetFunc;
 import bdv.viewer.ConverterSetups;
 import bdv.viewer.SourceAndConverter;
@@ -918,7 +919,7 @@ public class LutEditorDialog extends JDialog {
         if (chosen == null) {
             return;
         }
-        final int argb = 0xff000000 | (chosen.getRGB() & 0xffffff);
+        final int argb = ColorSchemeHelpers.opaque(chosen.getRGB());
         button.setBackground(new Color(argb, false));
         if (left) {
             mappingModel.setLeftSpecialColor(argb);

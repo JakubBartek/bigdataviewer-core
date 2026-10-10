@@ -82,7 +82,7 @@ public class ContinuousColorScheme extends AbstractColorScheme {
         final double clamped = Math.max(0.0, Math.min(lastIndex, schemeValue));
         final int index = Math.min(lastIndex - 1, (int) Math.floor(clamped));
         final double frac = clamped - index;
-        return interpolateColor(fixes[index], fixes[index + 1], frac);
+        return ColorSchemeHelpers.interpolateRGBA(fixes[index], fixes[index + 1], frac);
     }
 
     /**

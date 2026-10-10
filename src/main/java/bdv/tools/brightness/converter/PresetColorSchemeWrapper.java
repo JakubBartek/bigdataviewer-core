@@ -29,6 +29,7 @@ package bdv.tools.brightness.converter;
 
 import java.util.Objects;
 
+import bdv.tools.brightness.colorscheme.ColorSchemeHelpers;
 import bdv.tools.brightness.colorscheme.IColorScheme;
 import bdv.tools.brightness.presetfunc.IPresetFunc;
 
@@ -189,7 +190,7 @@ public class PresetColorSchemeWrapper implements IColorSchemeWrapper {
     public int getRGBForRaw(final double rawValue) {
         final Integer special = specialColorForRaw(rawValue);
         if (special != null) {
-            return special | 0xff000000;
+            return ColorSchemeHelpers.opaque(special);
         }
         return colorScheme.getRGB(getSchemeValueForRaw(rawValue));
     }

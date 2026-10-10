@@ -59,7 +59,7 @@ abstract class AbstractColorScheme implements IColorScheme {
 
     @Override
     public final int getRGB(final double schemeValue) {
-        return colorAt(schemeValue) | 0xff000000;
+        return ColorSchemeHelpers.opaque(colorAt(schemeValue));
     }
 
     @Override
@@ -90,19 +90,4 @@ abstract class AbstractColorScheme implements IColorScheme {
      * The packed-ARGB color at {@code schemeValue}, clamped to the nearest edge fix.
      */
     abstract int colorAt(double schemeValue);
-
-    /**
-     * Linearly interpolates each channel independently between two packed-ARGB fixes, {@code t} in {@code [0, 1]}.
-     */
-    static int interpolateColor(final int fromARGB, final int toARGB, final double t) {
-        final int r = interpolateValue(ARGBType.red(fromARGB), ARGBType.red(toARGB), t);
-        final int g = interpolateValue(ARGBType.green(fromARGB), ARGBType.green(toARGB), t);
-        final int b = interpolateValue(ARGBType.blue(fromARGB), ARGBType.blue(toARGB), t);
-        final int a = interpolateValue(ARGBType.alpha(fromARGB), ARGBType.alpha(toARGB), t);
-        return ARGBType.rgba(r, g, b, a);
-    }
-
-    private static int interpolateValue(final int from, final int to, final double t) {
-        return (int) Math.round(from + t * (to - from));
-    }
 }

@@ -134,20 +134,13 @@ public final class ColorSchemeFactory {
         for (int i = 0; i < n; i++) {
             final JsonArray rgba = colors.get(i).getAsJsonArray();
             fixes[i] = ARGBType.rgba(
-                    to8(rgba.get(0).getAsDouble()),
-                    to8(rgba.get(1).getAsDouble()),
-                    to8(rgba.get(2).getAsDouble()),
-                    to8(rgba.get(3).getAsDouble()));
+                    ColorSchemeHelpers.unitToChannel(rgba.get(0).getAsDouble()),
+                    ColorSchemeHelpers.unitToChannel(rgba.get(1).getAsDouble()),
+                    ColorSchemeHelpers.unitToChannel(rgba.get(2).getAsDouble()),
+                    ColorSchemeHelpers.unitToChannel(rgba.get(3).getAsDouble()));
         }
         final boolean interpolated = !root.has("color_interpolation") || root.get("color_interpolation").getAsBoolean();
         return interpolated ? new ContinuousColorScheme(fixes) : new DiscreteColorScheme(fixes);
-    }
-
-    /**
-     * A [0, 1] color component as an 8-bit channel value.
-     */
-    private static int to8(final double v) {
-        return Math.max(0, Math.min(255, (int) Math.round(v * 255.0)));
     }
 
     /**
