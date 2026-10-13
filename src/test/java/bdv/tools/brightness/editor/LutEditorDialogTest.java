@@ -332,7 +332,7 @@ public class LutEditorDialogTest
 		{
 			dialog.addColorScheme( "Mine", "red-blue", RED_TO_BLUE );
 			dialog.addColorScheme( "Other", "green-red", GREEN_TO_RED );
-			dialog.addColorScheme( "Mine", "blue-red", new ContinuousColorScheme( new int[] { RED_TO_BLUE.getFix( 1 ), RED_TO_BLUE.getFix( 0 ) } ) );
+			dialog.addColorScheme( "Mine", "blue-red", new ContinuousColorScheme( new int[] { RED_TO_BLUE.getFixes()[ 1 ], RED_TO_BLUE.getFixes()[ 0 ] } ) );
 
 			final List< String > items = itemsOf( dialog.getColorSchemeCombo() );
 			final int mine = items.indexOf( "[Mine]" );

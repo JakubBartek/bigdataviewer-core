@@ -30,8 +30,6 @@ package bdv.tools.brightness.colorscheme;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.util.Random;
-
 import org.junit.Test;
 
 import net.imglib2.type.numeric.ARGBType;
@@ -86,29 +84,6 @@ public class ColorSchemeHelpersTest {
         assertEquals(ARGBType.rgba(128, 128, 130, 64), ColorSchemeHelpers.interpolateRGBA(from, to, 0.5));
         assertEquals(ARGBType.rgba(191, 64, 190, 96), ColorSchemeHelpers.interpolateRGBA(from, to, 0.75));
         assertEquals(to, ColorSchemeHelpers.interpolateRGBA(from, to, 1.0));
-    }
-
-    @Test
-    public void interpolateRGBIsOpaque() {
-        final int from = ARGBType.rgba(0, 255, 10, 0);
-        final int to = ARGBType.rgba(255, 0, 250, 128);
-        assertEquals(ARGBType.rgba(0, 255, 10, 255), ColorSchemeHelpers.interpolateRGB(from, to, 0.0));
-        assertEquals(ARGBType.rgba(64, 191, 70, 255), ColorSchemeHelpers.interpolateRGB(from, to, 0.25));
-        assertEquals(ARGBType.rgba(128, 128, 130, 255), ColorSchemeHelpers.interpolateRGB(from, to, 0.5));
-        assertEquals(ARGBType.rgba(191, 64, 190, 255), ColorSchemeHelpers.interpolateRGB(from, to, 0.75));
-        assertEquals(ARGBType.rgba(255, 0, 250, 255), ColorSchemeHelpers.interpolateRGB(from, to, 1.0));
-    }
-
-    @Test
-    public void interpolateRGBMatchesOpaqueRGBA() {
-        final Random random = new Random(42);
-        for (int i = 0; i < 10_000; i++) {
-            final int from = random.nextInt();
-            final int to = random.nextInt();
-            final double t = random.nextDouble();
-            assertEquals(ColorSchemeHelpers.opaque(ColorSchemeHelpers.interpolateRGBA(from, to, t)),
-                    ColorSchemeHelpers.interpolateRGB(from, to, t));
-        }
     }
 
     @Test

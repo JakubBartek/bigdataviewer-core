@@ -57,16 +57,6 @@ public final class ColorSchemeHelpers {
         return ARGBType.rgba(r, g, b, a);
     }
 
-    /**
-     * Like {@link #interpolateRGBA}, but ignoring both alphas: the result is opaque.
-     */
-    public static int interpolateRGB(final int fromARGB, final int toARGB, final double t) {
-        final int r = interpolateValue(ARGBType.red(fromARGB), ARGBType.red(toARGB), t);
-        final int g = interpolateValue(ARGBType.green(fromARGB), ARGBType.green(toARGB), t);
-        final int b = interpolateValue(ARGBType.blue(fromARGB), ARGBType.blue(toARGB), t);
-        return ARGBType.rgba(r, g, b, 255);
-    }
-
     public static int opaque(final int argb) {
         return argb | 0xff000000;
     }

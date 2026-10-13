@@ -36,7 +36,7 @@ import bdv.tools.brightness.converter.BoundaryCondition;
 import bdv.tools.brightness.presetfunc.StepPresetFunc;
 
 /**
- * The LUT editor's editable mapping state, turned into a {@code IColorSchemeWrapper}
+ * The LUT editor's editable mapping state, turned into a {@code PresetColorSchemeWrapper}
  * by {@link ColorSchemeWrapperFactory}. A continuous color scheme is shaped by a
  * {@link Curve}; a discrete one by a {@link #getStepSize() step size} in raw
  * units, since it floors to a fix anyway. Which applies is the scheme's

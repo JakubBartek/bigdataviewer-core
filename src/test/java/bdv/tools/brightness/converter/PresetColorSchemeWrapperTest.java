@@ -256,28 +256,6 @@ public class PresetColorSchemeWrapperTest
 		}
 	}
 
-	@Test
-	public void testSetColorSchemeAndSetPresetFuncRejectMismatchedRange()
-	{
-		final PresetColorSchemeWrapper wrapper = new PresetColorSchemeWrapper( continuousThreeFixes(), new LinearPresetFunc( 0f, 2f, 2 ) );
-		try
-		{
-			wrapper.setColorScheme( discreteThreeFixes() ); // schemeRange 3, preset still 2
-			Assert.fail( "expected IllegalArgumentException" );
-		}
-		catch ( final IllegalArgumentException expected )
-		{
-		}
-		try
-		{
-			wrapper.setPresetFunc( new LinearPresetFunc( 0f, 2f, 5 ) ); // 5 != scheme's 2
-			Assert.fail( "expected IllegalArgumentException" );
-		}
-		catch ( final IllegalArgumentException expected )
-		{
-		}
-	}
-
 	/** Regression: with one raw unit per color, no color may appear twice in a row. */
 	@Test
 	public void testCyclingAStepSchemeNeverRepeatsAColor()

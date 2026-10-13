@@ -135,7 +135,7 @@ public class DiscreteColorSchemeTest
 
 		Assert.assertEquals( tab10.getFixCount(), tab10.getRange() );
 		for ( int i = 0; i < tab10.getFixCount(); i++ )
-			Assert.assertEquals( "fix " + i, tab10.getFix( i ), tab10.getRGBA( i + 0.5 ) );
+			Assert.assertEquals( "fix " + i, tab10.getFixes()[ i ], tab10.getRGBA( i + 0.5 ) );
 	}
 
 	/** {@code ColorSchemeFactory#findName} relies on this. */

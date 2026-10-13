@@ -76,7 +76,7 @@ import bdv.tools.brightness.RealARGBColorConverterSetup;
 import bdv.tools.brightness.converter.BoundaryCondition;
 import bdv.tools.brightness.converter.ColorSchemeConverter;
 import bdv.tools.brightness.converter.ColorSchemeConverterFactory;
-import bdv.tools.brightness.converter.IColorSchemeWrapper;
+import bdv.tools.brightness.converter.PresetColorSchemeWrapper;
 import bdv.tools.brightness.colorscheme.IColorScheme;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
@@ -732,7 +732,7 @@ public class LutEditorDialog extends JDialog {
         if (loadingControls || activeConverter == null) {
             return;
         }
-        final IColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build(currentScheme, mappingModel, editedRangeMin, editedRangeMax);
+        final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build(currentScheme, mappingModel, editedRangeMin, editedRangeMax);
         activeConverter.setWrapper(wrapper);
         if (activeVolatileConverter != null) {
             activeVolatileConverter.setWrapper(wrapper);

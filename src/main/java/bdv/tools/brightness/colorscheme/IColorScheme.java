@@ -30,7 +30,7 @@ package bdv.tools.brightness.colorscheme;
 /**
  * Evenly spaced packed-ARGB color fixes, turning a scheme value (a position
  * in those fixes, e.g. 2.5) into a color. Knows nothing about raw image
- * values; {@link bdv.tools.brightness.converter.IColorSchemeWrapper} maps those.
+ * values; {@link bdv.tools.brightness.converter.PresetColorSchemeWrapper} maps those.
  *
  * @see DiscreteColorScheme
  * @see ContinuousColorScheme
@@ -58,12 +58,7 @@ public interface IColorScheme {
     int getFixCount();
 
     /**
-     * The packed-ARGB color fix at {@code index}.
-     */
-    int getFix(int index);
-
-    /**
-     * A copy of the fixes.
+     * A copy of the packed-ARGB color fixes.
      */
     int[] getFixes();
 }

@@ -145,7 +145,7 @@ public class ContinuousColorSchemeTest
 		Assert.assertTrue( viridis instanceof ContinuousColorScheme );
 
 		for ( int i = 0; i < viridis.getFixCount(); i++ )
-			Assert.assertEquals( "fix " + i, viridis.getFix( i ), viridis.getRGBA( i ) );
+			Assert.assertEquals( "fix " + i, viridis.getFixes()[ i ], viridis.getRGBA( i ) );
 	}
 
 	// -- fixes (shared with DiscreteColorScheme) ------------------------------
@@ -156,8 +156,6 @@ public class ContinuousColorSchemeTest
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { RED, GREEN } );
 
 		Assert.assertEquals( 2, scheme.getFixCount() );
-		Assert.assertEquals( RED, scheme.getFix( 0 ) );
-		Assert.assertEquals( GREEN, scheme.getFix( 1 ) );
 		Assert.assertArrayEquals( new int[] { RED, GREEN }, scheme.getFixes() );
 	}
 
@@ -169,10 +167,10 @@ public class ContinuousColorSchemeTest
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( source );
 
 		source[ 0 ] = GREEN;
-		Assert.assertEquals( RED, scheme.getFix( 0 ) );
+		Assert.assertEquals( RED, scheme.getFixes()[ 0 ] );
 
 		scheme.getFixes()[ 1 ] = RED;
-		Assert.assertEquals( GREEN, scheme.getFix( 1 ) );
+		Assert.assertEquals( GREEN, scheme.getFixes()[ 1 ] );
 	}
 
 	@Test
@@ -218,9 +216,9 @@ public class ContinuousColorSchemeTest
 		final ContinuousColorScheme scheme = ContinuousColorScheme.of( grayscale );
 
 		Assert.assertEquals( 256, scheme.getFixCount() );
-		Assert.assertEquals( 0xff000000, scheme.getFix( 0 ) );
-		Assert.assertEquals( 0xffffffff, scheme.getFix( 255 ) );
-		Assert.assertEquals( 255, ARGBType.alpha( scheme.getFix( 128 ) ) );
+		Assert.assertEquals( 0xff000000, scheme.getFixes()[ 0 ] );
+		Assert.assertEquals( 0xffffffff, scheme.getFixes()[ 255 ] );
+		Assert.assertEquals( 255, ARGBType.alpha( scheme.getFixes()[ 128 ] ) );
 	}
 
 	@Test

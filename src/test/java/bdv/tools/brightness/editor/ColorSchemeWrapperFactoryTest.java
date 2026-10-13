@@ -33,7 +33,6 @@ import org.junit.Test;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
 import bdv.tools.brightness.converter.BoundaryCondition;
-import bdv.tools.brightness.converter.IColorSchemeWrapper;
 import bdv.tools.brightness.converter.PresetColorSchemeWrapper;
 import bdv.tools.brightness.presetfunc.CustomInterpPresetFunc;
 import bdv.tools.brightness.presetfunc.StepPresetFunc;
@@ -87,7 +86,7 @@ public class ColorSchemeWrapperFactoryTest
 	public void testContinuousLinearSpreadsRangeAcrossFixes()
 	{
 		final LutEditorMapping mapping = new LutEditorMapping();
-		final IColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( continuousThreeFixes(), mapping, 0, 2 );
+		final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( continuousThreeFixes(), mapping, 0, 2 );
 
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( 0f ) );
 		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 1f ) );
@@ -101,7 +100,7 @@ public class ColorSchemeWrapperFactoryTest
 	public void testDiscreteAssignsAFlatBandPerFix()
 	{
 		final LutEditorMapping mapping = new LutEditorMapping();
-		final IColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, 3 );
+		final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, 3 );
 
 		// Bands [0,1)->RED, [1,2)->GREEN, [2,3)->BLUE; sampled safely inside each.
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( 0.5f ) );
@@ -121,7 +120,7 @@ public class ColorSchemeWrapperFactoryTest
 
 		for ( final double rangeMax : new double[] { 3, 6, 100 } )
 		{
-			final IColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, rangeMax );
+			final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, rangeMax );
 			final String where = "range max " + rangeMax;
 
 			Assert.assertEquals( where, RED, wrapper.getRGBForRaw( 0.5 ) );
@@ -141,7 +140,7 @@ public class ColorSchemeWrapperFactoryTest
 		final LutEditorMapping mapping = new LutEditorMapping();
 		mapping.setStepSize( 1.0 );
 		mapping.setRightBoundaryCondition( bdv.tools.brightness.converter.BoundaryCondition.CYCLE );
-		final IColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, 6 );
+		final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, 6 );
 
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( 0.5 ) );
 		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 1.5 ) );
@@ -158,7 +157,7 @@ public class ColorSchemeWrapperFactoryTest
 	{
 		final LutEditorMapping mapping = new LutEditorMapping();
 		Assert.assertEquals( LutEditorMapping.AUTO_STEP_SIZE, mapping.getStepSize(), 0.0 );
-		final IColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, 6 );
+		final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, 6 );
 
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( 1f ) );
 		Assert.assertEquals( GREEN, wrapper.getRGBForRaw( 3f ) );
@@ -172,11 +171,11 @@ public class ColorSchemeWrapperFactoryTest
 		final LutEditorMapping bent = new LutEditorMapping();
 		bent.setStepSize( 1.0 );
 		bent.getCurve().addPoint( 0.5, 255 ); // would saturate the curve at the midpoint
-		final IColorSchemeWrapper bentWrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), bent, 0, 6 );
+		final PresetColorSchemeWrapper bentWrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), bent, 0, 6 );
 
 		final LutEditorMapping plain = new LutEditorMapping();
 		plain.setStepSize( 1.0 );
-		final IColorSchemeWrapper plainWrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), plain, 0, 6 );
+		final PresetColorSchemeWrapper plainWrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), plain, 0, 6 );
 
 		for ( final double raw : new double[] { 0.5, 1.5, 2.5, 3.5, 4.5, 5.5 } )
 			Assert.assertEquals( "raw " + raw, plainWrapper.getRGBForRaw( raw ), bentWrapper.getRGBForRaw( raw ) );
@@ -191,7 +190,7 @@ public class ColorSchemeWrapperFactoryTest
 		final LutEditorMapping mapping = new LutEditorMapping();
 		mapping.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
 		mapping.setRightBoundaryCondition( BoundaryCondition.CLAMP );
-		final IColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, 3 );
+		final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, 3 );
 
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( -5f ) ); // below -> first fix
 		Assert.assertEquals( BLUE, wrapper.getRGBForRaw( 100f ) ); // above -> last fix
@@ -204,7 +203,7 @@ public class ColorSchemeWrapperFactoryTest
 		final LutEditorMapping mapping = new LutEditorMapping();
 		mapping.setLeftBoundaryCondition( BoundaryCondition.CLAMP );
 		mapping.setRightBoundaryCondition( BoundaryCondition.CYCLE );
-		final IColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, 3 );
+		final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), mapping, 0, 3 );
 
 		// Above: domain [0,3], period 3 -- raw 3.5 wraps to 0.5 (first fix), 4.5 to 1.5 (middle fix).
 		Assert.assertEquals( RED, wrapper.getRGBForRaw( 3.5f ) );
@@ -222,7 +221,7 @@ public class ColorSchemeWrapperFactoryTest
 		mapping.setLeftSpecialColor( 0x00000000 ); // transparent
 		mapping.setRightBoundaryCondition( BoundaryCondition.SPECIAL );
 		mapping.setRightSpecialColor( 0xffaabbcc );
-		final IColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( continuousThreeFixes(), mapping, 10, 20 );
+		final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( continuousThreeFixes(), mapping, 10, 20 );
 
 		Assert.assertEquals( 0, ARGBType.alpha( wrapper.getRGBAForRaw( 5f ) ) ); // below min -> transparent
 		Assert.assertEquals( 0xffaabbcc, wrapper.getRGBAForRaw( 25f ) ); // above max -> its own color
@@ -236,7 +235,7 @@ public class ColorSchemeWrapperFactoryTest
 		final LutEditorMapping mapping = new LutEditorMapping();
 		mapping.setLeftBoundaryCondition( BoundaryCondition.SPECIAL );
 		mapping.setRightBoundaryCondition( BoundaryCondition.CYCLE );
-		final PresetColorSchemeWrapper wrapper = ( PresetColorSchemeWrapper ) ColorSchemeWrapperFactory.build( continuousThreeFixes(), mapping, 0, 2 );
+		final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( continuousThreeFixes(), mapping, 0, 2 );
 
 		Assert.assertEquals( BoundaryCondition.SPECIAL, wrapper.getLeftBoundaryCondition() );
 		Assert.assertEquals( BoundaryCondition.CYCLE, wrapper.getRightBoundaryCondition() );

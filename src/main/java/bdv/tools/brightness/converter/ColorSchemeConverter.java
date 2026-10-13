@@ -37,35 +37,35 @@ import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.RealType;
 
 /**
- * Renders a real-valued source through a {@link IColorSchemeWrapper}. The display
+ * Renders a real-valued source through a {@link PresetColorSchemeWrapper}. The display
  * range ({@linkplain #getMin() min}/{@linkplain #getMax() max}) is forwarded to
- * {@link IColorSchemeWrapper#setRawDomain(double, double)} on every change.
+ * {@link PresetColorSchemeWrapper#setRawDomain(double, double)} on every change.
  *
  * @param <R> source pixel type.
  */
 public class ColorSchemeConverter<R extends RealType<R>> extends AbstractLinearRange
         implements Converter<R, ARGBType>, ColorConverter {
-    private IColorSchemeWrapper wrapper;
+    private PresetColorSchemeWrapper wrapper;
 
     /**
      * @param wrapper the wrapper each sample is mapped through.
      * @param min     display-range minimum (maps to the start of the scheme).
      * @param max     display-range maximum (maps to the end of the scheme).
      */
-    public ColorSchemeConverter(final IColorSchemeWrapper wrapper, final double min, final double max) {
+    public ColorSchemeConverter(final PresetColorSchemeWrapper wrapper, final double min, final double max) {
         super(min, max);
         this.wrapper = Objects.requireNonNull(wrapper, "wrapper");
         wrapper.setRawDomain(min, max);
     }
 
-    public IColorSchemeWrapper getWrapper() {
+    public PresetColorSchemeWrapper getWrapper() {
         return wrapper;
     }
 
     /**
      * Swap in a different wrapper, re-applying the current display range to it.
      */
-    public void setWrapper(final IColorSchemeWrapper wrapper) {
+    public void setWrapper(final PresetColorSchemeWrapper wrapper) {
         this.wrapper = Objects.requireNonNull(wrapper, "wrapper");
         syncDomain();
     }

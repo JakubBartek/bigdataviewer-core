@@ -112,7 +112,7 @@ public class ColorSchemeFactoryTest
 		Assert.assertEquals( 8, scheme.getFixCount() );
 
 		// index "0": [0.4980392156862745, 0.788235294117647, 0.4980392156862745, 1.0]
-		final int argb = scheme.getFix( 0 );
+		final int argb = scheme.getFixes()[ 0 ];
 		Assert.assertEquals( 127, ARGBType.red( argb ) );
 		Assert.assertEquals( 201, ARGBType.green( argb ) );
 		Assert.assertEquals( 127, ARGBType.blue( argb ) );

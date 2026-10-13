@@ -41,8 +41,12 @@ import bdv.tools.brightness.presetfunc.IPresetFunc;
  * {@link bdv.tools.brightness.colorscheme.ContinuousColorScheme} or
  * {@link bdv.tools.brightness.colorscheme.DiscreteColorScheme}), and this
  * class owns only what happens outside the domain.
+ * <p>
+ * {@link ColorSchemeConverter} calls {@link #getRGBAForRaw(double)} per pixel.
+ * Raw values stay {@code double} the whole way; see
+ * {@link IPresetFunc#getSchemeValueForRaw(double)}.
  */
-public class PresetColorSchemeWrapper implements IColorSchemeWrapper {
+public class PresetColorSchemeWrapper {
     /**
      * Default {@link BoundaryCondition#SPECIAL} color: fully transparent.
      */
@@ -54,7 +58,7 @@ public class PresetColorSchemeWrapper implements IColorSchemeWrapper {
      */
     private static final int WRAP_SNAP_ULPS = 4;
 
-    private IColorScheme colorScheme;
+    private final IColorScheme colorScheme;
 
     private IPresetFunc presetFunc;
 
@@ -88,18 +92,8 @@ public class PresetColorSchemeWrapper implements IColorSchemeWrapper {
         this(colorScheme, presetFunc, BoundaryCondition.CLAMP, BoundaryCondition.CLAMP);
     }
 
-    @Override
     public IColorScheme getColorScheme() {
         return colorScheme;
-    }
-
-    /**
-     * @throws IllegalArgumentException if the new color scheme's {@code getRange()} no longer matches {@link #getPresetFunc()}'s {@code getSchemeRange()}.
-     */
-    public void setColorScheme(final IColorScheme colorScheme) {
-        Objects.requireNonNull(colorScheme, "colorScheme");
-        requireMatchingSchemeRange(colorScheme, presetFunc);
-        this.colorScheme = colorScheme;
     }
 
     public IPresetFunc getPresetFunc() {
@@ -107,18 +101,11 @@ public class PresetColorSchemeWrapper implements IColorSchemeWrapper {
     }
 
     /**
-     * @throws IllegalArgumentException if the new preset function's {@code getSchemeRange()} no longer matches {@link #getColorScheme()}'s {@code getRange()}.
-     */
-    public void setPresetFunc(final IPresetFunc presetFunc) {
-        Objects.requireNonNull(presetFunc, "presetFunc");
-        requireMatchingSchemeRange(colorScheme, presetFunc);
-        this.presetFunc = presetFunc;
-    }
-
-    /**
      * Re-ranges the {@link #getPresetFunc()} over {@code [min, max]}, keeping its shape and scheme range (see {@link IPresetFunc#withRange(double, double)}).
+     * A {@code StepPresetFunc} only honours {@code min}; its width comes from its step size.
+     *
+     * @throws IllegalArgumentException if {@code max} is not strictly greater than {@code min}.
      */
-    @Override
     public void setRawDomain(final double min, final double max) {
         if (!(max > min)) {
             throw new IllegalArgumentException("max must be strictly greater than min, got min=" + min + ", max=" + max);
@@ -173,7 +160,6 @@ public class PresetColorSchemeWrapper implements IColorSchemeWrapper {
      * like {@link BoundaryCondition#CLAMP}; the special color only shows up in
      * {@link #getRGBForRaw(double)}/{@link #getRGBAForRaw(double)}.
      */
-    @Override
     public double getSchemeValueForRaw(final double rawValue) {
         final BoundaryCondition hit = boundaryHit(rawValue);
         if (hit == BoundaryCondition.CYCLE) {
@@ -184,9 +170,8 @@ public class PresetColorSchemeWrapper implements IColorSchemeWrapper {
     }
 
     /**
-     * A SPECIAL boundary color is forced opaque here.
+     * Fully opaque, a SPECIAL boundary color included; see {@link IColorScheme#getRGB(double)}.
      */
-    @Override
     public int getRGBForRaw(final double rawValue) {
         final Integer special = specialColorForRaw(rawValue);
         if (special != null) {
@@ -195,7 +180,9 @@ public class PresetColorSchemeWrapper implements IColorSchemeWrapper {
         return colorScheme.getRGB(getSchemeValueForRaw(rawValue));
     }
 
-    @Override
+    /**
+     * Keeps the alpha of the color fix or SPECIAL boundary color; see {@link IColorScheme#getRGBA(double)}.
+     */
     public int getRGBAForRaw(final double rawValue) {
         final Integer special = specialColorForRaw(rawValue);
         if (special != null) {

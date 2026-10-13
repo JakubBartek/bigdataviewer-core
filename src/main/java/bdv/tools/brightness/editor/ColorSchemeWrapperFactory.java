@@ -32,7 +32,6 @@ import java.util.Arrays;
 import bdv.tools.brightness.colorscheme.IColorScheme;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
-import bdv.tools.brightness.converter.IColorSchemeWrapper;
 import bdv.tools.brightness.converter.PresetColorSchemeWrapper;
 import bdv.tools.brightness.presetfunc.CustomInterpPresetFunc;
 import bdv.tools.brightness.presetfunc.IPresetFunc;
@@ -40,7 +39,7 @@ import bdv.tools.brightness.presetfunc.StepPresetFunc;
 
 /**
  * Translates the LUT editor's {@link LutEditorMapping} and {@link IColorScheme}
- * into the {@link IColorSchemeWrapper} that renders (see
+ * into the {@link PresetColorSchemeWrapper} that renders (see
  * {@link bdv.tools.brightness.converter.ColorSchemeConverter}).
  * The scheme's kind picks the preset function feeding it:
  * <ul>
@@ -55,10 +54,6 @@ public final class ColorSchemeWrapperFactory {
     private ColorSchemeWrapperFactory() {
     }
 
-    /**
-     * Returns the concrete type because {@code MappingCurvePanel} needs the
-     * preset function's domain to draw where the boundary condition takes over.
-     */
     public static PresetColorSchemeWrapper build(final IColorScheme scheme, final LutEditorMapping mapping, final double min, final double max) {
         final double lo = min;
         final double hi = max > min ? max : min + 1; // both preset functions require max > min

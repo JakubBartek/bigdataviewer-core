@@ -68,11 +68,6 @@ abstract class AbstractColorScheme implements IColorScheme {
     }
 
     @Override
-    public final int getFix(final int index) {
-        return fixes[index];
-    }
-
-    @Override
     public final int[] getFixes() {
         return fixes.clone();
     }
