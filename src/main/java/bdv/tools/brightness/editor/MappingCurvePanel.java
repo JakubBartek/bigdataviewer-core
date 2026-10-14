@@ -96,7 +96,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
     private static final int COLORBAR_GAP = 10;
 
-    private static final int BASE_PREFERRED_HEIGHT = 226;
+    private static final int BASE_PREFERRED_HEIGHT = 206;
 
     /**
      * Plot width excluding gutters.

@@ -311,7 +311,7 @@ public class LutEditorDialog extends JDialog {
 
         final JPanel panelCenter = new JPanel(new BorderLayout(12, 0));
         panelCenter.add(panelLeftColumn, BorderLayout.WEST);
-        panelCenter.add(hugContents(panelMappingCurveColumn), BorderLayout.CENTER);
+        panelCenter.add(panelMappingCurveColumn, BorderLayout.CENTER);
         add(createConfigurationStrip(), BorderLayout.NORTH);
         add(panelCenter, BorderLayout.CENTER);
         add(createBottomBar(), BorderLayout.SOUTH);
@@ -1095,7 +1095,7 @@ public class LutEditorDialog extends JDialog {
     private JPanel createMappingCurveColumn() {
         final JPanel column = new JPanel(new BorderLayout());
         column.setBorder(BorderFactory.createTitledBorder("Transfer function"));
-        column.add(hugContents(panelMappingCurve), BorderLayout.CENTER);
+        column.add(panelMappingCurve, BorderLayout.CENTER);
         return column;
     }
 
@@ -1380,15 +1380,6 @@ public class LutEditorDialog extends JDialog {
         final Color disabled = UIManager.getColor("Label.disabledForeground");
         label.setForeground(disabled != null ? disabled : Color.GRAY);
         return label;
-    }
-
-    /**
-     * Keeps {@code component} at its preferred size so titled borders hug it.
-     */
-    private static JPanel hugContents(final JComponent component) {
-        final JPanel wrapper = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        wrapper.add(component);
-        return wrapper;
     }
 
     private static JPanel labeledRow(final String label, final JComponent component) {
