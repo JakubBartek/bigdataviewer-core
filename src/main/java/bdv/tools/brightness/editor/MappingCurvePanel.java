@@ -416,8 +416,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     /**
      * The scale the y axis is labelled in.
      */
-    private int curveYToColorIndex(final double curveY) {
-        return (int) Math.round(curveY * (colorScheme.getFixCount() - 1));
+    private double curveYToColorIndex(final double curveY) {
+        return curveY * (colorScheme.getFixCount() - 1);
     }
 
     @Override
@@ -705,22 +705,49 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
      * that move no tick by more than {@link #TICK_LABEL_TOLERANCE} of the tick spacing.
      */
     static String[] quarterTickLabels(final double min, final double max) {
-        final double spacing = (max - min) / 4;
-        final double[] ticks = new double[5];
-        for (int i = 0; i <= 4; i++) {
-            ticks[i] = min + i / 4.0 * (max - min);
-        }
-
-        int decimals = 0;
-        while (decimals < MAX_TICK_DECIMALS && !roundsWithin(ticks, decimals, TICK_LABEL_TOLERANCE * spacing)) {
-            decimals++;
-        }
-
+        final double[] ticks = quarterTicks(min, max);
+        final int decimals = tickDecimals(min, max);
         final String[] labels = new String[5];
         for (int i = 0; i < 5; i++) {
             labels[i] = roundTo(ticks[i], decimals).toPlainString();
         }
         return labels;
+    }
+
+    /**
+     * An arbitrary value on the axis of {@link #quarterTickLabels}: at least the ticks' decimals,
+     * and more where the ticks are exact but other values would round off by more than the tolerance.
+     */
+    static String axisValueLabel(final double value, final double min, final double max) {
+        // slack: a spacing like (4.1 - 0.1) / 4 lands a hair under its exact boundary
+        final double tolerance = tickLabelTolerance(min, max) * (1 + 1e-9);
+        int decimals = tickDecimals(min, max);
+        while (decimals < MAX_TICK_DECIMALS && 0.5 * Math.pow(10, -decimals) > tolerance) {
+            decimals++;
+        }
+        return roundTo(value, decimals).toPlainString();
+    }
+
+    private static int tickDecimals(final double min, final double max) {
+        final double[] ticks = quarterTicks(min, max);
+        final double tolerance = tickLabelTolerance(min, max);
+        int decimals = 0;
+        while (decimals < MAX_TICK_DECIMALS && !roundsWithin(ticks, decimals, tolerance)) {
+            decimals++;
+        }
+        return decimals;
+    }
+
+    private static double[] quarterTicks(final double min, final double max) {
+        final double[] ticks = new double[5];
+        for (int i = 0; i <= 4; i++) {
+            ticks[i] = min + i / 4.0 * (max - min);
+        }
+        return ticks;
+    }
+
+    private static double tickLabelTolerance(final double min, final double max) {
+        return TICK_LABEL_TOLERANCE * (max - min) / 4;
     }
 
     private static boolean roundsWithin(final double[] values, final int decimals, final double tolerance) {
@@ -771,7 +798,9 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         g.drawLine(px, py, px, transformBarBottom());
 
         final double value = rangeMin + curve.getX(index) * (rangeMax - rangeMin);
-        drawChip(g, px, py, formatValue(value) + "  →  " + curveYToColorIndex(curve.getY(index)));
+        // the fraction is the blend between neighbouring fixes, so its precision is independent of the fix count
+        final String colorIndex = roundTo(curveYToColorIndex(curve.getY(index)), 2).toPlainString();
+        drawChip(g, px, py, axisValueLabel(value, rangeMin, rangeMax) + "  →  " + colorIndex);
     }
 
     /**

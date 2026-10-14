@@ -31,6 +31,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -66,6 +67,48 @@ public class MappingCurvePanelTest {
     public void quarterTickLabelsNeverShowNegativeZero() {
         assertLabels(-1, 1, "-1.0", "-0.5", "0.0", "0.5", "1.0");
         assertLabels(-0.3, 0.3, "-0.30", "-0.15", "0.00", "0.15", "0.30");
+    }
+
+    @Test
+    public void axisValueLabelForTypicalValues() {
+        assertEquals("64", MappingCurvePanel.axisValueLabel(63.75, 0, 255));
+        assertEquals("1235", MappingCurvePanel.axisValueLabel(1234.56, 0, 65535));
+        assertEquals("0.37", MappingCurvePanel.axisValueLabel(0.3721, 0, 1));
+        assertEquals("3.1", MappingCurvePanel.axisValueLabel(3.14159, 0, 10));
+        assertEquals("1.134", MappingCurvePanel.axisValueLabel(1.1337, 1.1, 1.2));
+        assertEquals("0.0012", MappingCurvePanel.axisValueLabel(0.00123, 0, 0.01));
+        assertEquals("0.00", MappingCurvePanel.axisValueLabel(-0.004, -1, 1));
+    }
+
+    @Test
+    public void axisValueLabelOutdoesWholeTicksWhenValuesBetweenThemWouldRoundTooFar() {
+        assertEquals("1.5", MappingCurvePanel.axisValueLabel(1.5, 0, 4));
+        assertEquals("2.0", MappingCurvePanel.axisValueLabel(2, 0, 4));
+        assertEquals("2.3", MappingCurvePanel.axisValueLabel(2.345, 0.1, 4.1));
+    }
+
+    /**
+     * Within the tick tolerance anywhere on the axis, never with fewer decimals than the ticks.
+     */
+    @Test
+    public void axisValueLabelIsAccurateForEveryRange() {
+        for (final double origin : ORIGINS) {
+            for (int exponent = -6; exponent <= 6; exponent++) {
+                for (int mantissa = 10; mantissa < 100; mantissa++) {
+                    final double min = origin;
+                    final double max = origin + mantissa * Math.pow(10, exponent - 1);
+                    final String range = "[" + min + ", " + max + "]";
+                    final double tolerance = MappingCurvePanel.TICK_LABEL_TOLERANCE * (max - min) / 4;
+                    final int tickDecimals = new BigDecimal(MappingCurvePanel.quarterTickLabels(min, max)[0]).scale();
+                    for (int step = 0; step <= 23; step++) {
+                        final double value = min + step / 23.0 * (max - min);
+                        final BigDecimal label = new BigDecimal(MappingCurvePanel.axisValueLabel(value, min, max));
+                        assertEquals(range + " value " + value, value, label.doubleValue(), tolerance * (1 + 1e-6));
+                        assertTrue(range, label.scale() >= tickDecimals);
+                    }
+                }
+            }
+        }
     }
 
     /**
