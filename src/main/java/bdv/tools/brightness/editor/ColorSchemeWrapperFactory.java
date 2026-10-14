@@ -27,8 +27,6 @@
  */
 package bdv.tools.brightness.editor;
 
-import java.util.Arrays;
-
 import bdv.tools.brightness.colorscheme.IColorScheme;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
@@ -44,7 +42,8 @@ import bdv.tools.brightness.presetfunc.StepPresetFunc;
  * The scheme's kind picks the preset function feeding it:
  * <ul>
  * <li>{@link ContinuousColorScheme}: the editor's {@link Curve} as a
- * {@link CustomInterpPresetFunc}.</li>
+ * {@link CustomInterpPresetFunc}, or the exact {@link PresetShape} it was
+ * sampled from while still unedited.</li>
  * <li>{@link DiscreteColorScheme}: a {@link StepPresetFunc}; the curve is
  * ignored.</li>
  * </ul>
@@ -79,44 +78,14 @@ public final class ColorSchemeWrapperFactory {
     }
 
     private static IPresetFunc curveFunc(final LutEditorMapping mapping, final IColorScheme scheme, final double lo, final double hi) {
-        final CustomInterpPresetFunc curve = new CustomInterpPresetFunc(lo, hi, scheme.getRange());
-        final Knots knots = sanitizedKnots(mapping);
-        curve.setKnots(knots.ts, knots.values);
-        return curve;
-    }
-
-    private static final class Knots {
-        final double[] ts;
-        final double[] values;
-
-        Knots(final double[] ts, final double[] values) {
-            this.ts = ts;
-            this.values = values;
-        }
-    }
-
-    /**
-     * Clamps and de-duplicates the curve into valid knots, falling back to
-     * linear, so a degenerate curve never throws during a live edit.
-     */
-    private static Knots sanitizedKnots(final LutEditorMapping mapping) {
         final double[] xs = mapping.getCurve().xsArray();
-        final int[] ys = mapping.getCurve().ysArray();
-        final double[] ts = new double[xs.length];
-        final double[] values = new double[xs.length];
-        int n = 0;
-        for (int i = 0; i < xs.length; i++) {
-            final double t = Math.max(0.0, Math.min(1.0, xs[i]));
-            if (n > 0 && !(t > ts[n - 1])) {
-                continue; // keep strictly ascending
-            }
-            ts[n] = t;
-            values[n] = Math.max(0.0, Math.min(1.0, ys[i] / 255.0));
-            n++;
+        final double[] ys = mapping.getCurve().ysArray();
+        final PresetShape shape = PresetShape.matching(xs, ys);
+        if (shape != null) {
+            return shape.create(lo, hi, scheme.getRange());
         }
-        if (n < 2) {
-            return new Knots(new double[]{0.0, 1.0}, new double[]{0.0, 1.0});
-        }
-        return new Knots(Arrays.copyOf(ts, n), Arrays.copyOf(values, n));
+        final CustomInterpPresetFunc curve = new CustomInterpPresetFunc(lo, hi, scheme.getRange());
+        curve.setKnots(xs, ys);
+        return curve;
     }
 }

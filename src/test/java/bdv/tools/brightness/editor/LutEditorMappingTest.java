@@ -44,10 +44,8 @@ public class LutEditorMappingTest
 
 		// The default curve is the identity ramp, exactly its two endpoints.
 		final Curve curve = model.getCurve();
-		Assert.assertEquals( 2, curve.getPointCount() );
-		Assert.assertEquals( 0, curve.evaluate( 0.0 ) );
-		Assert.assertEquals( 255, curve.evaluate( 1.0 ) );
-		Assert.assertEquals( 128, curve.evaluate( 0.5 ), 1 );
+		Assert.assertArrayEquals( new double[] { 0.0, 1.0 }, curve.xsArray(), 0.0 );
+		Assert.assertArrayEquals( new double[] { 0.0, 1.0 }, curve.ysArray(), 0.0 );
 	}
 
 	@Test
@@ -68,17 +66,18 @@ public class LutEditorMappingTest
 
 		Assert.assertEquals( PresetShape.LOG, model.getPreset() );
 		final Curve curve = model.getCurve();
-		Assert.assertEquals( 0, curve.evaluate( 0.0 ) );
-		Assert.assertEquals( 255, curve.evaluate( 1.0 ) );
+		final int last = curve.getPointCount() - 1;
+		Assert.assertEquals( 0.0, curve.getY( 0 ), 0.0 );
+		Assert.assertEquals( 1.0, curve.getY( last ), 0.0 );
 		// Log curve rises faster than linear near the low end.
-		Assert.assertTrue( curve.evaluate( 0.1 ) > 26 );
+		Assert.assertTrue( curve.getY( 1 ) > curve.getX( 1 ) );
 	}
 
 	@Test
 	public void testLinearPresetIsExactlyTwoPoints()
 	{
 		Assert.assertArrayEquals( new double[] { 0.0, 1.0 }, PresetShape.LINEAR.xs(), 1e-9 );
-		Assert.assertArrayEquals( new int[] { 0, 255 }, PresetShape.LINEAR.ys() );
+		Assert.assertArrayEquals( new double[] { 0.0, 1.0 }, PresetShape.LINEAR.ys(), 0.0 );
 	}
 
 	@Test
@@ -88,13 +87,11 @@ public class LutEditorMappingTest
 		final Curve curve = model.getCurve();
 
 		// Default Linear preset increases; after inverting it must decrease.
-		Assert.assertEquals( 0, curve.evaluate( 0.0 ) );
-		Assert.assertEquals( 255, curve.evaluate( 1.0 ) );
+		Assert.assertArrayEquals( new double[] { 0.0, 1.0 }, curve.ysArray(), 0.0 );
 
 		model.invertCurve();
 
-		Assert.assertEquals( 255, curve.evaluate( 0.0 ) );
-		Assert.assertEquals( 0, curve.evaluate( 1.0 ) );
+		Assert.assertArrayEquals( new double[] { 1.0, 0.0 }, curve.ysArray(), 0.0 );
 	}
 
 	@Test
@@ -102,12 +99,11 @@ public class LutEditorMappingTest
 	{
 		final LutEditorMapping model = new LutEditorMapping();
 		final Curve curve = model.getCurve();
-		curve.addPoint( 0.5, 200 );
+		curve.addPoint( 0.5, 0.75 );
 		model.notifyCurveEdited();
 
-		final int before = curve.evaluate( 0.5 );
 		model.invertCurve();
-		Assert.assertEquals( 255 - before, curve.evaluate( 0.5 ) );
+		Assert.assertEquals( 0.25, curve.getY( 1 ), 0.0 );
 	}
 
 	@Test
@@ -180,7 +176,7 @@ public class LutEditorMappingTest
 		b.setStepSize( LutEditorMapping.AUTO_STEP_SIZE );
 		Assert.assertTrue( a.hasSameState( b ) );
 
-		b.getCurve().addPoint( 0.5, 100 );
+		b.getCurve().addPoint( 0.5, 0.4 );
 		b.notifyCurveEdited();
 		Assert.assertFalse( a.hasSameState( b ) );
 	}

@@ -226,7 +226,7 @@ public class LutEditorDialogTest
 		{
 			dialog.getColorSchemeCombo().setSelectedItem( "viridis" );
 			dialog.getMapping().applyPreset( PresetShape.SIGMOID );
-			dialog.getMapping().getCurve().addPoint( 0.3, 200 );
+			dialog.getMapping().getCurve().addPoint( 0.3, 0.8 );
 
 			dialog.getColorSchemeCombo().setSelectedItem( "tab10" );
 
@@ -249,13 +249,13 @@ public class LutEditorDialogTest
 		try
 		{
 			dialog.getColorSchemeCombo().setSelectedItem( "viridis" );
-			dialog.getMapping().getCurve().addPoint( 0.3, 200 );
+			dialog.getMapping().getCurve().addPoint( 0.3, 0.8 );
 			dialog.getMapping().notifyCurveEdited();
 
 			dialog.getColorSchemeCombo().setSelectedItem( "magma" );
 
 			assertEquals( 3, dialog.getMapping().getCurve().getPointCount() );
-			assertEquals( 200, dialog.getMapping().getCurve().evaluate( 0.3 ) );
+			assertEquals( 0.8, dialog.getMapping().getCurve().getY( 1 ), 0.0 );
 		}
 		finally
 		{

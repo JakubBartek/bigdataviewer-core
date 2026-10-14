@@ -65,7 +65,7 @@ public class EditorPresetHelperTest
 	{
 		return new EditorPreset( name, "tab10", BoundaryCondition.SPECIAL, BoundaryCondition.CYCLE,
 				0xff112233, 0xff445566, 2.5,
-				new double[] { 0.0, 0.5, 1.0 }, new int[] { 0, 100, 255 } );
+				new double[] { 0.0, 0.5, 1.0 }, new double[] { 0.0, 0.4, 1.0 } );
 	}
 
 	@Test
@@ -88,7 +88,7 @@ public class EditorPresetHelperTest
 		Assert.assertEquals( BoundaryCondition.CYCLE, preset.getRightBoundaryCondition() );
 		Assert.assertEquals( 0xff000000, preset.getLeftSpecialColor() );
 		Assert.assertArrayEquals( new double[] { 0.0, 1.0 }, preset.getCurveXs(), 1e-9 );
-		Assert.assertArrayEquals( new int[] { 0, 255 }, preset.getCurveYs() );
+		Assert.assertArrayEquals( new double[] { 0.0, 1.0 }, preset.getCurveValues(), 0.0 );
 	}
 
 	@Test
@@ -114,7 +114,7 @@ public class EditorPresetHelperTest
 		Assert.assertEquals( saved.getRightSpecialColor(), loaded.getRightSpecialColor() );
 		Assert.assertEquals( saved.getStepSize(), loaded.getStepSize(), 0.0 );
 		Assert.assertArrayEquals( saved.getCurveXs(), loaded.getCurveXs(), 1e-9 );
-		Assert.assertArrayEquals( saved.getCurveYs(), loaded.getCurveYs() );
+		Assert.assertArrayEquals( saved.getCurveValues(), loaded.getCurveValues(), 0.0 );
 	}
 
 	/** Legacy keys still load: treat-min-as-background as left SPECIAL, cyclic as CYCLE elsewhere. */
@@ -151,6 +151,21 @@ public class EditorPresetHelperTest
 		Assert.assertEquals( BoundaryCondition.CLAMP, loaded.getLeftBoundaryCondition() );
 		Assert.assertEquals( BoundaryCondition.CLAMP, loaded.getRightBoundaryCondition() );
 	}
+
+    /**
+     * The 0-255 {@code curveYs} key is deliberately not migrated.
+     */
+    @Test
+    public void testLegacyCurveYsIsNotRead() throws Exception {
+        writeUserPreset("OldCurve", "{"
+                + "\"name\":\"OldCurve\",\"colorSchemeName\":\"viridis\","
+                + "\"curveXs\":[0.0,1.0],\"curveYs\":[0,255]}");
+
+        final EditorPreset loaded = EditorPresetHelper.load("OldCurve");
+
+        Assert.assertNotNull(loaded);
+        Assert.assertNull(loaded.getCurveValues());
+    }
 
 	/** Saving must not write the legacy keys back out; they are a read-only compatibility path. */
 	@Test
@@ -200,7 +215,7 @@ public class EditorPresetHelperTest
 		Assert.assertTrue( EditorPresetHelper.isUserDefined( "Labels (Cyclic, tab10)" ) );
 		final EditorPreset loaded = EditorPresetHelper.load( "Labels (Cyclic, tab10)" );
 		Assert.assertEquals( 0xff112233, loaded.getLeftSpecialColor() );
-		Assert.assertArrayEquals( new int[] { 0, 100, 255 }, loaded.getCurveYs() );
+		Assert.assertArrayEquals( new double[] { 0.0, 0.4, 1.0 }, loaded.getCurveValues(), 0.0 );
 	}
 
 	@Test

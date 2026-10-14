@@ -376,7 +376,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     }
 
     // -- Coordinate conversions, named <from>To<to> --------------------------
-    // pixels, raw values [rangeMin, rangeMax], curve x [0, 1], curve output [0, 255]
+    // pixels, raw values [rangeMin, rangeMax], curve x and y [0, 1], drawing output [0, 255]
 
     private double pixelXToValue(final int pixelX) {
         final double normX = Math.max(0.0, Math.min(1.0, (pixelX - plotLeft()) / (double) plotWidth()));
@@ -393,9 +393,13 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         return plotLeft() + (int) Math.round(normX * plotWidth());
     }
 
-    private int pixelYToOutput(final int pixelY) {
-        final double v = (plotBottom() - pixelY) / (double) plotHeight() * 255.0;
-        return Math.max(0, Math.min(255, (int) Math.round(v)));
+    private double pixelYToCurveY(final int pixelY) {
+        final double v = (plotBottom() - pixelY) / (double) plotHeight();
+        return Math.max(0.0, Math.min(1.0, v));
+    }
+
+    private int curveYToPixelY(final double curveY) {
+        return plotBottom() - (int) Math.round(curveY * plotHeight());
     }
 
     private int outputToPixelY(final int outputValue) {
@@ -405,8 +409,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     /**
      * The scale the y axis is labelled in.
      */
-    private int outputToColorIndex(final int outputValue) {
-        return (int) Math.round(outputValue / 255.0 * (colorScheme.getFixCount() - 1));
+    private int curveYToColorIndex(final double curveY) {
+        return (int) Math.round(curveY * (colorScheme.getFixCount() - 1));
     }
 
     @Override
@@ -580,7 +584,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         final Curve curve = model.getCurve();
         final int highlighted = annotatedPoint();
         for (int i = 0; i < curve.getPointCount(); i++) {
-            drawControlPointAt(g, curveXToPixelX(curve.getX(i)), outputToPixelY(curve.getY(i)), i == highlighted);
+            drawControlPointAt(g, curveXToPixelX(curve.getX(i)), curveYToPixelY(curve.getY(i)), i == highlighted);
         }
     }
 
@@ -708,7 +712,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         }
 
         final int px = curveXToPixelX(curve.getX(index));
-        final int py = outputToPixelY(curve.getY(index));
+        final int py = curveYToPixelY(curve.getY(index));
 
         g.setColor(POINT_BORDER);
         g.setStroke(GUIDE_STROKE);
@@ -716,7 +720,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         g.drawLine(px, py, px, transformBarBottom());
 
         final double value = rangeMin + curve.getX(index) * (rangeMax - rangeMin);
-        drawChip(g, px, py, formatValue(value) + "  →  " + outputToColorIndex(curve.getY(index)));
+        drawChip(g, px, py, formatValue(value) + "  →  " + curveYToColorIndex(curve.getY(index)));
     }
 
     /**
@@ -751,18 +755,18 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
         final Curve curve = model.getCurve();
         final double x = valueToCurveX(pixelXToValue(e.getX()));
-        final int y = pixelYToOutput(e.getY());
+        final double y = pixelYToCurveY(e.getY());
 
         if (e.getButton() == MouseEvent.BUTTON1) {
-            draggedPoint = curve.findNearestPoint(x, y / 255.0, 0.05);
+            draggedPoint = curve.findNearestPoint(x, y, 0.05);
             if (draggedPoint < 0) {
                 curve.addPoint(x, y);
-                draggedPoint = curve.findNearestPoint(x, y / 255.0, 0.01);
+                draggedPoint = curve.findNearestPoint(x, y, 0.01);
             }
             model.notifyCurveEdited();
             repaint();
         } else if (e.getButton() == MouseEvent.BUTTON3) {
-            final int idx = curve.findNearestPoint(x, y / 255.0, 0.05);
+            final int idx = curve.findNearestPoint(x, y, 0.05);
             if (idx >= 0) {
                 curve.removePoint(idx);
                 hoveredPoint = null;
@@ -775,7 +779,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     @Override
     public void mouseDragged(final MouseEvent e) {
         if (editMode && !isDiscrete() && draggedPoint != null && draggedPoint >= 0) {
-            model.getCurve().setPoint(draggedPoint, pixelYToOutput(e.getY()));
+            model.getCurve().setPoint(draggedPoint, pixelYToCurveY(e.getY()));
             model.notifyCurveEdited();
             repaint();
         }
@@ -816,8 +820,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
             return;
         }
         final double x = valueToCurveX(pixelXToValue(e.getX()));
-        final int y = pixelYToOutput(e.getY());
-        final int found = model.getCurve().findNearestPoint(x, y / 255.0, 0.04);
+        final double y = pixelYToCurveY(e.getY());
+        final int found = model.getCurve().findNearestPoint(x, y, 0.04);
         final Integer updated = found < 0 ? null : found;
         if (!Objects.equals(updated, hoveredPoint)) {
             hoveredPoint = updated;

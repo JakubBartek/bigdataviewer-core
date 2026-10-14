@@ -87,33 +87,45 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
 	/**
 	 * @param ts     domain fractions in {@code [0, 1]}, strictly ascending.
 	 * @param values scheme-value fractions in {@code [0, 1]}; need not be ascending.
-	 * @throws IllegalArgumentException if there are fewer than 2 knots, the lengths differ,
-	 *                                  {@code ts} is not strictly ascending, or any entry is
-	 *                                  outside {@code [0, 1]}.
+	 * @throws IllegalArgumentException as {@link #requireValidKnots}.
 	 */
 	public void setKnots( final double[] ts, final double[] values )
 	{
-		Objects.requireNonNull( ts, "ts" );
-		Objects.requireNonNull( values, "values" );
-		if ( ts.length != values.length )
-			throw new IllegalArgumentException( "ts and values must have the same length, got " + ts.length + " and " + values.length );
-		if ( ts.length < 2 )
-			throw new IllegalArgumentException( "at least 2 knots are required, got " + ts.length );
-		for ( int i = 0; i < ts.length; i++ )
-		{
-			// negated so NaN is rejected too
-			if ( !( ts[ i ] >= 0.0 && ts[ i ] <= 1.0 ) )
-				throw new IllegalArgumentException( "knot t must be in [0, 1], got " + ts[ i ] + " at index " + i );
-			if ( !( values[ i ] >= 0.0 && values[ i ] <= 1.0 ) )
-				throw new IllegalArgumentException( "knot value must be in [0, 1], got " + values[ i ] + " at index " + i );
-		}
-		for ( int i = 1; i < ts.length; i++ )
-			if ( !( ts[ i ] > ts[ i - 1 ] ) )
-				throw new IllegalArgumentException( "ts must be strictly ascending, got " + ts[ i - 1 ] + " at index " + ( i - 1 ) + " followed by " + ts[ i ] );
+		requireValidKnots( ts, values );
 
 		this.knotTs = ts.clone();
 		this.knotValues = values.clone();
 	}
+
+    /**
+     * @throws IllegalArgumentException if there are fewer than 2 knots, the lengths differ,
+     *                                  {@code ts} is not strictly ascending, or any entry is
+     *                                  outside {@code [0, 1]}.
+     */
+    public static void requireValidKnots(final double[] ts, final double[] values) {
+        Objects.requireNonNull(ts, "ts");
+        Objects.requireNonNull(values, "values");
+        if (ts.length != values.length) {
+            throw new IllegalArgumentException("ts and values must have the same length, got " + ts.length + " and " + values.length);
+        }
+        if (ts.length < 2) {
+            throw new IllegalArgumentException("at least 2 knots are required, got " + ts.length);
+        }
+        for (int i = 0; i < ts.length; i++) {
+            // negated so NaN is rejected too
+            if (!(ts[i] >= 0.0 && ts[i] <= 1.0)) {
+                throw new IllegalArgumentException("knot t must be in [0, 1], got " + ts[i] + " at index " + i);
+            }
+            if (!(values[i] >= 0.0 && values[i] <= 1.0)) {
+                throw new IllegalArgumentException("knot value must be in [0, 1], got " + values[i] + " at index " + i);
+            }
+        }
+        for (int i = 1; i < ts.length; i++) {
+            if (!(ts[i] > ts[i - 1])) {
+                throw new IllegalArgumentException("ts must be strictly ascending, got " + ts[i - 1] + " at index " + (i - 1) + " followed by " + ts[i]);
+            }
+        }
+    }
 
 	public int getKnotCount()
 	{

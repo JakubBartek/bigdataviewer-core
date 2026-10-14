@@ -6,5 +6,5 @@
   "leftSpecialColor": -16777216,
   "rightSpecialColor": -16777216,
   "curveXs": [0.0, 1.0],
-  "curveYs": [0, 255]
+  "curveValues": [0.0, 1.0]
 }

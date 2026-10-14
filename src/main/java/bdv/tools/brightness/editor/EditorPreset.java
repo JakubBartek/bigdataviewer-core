@@ -65,7 +65,10 @@ public class EditorPreset {
 
     private double[] curveXs;
 
-    private int[] curveYs;
+    /**
+     * In {@code [0, 1]}, matching {@link #curveXs}.
+     */
+    private double[] curveValues;
 
     // -- legacy keys, read but never written ---------------------------------
 
@@ -84,7 +87,7 @@ public class EditorPreset {
     public EditorPreset(final String name, final String colorSchemeName,
                         final BoundaryCondition leftBoundaryCondition, final BoundaryCondition rightBoundaryCondition,
                         final int leftSpecialColor, final int rightSpecialColor, final double stepSize,
-                        final double[] curveXs, final int[] curveYs) {
+                        final double[] curveXs, final double[] curveValues) {
         this.name = name;
         this.colorSchemeName = colorSchemeName;
         this.leftBoundaryCondition = leftBoundaryCondition.name();
@@ -93,7 +96,7 @@ public class EditorPreset {
         this.rightSpecialColor = rightSpecialColor;
         this.stepSize = stepSize;
         this.curveXs = curveXs;
-        this.curveYs = curveYs;
+        this.curveValues = curveValues;
     }
 
     public String getName() {
@@ -152,8 +155,8 @@ public class EditorPreset {
         return curveXs;
     }
 
-    public int[] getCurveYs() {
-        return curveYs;
+    public double[] getCurveValues() {
+        return curveValues;
     }
 
     private BoundaryCondition legacyRangeMode() {

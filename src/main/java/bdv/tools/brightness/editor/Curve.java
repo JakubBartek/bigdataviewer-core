@@ -27,76 +27,61 @@
  */
 package bdv.tools.brightness.editor;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import bdv.tools.brightness.presetfunc.CustomInterpPresetFunc;
+
 /**
- * Represents a piecewise-linear curve with control points.
- * Maps input values [0, 1] to output values [0, 255] via linear interpolation.
- * Control points are kept sorted by ascending x.
+ * The editable control points of the LUT editor's curve, kept valid as
+ * {@link CustomInterpPresetFunc} knots, which evaluate them: x and y in
+ * {@code [0, 1]}, x strictly ascending, at least two points.
  */
 public class Curve {
-    private double[] xs = {0.0, 1.0};
-
-    private int[] ys = {0, 255};
+    private final List<Point> points = new ArrayList<>(List.of(new Point(0.0, 0.0), new Point(1.0, 1.0)));
 
     /**
-     * Add a control point at the given x position.
-     * If a point at this x already exists, update its y value.
+     * Adds a control point, or updates the y of one already at {@code x}.
+     * Both are clamped to {@code [0, 1]}.
      */
-    public void addPoint(final double x, final int y) {
-        int insertIdx = xs.length;
-        for (int i = 0; i < xs.length; i++) {
-            if (Math.abs(xs[i] - x) < 1e-6) {
-                ys[i] = clamp(y);
+    public void addPoint(final double x, final double y) {
+        final double cx = clamp(x);
+        final double cy = clamp(y);
+        int insertIdx = points.size();
+        for (int i = 0; i < points.size(); i++) {
+            final double px = points.get(i).x;
+            if (Math.abs(px - cx) < 1e-6) {
+                points.set(i, new Point(px, cy));
                 return;
             }
-            if (xs[i] > x) {
+            if (px > cx) {
                 insertIdx = i;
                 break;
             }
         }
-
-        final double[] newXs = new double[xs.length + 1];
-        final int[] newYs = new int[ys.length + 1];
-        System.arraycopy(xs, 0, newXs, 0, insertIdx);
-        System.arraycopy(ys, 0, newYs, 0, insertIdx);
-        newXs[insertIdx] = x;
-        newYs[insertIdx] = clamp(y);
-        System.arraycopy(xs, insertIdx, newXs, insertIdx + 1, xs.length - insertIdx);
-        System.arraycopy(ys, insertIdx, newYs, insertIdx + 1, ys.length - insertIdx);
-        xs = newXs;
-        ys = newYs;
+        points.add(insertIdx, new Point(cx, cy));
     }
 
     /**
-     * Remove the point at the given index.
      * Cannot remove the first or last point.
      */
     public void removePoint(final int index) {
-        if (index <= 0 || index >= xs.length - 1) {
+        if (index <= 0 || index >= points.size() - 1) {
             return;
         }
-
-        final double[] newXs = new double[xs.length - 1];
-        final int[] newYs = new int[ys.length - 1];
-        System.arraycopy(xs, 0, newXs, 0, index);
-        System.arraycopy(ys, 0, newYs, 0, index);
-        System.arraycopy(xs, index + 1, newXs, index, xs.length - index - 1);
-        System.arraycopy(ys, index + 1, newYs, index, ys.length - index - 1);
-        xs = newXs;
-        ys = newYs;
+        points.remove(index);
     }
 
     /**
-     * Find the nearest point to (x, y) within the given tolerance.
-     * x should be in [0, 1], y should be in [0, 1]
-     * Returns the index, or -1 if no point is near enough.
+     * The index of the point nearest to {@code (x, y)} within {@code tolerance}, or -1.
      */
     public int findNearestPoint(final double x, final double y, final double tolerance) {
         int bestIdx = -1;
         double bestDist = tolerance;
 
-        for (int i = 0; i < xs.length; i++) {
-            final double dx = x - xs[i];
-            final double dy = y - ys[i] / 255.0; // ys are [0, 255], y is [0, 1]
+        for (int i = 0; i < points.size(); i++) {
+            final double dx = x - points.get(i).x;
+            final double dy = y - points.get(i).y;
             final double dist = Math.sqrt(dx * dx + dy * dy);
             if (dist < bestDist) {
                 bestDist = dist;
@@ -107,95 +92,77 @@ public class Curve {
         return bestIdx;
     }
 
-    /**
-     * Get the x value of the control point at the given index.
-     */
     public double getX(final int index) {
-        return xs[index];
+        return points.get(index).x;
     }
 
-    /**
-     * Get the y value of the control point at the given index.
-     */
-    public int getY(final int index) {
-        return ys[index];
+    public double getY(final int index) {
+        return points.get(index).y;
     }
 
-    /**
-     * Get the number of control points.
-     */
     public int getPointCount() {
-        return xs.length;
+        return points.size();
     }
 
     /**
-     * Set the output value of the control point at the given index.
+     * {@code y} is clamped to {@code [0, 1]}.
      */
-    public void setPoint(final int index, final int y) {
-        if (index >= 0 && index < ys.length) {
-            ys[index] = clamp(y);
-        }
-    }
-
-    /**
-     * Evaluate the curve at a normalized input position [0, 1].
-     * Returns a value in [0, 255].
-     */
-    public int evaluate(final double x) {
-        if (xs.length < 2) {
-            return 0;
-        }
-
-        // past the last point lo == hi, handled by the flat branch
-        int lo = 0;
-        while (lo + 1 < xs.length && xs[lo + 1] <= x) {
-            lo++;
-        }
-        final int hi = Math.min(lo + 1, xs.length - 1);
-
-        if (xs[hi] <= xs[lo]) {
-            return ys[lo];
-        }
-
-        final double t = (x - xs[lo]) / (xs[hi] - xs[lo]);
-        return (int) Math.round(ys[lo] + t * (ys[hi] - ys[lo]));
-    }
-
-    /**
-     * Replace all control points with copies; {@code xs} must be ascending.
-     */
-    public void setPoints(final double[] xs, final int[] ys) {
-        this.xs = xs.clone();
-        this.ys = new int[ys.length];
-        for (int i = 0; i < ys.length; i++) {
-            this.ys[i] = clamp(ys[i]);
+    public void setPoint(final int index, final double y) {
+        if (index >= 0 && index < points.size()) {
+            points.set(index, new Point(points.get(index).x, clamp(y)));
         }
     }
 
     /**
-     * A copy of the control points' x values.
+     * Replaces all control points.
+     *
+     * @throws IllegalArgumentException if either array is missing or the points
+     *                                  are not valid {@link CustomInterpPresetFunc#requireValidKnots knots}.
      */
+    public void setPoints(final double[] xs, final double[] ys) {
+        if (xs == null || ys == null) {
+            throw new IllegalArgumentException("curve points are missing");
+        }
+        CustomInterpPresetFunc.requireValidKnots(xs, ys);
+        points.clear();
+        for (int i = 0; i < xs.length; i++) {
+            points.add(new Point(xs[i], ys[i]));
+        }
+    }
+
     public double[] xsArray() {
-        return xs.clone();
+        return points.stream().mapToDouble(p -> p.x).toArray();
+    }
+
+    public double[] ysArray() {
+        return points.stream().mapToDouble(p -> p.y).toArray();
     }
 
     /**
-     * A copy of the control points' y values.
-     */
-    public int[] ysArray() {
-        return ys.clone();
-    }
-
-    /**
-     * Flip the curve vertically: each y becomes {@code 255 - y}.
+     * Flips the curve vertically: each y becomes {@code 1 - y}.
      */
     public void invert() {
-        for (int i = 0; i < ys.length; i++) {
-            ys[i] = clamp(255 - ys[i]);
-        }
+        points.replaceAll(p -> new Point(p.x, 1.0 - p.y));
     }
 
-    private int clamp(final int v) {
-        return Math.max(0, Math.min(255, v));
+    /**
+     * @throws IllegalArgumentException for NaN, which no clamp can place.
+     */
+    private static double clamp(final double v) {
+        if (Double.isNaN(v)) {
+            throw new IllegalArgumentException("curve coordinate is NaN");
+        }
+        return Math.max(0.0, Math.min(1.0, v));
+    }
+
+    private static final class Point {
+        final double x;
+
+        final double y;
+
+        Point(final double x, final double y) {
+            this.x = x;
+            this.y = y;
+        }
     }
 }

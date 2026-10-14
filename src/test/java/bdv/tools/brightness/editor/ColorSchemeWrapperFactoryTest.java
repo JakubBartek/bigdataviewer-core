@@ -35,6 +35,7 @@ import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
 import bdv.tools.brightness.converter.BoundaryCondition;
 import bdv.tools.brightness.converter.PresetColorSchemeWrapper;
 import bdv.tools.brightness.presetfunc.CustomInterpPresetFunc;
+import bdv.tools.brightness.presetfunc.IPresetFunc;
 import bdv.tools.brightness.presetfunc.StepPresetFunc;
 import net.imglib2.type.numeric.ARGBType;
 
@@ -63,11 +64,42 @@ public class ColorSchemeWrapperFactoryTest
 	public void testContinuousSchemeIsShapedByTheCurve()
 	{
 		final LutEditorMapping mapping = new LutEditorMapping();
+		mapping.getCurve().addPoint( 0.5, 0.25 );
 		final ContinuousColorScheme scheme = continuousThreeFixes();
 		final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build( scheme, mapping, 0, 2 );
 		Assert.assertSame( scheme, wrapper.getColorScheme() );
 		Assert.assertTrue( wrapper.getPresetFunc() instanceof CustomInterpPresetFunc );
 	}
+
+    /**
+     * Regression: a preset rendered as its 9-knot piecewise-linear sample.
+     */
+    @Test
+    public void testUneditedPresetRendersAsTheShapeItself() {
+        for (final PresetShape shape : PresetShape.values()) {
+            final LutEditorMapping mapping = new LutEditorMapping();
+            mapping.applyPreset(shape);
+            final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build(continuousThreeFixes(), mapping, 10, 20);
+
+            final IPresetFunc exact = shape.create(10, 20, continuousThreeFixes().getRange());
+            Assert.assertSame(shape.toString(), exact.getClass(), wrapper.getPresetFunc().getClass());
+            for (int i = 0; i <= 1000; i++) {
+                final double raw = 10 + i / 100.0;
+                Assert.assertEquals(shape + " raw " + raw, exact.getSchemeValueForRaw(raw), wrapper.getSchemeValueForRaw(raw), 0.0);
+            }
+        }
+    }
+
+    @Test
+    public void testEditingAPresetRendersItsControlPoints() {
+        final LutEditorMapping mapping = new LutEditorMapping();
+        mapping.applyPreset(PresetShape.LOG);
+        mapping.getCurve().setPoint(4, mapping.getCurve().getY(4) + 0.01);
+
+        final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build(continuousThreeFixes(), mapping, 0, 2);
+
+        Assert.assertTrue(wrapper.getPresetFunc() instanceof CustomInterpPresetFunc);
+    }
 
 	@Test
 	public void testDiscreteSchemeIsShapedByAStepFunction()
@@ -170,7 +202,7 @@ public class ColorSchemeWrapperFactoryTest
 	{
 		final LutEditorMapping bent = new LutEditorMapping();
 		bent.setStepSize( 1.0 );
-		bent.getCurve().addPoint( 0.5, 255 ); // would saturate the curve at the midpoint
+		bent.getCurve().addPoint( 0.5, 1.0 ); // would saturate the curve at the midpoint
 		final PresetColorSchemeWrapper bentWrapper = ColorSchemeWrapperFactory.build( discreteThreeFixes(), bent, 0, 6 );
 
 		final LutEditorMapping plain = new LutEditorMapping();

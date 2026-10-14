@@ -39,7 +39,9 @@ import bdv.tools.brightness.presetfunc.TanPresetFunc;
 
 /**
  * Predefined shapes for the mapping {@link Curve}, sampled from the
- * corresponding {@link IPresetFunc} into draggable control points.
+ * corresponding {@link IPresetFunc} into draggable control points. A curve
+ * still holding a shape's sample renders as the shape itself, not its
+ * piecewise-linear approximation (see {@link ColorSchemeWrapperFactory}).
  */
 public enum PresetShape {
     LINEAR("Linear", LinearPresetFunc::new),
@@ -55,6 +57,11 @@ public enum PresetShape {
      */
     private static final int NUM_POINTS = 9;
 
+    /**
+     * Far below one pixel of a drag, far above the rounding of inverting twice.
+     */
+    private static final double KNOT_TOLERANCE = 1e-12;
+
     private final String label;
 
     private final IPresetFuncFactory factory;
@@ -69,6 +76,35 @@ public enum PresetShape {
         return label;
     }
 
+    public IPresetFunc create(final double min, final double max, final int schemeRange) {
+        return factory.create(min, max, schemeRange);
+    }
+
+    /**
+     * The shape whose control points these are, or {@code null} once they have
+     * been edited.
+     */
+    public static PresetShape matching(final double[] xs, final double[] ys) {
+        for (final PresetShape shape : values()) {
+            if (closeTo(shape.xs(), xs) && closeTo(shape.ys(), ys)) {
+                return shape;
+            }
+        }
+        return null;
+    }
+
+    private static boolean closeTo(final double[] expected, final double[] actual) {
+        if (expected.length != actual.length) {
+            return false;
+        }
+        for (int i = 0; i < expected.length; i++) {
+            if (!(Math.abs(expected[i] - actual[i]) <= KNOT_TOLERANCE)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Control point x positions in [0, 1].
      */
@@ -80,25 +116,17 @@ public enum PresetShape {
     }
 
     /**
-     * Control point values in [0, 255], matching {@link #xs()}.
+     * Control point values in [0, 1], matching {@link #xs()}.
      */
-    public int[] ys() {
+    public double[] ys() {
         if (this == LINEAR) {
-            return new int[]{0, 255};
+            return new double[]{0.0, 1.0};
         }
-        final double[] values = sample().getKnotValues();
-        final int[] ys = new int[values.length];
-        for (int i = 0; i < values.length; i++) {
-            ys[i] = (int) Math.round(values[i] * 255.0);
-        }
-        // guarantee exact endpoints regardless of numerical rounding
-        ys[0] = 0;
-        ys[values.length - 1] = 255;
-        return ys;
+        return sample().getKnotValues();
     }
 
     private CustomInterpPresetFunc sample() {
-        final IPresetFunc shape = factory.create(0.0, 1.0, 1);
+        final IPresetFunc shape = create(0.0, 1.0, 1);
         return CustomInterpPresetFunc.sampled(shape, NUM_POINTS);
     }
 

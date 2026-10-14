@@ -785,13 +785,22 @@ public class LutEditorDialog extends JDialog {
             return;
         }
 
-        final LutEditorMapping presetMapping = mappingFromPreset(preset, scheme instanceof DiscreteColorScheme);
+        final LutEditorMapping presetMapping;
+        try {
+            presetMapping = mappingFromPreset(preset, scheme instanceof DiscreteColorScheme);
+        } catch (final IllegalArgumentException e) {
+            labelStatus.setText("Configuration's curve is invalid: " + e.getMessage());
+            return;
+        }
 
         loadIntoEditor(new EditorState(scheme, preset.getColorSchemeName(), presetMapping, editedRangeMin, editedRangeMax));
         pushLiveEdits();
         labelStatus.setText("");
     }
 
+    /**
+     * @throws IllegalArgumentException if {@code discrete} is false and the preset's curve is missing or invalid.
+     */
     private static LutEditorMapping mappingFromPreset(final EditorPreset preset, final boolean discrete) {
         final LutEditorMapping mapping = new LutEditorMapping();
         mapping.setLeftBoundaryCondition(preset.getLeftBoundaryCondition());
@@ -801,7 +810,7 @@ public class LutEditorDialog extends JDialog {
         if (discrete) {
             mapping.setStepSize(preset.getStepSize());
         } else {
-            mapping.getCurve().setPoints(preset.getCurveXs(), preset.getCurveYs());
+            mapping.getCurve().setPoints(preset.getCurveXs(), preset.getCurveValues());
         }
         return mapping;
     }
@@ -825,7 +834,11 @@ public class LutEditorDialog extends JDialog {
         if (preset == null || !currentSchemeName.equals(preset.getColorSchemeName())) {
             return false;
         }
-        return mappingModel.hasSameState(mappingFromPreset(preset, isDiscrete()));
+        try {
+            return mappingModel.hasSameState(mappingFromPreset(preset, isDiscrete()));
+        } catch (final IllegalArgumentException e) {
+            return false;
+        }
     }
 
     private void promptAndSaveEditorPreset() {
