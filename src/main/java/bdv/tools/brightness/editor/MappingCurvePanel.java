@@ -44,6 +44,8 @@ import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.geom.Line2D;
 import java.awt.geom.Path2D;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -145,7 +147,12 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     private static final Stroke GUIDE_STROKE = new BasicStroke(1, BasicStroke.CAP_BUTT,
             BasicStroke.JOIN_ROUND, 10f, new float[]{3f, 3f}, 0f);
 
-    private static final double[] OUTPUT_TICK_FRACTIONS = {0.0, 0.25, 0.5, 0.75, 1.0};
+    /**
+     * As a fraction of the tick spacing.
+     */
+    static final double TICK_LABEL_TOLERANCE = 0.05;
+
+    private static final int MAX_TICK_DECIMALS = 12;
 
     private static final String EDIT_TOOLTIP = "Edit the transfer function";
 
@@ -641,11 +648,17 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         }
     }
 
+    /**
+     * Whole indices for a discrete scheme, whose color index is always whole; a continuous scheme
+     * blends between fixes, so its fractional indices are real.
+     */
     private void drawFractionLabels(final Graphics2D g, final int barLeft) {
         final FontMetrics fm = g.getFontMetrics();
         final int lastColor = colorScheme.getFixCount() - 1;
-        for (final double frac : OUTPUT_TICK_FRACTIONS) {
-            final String text = Integer.toString((int) Math.round(frac * lastColor));
+        final String[] continuousLabels = quarterTickLabels(0, lastColor);
+        for (int i = 0; i <= 4; i++) {
+            final double frac = i / 4.0;
+            final String text = isDiscrete() ? Long.toString(Math.round(frac * lastColor)) : continuousLabels[i];
             final int py = outputToPixelY((int) Math.round(frac * 255.0));
             g.drawString(text, barLeft - fm.stringWidth(text) - 6, py + fm.getAscent() / 2 - 1);
         }
@@ -679,13 +692,51 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         // min and max are the range boxes
         g.setColor(Color.DARK_GRAY);
         final FontMetrics fm = g.getFontMetrics();
+        final String[] labels = quarterTickLabels(rangeMin, rangeMax);
         for (int i = 1; i <= 3; i++) {
-            final double t = i / 4.0;
-            final double value = rangeMin + t * (rangeMax - rangeMin);
-            final String text = formatValue(value);
-            final int px = curveXToPixelX(t);
+            final String text = labels[i];
+            final int px = curveXToPixelX(i / 4.0);
             g.drawString(text, px - fm.stringWidth(text) / 2, bottom + fm.getAscent() + 4);
         }
+    }
+
+    /**
+     * Labels for the ticks at 0, 1/4, ..., 4/4 of {@code [min, max]}, all with the fewest decimals
+     * that move no tick by more than {@link #TICK_LABEL_TOLERANCE} of the tick spacing.
+     */
+    static String[] quarterTickLabels(final double min, final double max) {
+        final double spacing = (max - min) / 4;
+        final double[] ticks = new double[5];
+        for (int i = 0; i <= 4; i++) {
+            ticks[i] = min + i / 4.0 * (max - min);
+        }
+
+        int decimals = 0;
+        while (decimals < MAX_TICK_DECIMALS && !roundsWithin(ticks, decimals, TICK_LABEL_TOLERANCE * spacing)) {
+            decimals++;
+        }
+
+        final String[] labels = new String[5];
+        for (int i = 0; i < 5; i++) {
+            labels[i] = roundTo(ticks[i], decimals).toPlainString();
+        }
+        return labels;
+    }
+
+    private static boolean roundsWithin(final double[] values, final int decimals, final double tolerance) {
+        for (final double v : values) {
+            if (Math.abs(roundTo(v, decimals).doubleValue() - v) > tolerance) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * {@link BigDecimal} rather than {@code String.format}: no locale decimal comma, no {@code "-0.0"}.
+     */
+    private static BigDecimal roundTo(final double value, final int decimals) {
+        return BigDecimal.valueOf(value).setScale(decimals, RoundingMode.HALF_UP);
     }
 
     /**
