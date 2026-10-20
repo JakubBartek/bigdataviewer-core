@@ -27,13 +27,21 @@
  */
 package bdv.tools.brightness.colorscheme;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import net.imglib2.display.ColorConverter;
 import net.imglib2.display.ColorTable8;
@@ -235,4 +243,46 @@ public class ColorSchemeFactoryTest
 		Assert.assertEquals( "tab10", ColorSchemeFactory.findName( first ) );
 		Assert.assertEquals( "viridis", ColorSchemeFactory.findName( ColorSchemeFactory.loadFromJson( "viridis" ) ) );
 	}
+
+    @Rule
+    public final TemporaryFolder tmp = new TemporaryFolder();
+
+    @Test
+    public void testLoadFromFileMatchesBundledResource() throws IOException {
+        for (final String name : new String[] {"Accent", "viridis", "tab10"}) {
+            final Path file = tmp.getRoot().toPath().resolve(name + ".json");
+            try (InputStream is = getClass().getClassLoader().getResourceAsStream("bdv/ui/colorschemes/" + name + ".json")) {
+                Files.copy(is, file);
+            }
+            Assert.assertEquals(name, ColorSchemeFactory.loadFromJson(name), ColorSchemeFactory.loadFromJson(file));
+        }
+    }
+
+    @Test(expected = NoSuchFileException.class)
+    public void testLoadFromFileThrowsForMissingFile() throws IOException {
+        ColorSchemeFactory.loadFromJson(tmp.getRoot().toPath().resolve("missing.json"));
+    }
+
+    @Test
+    public void testLoadFromFileThrowsForInvalidContent() throws IOException {
+        final String[] invalid = {
+                "{ not json",
+                "[]",
+                "{}",
+                "{\"fixes_RGBA\": 3}",
+                "{\"fixes_RGBA\": [[0, 0, 0, 1]]}",
+                "{\"fixes_RGBA\": [[0, 0, 0, 1], [1, 1, 1]]}",
+                "{\"fixes_RGBA\": [[0, 0, 0, 1], [1, 1, 1, \"x\"]]}"
+        };
+        for (final String content : invalid) {
+            final Path file = tmp.newFile().toPath();
+            Files.write(file, content.getBytes(StandardCharsets.UTF_8));
+            try {
+                ColorSchemeFactory.loadFromJson(file);
+                Assert.fail("expected IOException for " + content);
+            } catch (final IOException expected) {
+                // expected
+            }
+        }
+    }
 }

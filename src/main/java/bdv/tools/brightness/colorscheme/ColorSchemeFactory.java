@@ -30,8 +30,10 @@ package bdv.tools.brightness.colorscheme;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -129,14 +131,36 @@ public final class ColorSchemeFactory {
         if (root == null) {
             return null;
         }
+        try {
+            return parse(root);
+        } catch (final RuntimeException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Reads a file in the resource format from anywhere on disk.
+     *
+     * @throws IOException if the file cannot be read or is not a valid color scheme.
+     */
+    public static IColorScheme loadFromJson(final Path file) throws IOException {
+        try (final Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            return parse(JsonParser.parseReader(reader).getAsJsonObject());
+        } catch (final RuntimeException e) {
+            throw new IOException("invalid color scheme " + file + ": " + e.getMessage(), e);
+        }
+    }
+
+    private static IColorScheme parse(final JsonObject root) {
         final JsonArray colors = root.getAsJsonArray("fixes_RGBA");
         if (colors == null) {
-            return null;
+            throw new IllegalArgumentException("missing fixes_RGBA array");
         }
 
         final int n = colors.size();
         if (n < 2) {
-            return null;
+            throw new IllegalArgumentException("fixes_RGBA needs at least two fixes, found " + n);
         }
 
         final int[] fixes = new int[n];
