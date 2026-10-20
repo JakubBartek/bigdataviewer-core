@@ -32,28 +32,25 @@ package bdv.tools.brightness.presetfunc;
  * rather than a logistic -- a gentler, differently-shaped alternative to
  * {@link SigmoidPresetFunc}, with exponent {@code alpha = 0.5}.
  */
-public class AlphaSigmoidPresetFunc extends AbstractPresetFunc
-{
-	private static final double ALPHA = 0.5;
+public class AlphaSigmoidPresetFunc extends AbstractPresetFunc {
+    private static final double ALPHA = 0.5;
 
-	public AlphaSigmoidPresetFunc( final double min, final double max, final int schemeRange )
-	{
-		super( min, max, schemeRange );
-	}
+    public AlphaSigmoidPresetFunc(final double min, final double max, final int schemeRange) {
+        super(min, max, schemeRange);
+    }
 
-	@Override
-	double shape( final double t )
-	{
-		final double tp = Math.pow( t, ALPHA );
-		final double tq = Math.pow( 1.0 - t, ALPHA );
-		if ( tp + tq == 0 )
-			return 0;
-		return tp / ( tp + tq );
-	}
+    @Override
+    double shape(final double t) {
+        final double tp = Math.pow(t, ALPHA);
+        final double tq = Math.pow(1.0 - t, ALPHA);
+        if (tp + tq == 0) {
+            return 0;
+        }
+        return tp / (tp + tq);
+    }
 
-	@Override
-	public AlphaSigmoidPresetFunc withRange( final double min, final double max )
-	{
-		return new AlphaSigmoidPresetFunc( min, max, getSchemeRange() );
-	}
+    @Override
+    public AlphaSigmoidPresetFunc withRange(final double min, final double max) {
+        return new AlphaSigmoidPresetFunc(min, max, getSchemeRange());
+    }
 }

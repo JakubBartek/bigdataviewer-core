@@ -32,24 +32,20 @@ package bdv.tools.brightness.presetfunc;
  * {@code [0, 1]} -- gentler through the middle than {@link SigmoidPresetFunc}
  * for the same nominal range, with steepness {@code k = 6}.
  */
-public class AtanPresetFunc extends AbstractPresetFunc
-{
-	private static final double K = 6.0;
+public class AtanPresetFunc extends AbstractPresetFunc {
+    private static final double K = 6.0;
 
-	public AtanPresetFunc( final double min, final double max, final int schemeRange )
-	{
-		super( min, max, schemeRange );
-	}
+    public AtanPresetFunc(final double min, final double max, final int schemeRange) {
+        super(min, max, schemeRange);
+    }
 
-	@Override
-	double shape( final double t )
-	{
-		return normalized( t, x -> Math.atan( K * ( x - 0.5 ) ) );
-	}
+    @Override
+    double shape(final double t) {
+        return normalized(t, x -> Math.atan(K * (x - 0.5)));
+    }
 
-	@Override
-	public AtanPresetFunc withRange( final double min, final double max )
-	{
-		return new AtanPresetFunc( min, max, getSchemeRange() );
-	}
+    @Override
+    public AtanPresetFunc withRange(final double min, final double max) {
+        return new AtanPresetFunc(min, max, getSchemeRange());
+    }
 }

@@ -31,24 +31,20 @@ package bdv.tools.brightness.presetfunc;
  * An S-shaped (logistic) curve: slow near the ends, steep through the
  * middle, with steepness {@code k = 10}.
  */
-public class SigmoidPresetFunc extends AbstractPresetFunc
-{
-	private static final double K = 10.0;
+public class SigmoidPresetFunc extends AbstractPresetFunc {
+    private static final double K = 10.0;
 
-	public SigmoidPresetFunc( final double min, final double max, final int schemeRange )
-	{
-		super( min, max, schemeRange );
-	}
+    public SigmoidPresetFunc(final double min, final double max, final int schemeRange) {
+        super(min, max, schemeRange);
+    }
 
-	@Override
-	double shape( final double t )
-	{
-		return normalized( t, x -> 1.0 / ( 1.0 + Math.exp( -K * ( x - 0.5 ) ) ) );
-	}
+    @Override
+    double shape(final double t) {
+        return normalized(t, x -> 1.0 / (1.0 + Math.exp(-K * (x - 0.5))));
+    }
 
-	@Override
-	public SigmoidPresetFunc withRange( final double min, final double max )
-	{
-		return new SigmoidPresetFunc( min, max, getSchemeRange() );
-	}
+    @Override
+    public SigmoidPresetFunc withRange(final double min, final double max) {
+        return new SigmoidPresetFunc(min, max, getSchemeRange());
+    }
 }

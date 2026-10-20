@@ -32,23 +32,30 @@ package bdv.tools.brightness.presetfunc;
  * value in {@code [0, getSchemeRange()]}. Knows nothing about colors or
  * boundary conditions.
  */
-public interface IPresetFunc
-{
-	/** Maps to scheme value {@code 0}, except for {@link CustomInterpPresetFunc}. */
-	double getMin();
+public interface IPresetFunc {
+    /**
+     * Maps to scheme value {@code 0}, except for {@link CustomInterpPresetFunc}.
+     */
+    double getMin();
 
-	/** Maps to {@link #getSchemeRange()}, except for {@link CustomInterpPresetFunc}. */
-	double getMax();
+    /**
+     * Maps to {@link #getSchemeRange()}, except for {@link CustomInterpPresetFunc}.
+     */
+    double getMax();
 
-	/** Must equal the color scheme's, hence a whole fix count. */
-	int getSchemeRange();
+    /**
+     * Must equal the color scheme's, hence a whole fix count.
+     */
+    int getSchemeRange();
 
-	/**
-	 * Clamps {@code rawValue} into the domain. All {@code double}: a
-	 * {@code float} merges integers above 2^24 (label ids).
-	 */
-	double getSchemeValueForRaw( double rawValue );
+    /**
+     * Clamps {@code rawValue} into the domain. All {@code double}: a
+     * {@code float} merges integers above 2^24 (label ids).
+     */
+    double getSchemeValueForRaw(double rawValue);
 
-	/** A copy with the same shape over a new {@code [min, max]}. */
-	IPresetFunc withRange( double min, double max );
+    /**
+     * A copy with the same shape over a new {@code [min, max]}.
+     */
+    IPresetFunc withRange(double min, double max);
 }

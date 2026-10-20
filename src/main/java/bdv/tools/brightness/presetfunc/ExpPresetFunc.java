@@ -32,24 +32,20 @@ package bdv.tools.brightness.presetfunc;
  * -- boosts detail in bright raw values at the expense of dark ones (the
  * mirror image of {@link LogPresetFunc}), with steepness {@code k = 4}.
  */
-public class ExpPresetFunc extends AbstractPresetFunc
-{
-	private static final double K = 4.0;
+public class ExpPresetFunc extends AbstractPresetFunc {
+    private static final double K = 4.0;
 
-	public ExpPresetFunc( final double min, final double max, final int schemeRange )
-	{
-		super( min, max, schemeRange );
-	}
+    public ExpPresetFunc(final double min, final double max, final int schemeRange) {
+        super(min, max, schemeRange);
+    }
 
-	@Override
-	double shape( final double t )
-	{
-		return ( Math.exp( K * t ) - 1.0 ) / ( Math.exp( K ) - 1.0 );
-	}
+    @Override
+    double shape(final double t) {
+        return (Math.exp(K * t) - 1.0) / (Math.exp(K) - 1.0);
+    }
 
-	@Override
-	public ExpPresetFunc withRange( final double min, final double max )
-	{
-		return new ExpPresetFunc( min, max, getSchemeRange() );
-	}
+    @Override
+    public ExpPresetFunc withRange(final double min, final double max) {
+        return new ExpPresetFunc(min, max, getSchemeRange());
+    }
 }

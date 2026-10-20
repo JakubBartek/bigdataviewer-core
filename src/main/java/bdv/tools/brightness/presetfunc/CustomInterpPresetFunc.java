@@ -40,62 +40,60 @@ import java.util.Objects;
  * flat one. So the endpoints need not map to {@code 0} and
  * {@link #getSchemeRange()}.
  */
-public class CustomInterpPresetFunc extends AbstractPresetFunc
-{
-	private double[] knotTs;
+public class CustomInterpPresetFunc extends AbstractPresetFunc {
+    private double[] knotTs;
 
-	private double[] knotValues;
+    private double[] knotValues;
 
-	/** Starts linear: knots {@code (0, 0)} and {@code (1, 1)}. */
-	public CustomInterpPresetFunc( final double min, final double max, final int schemeRange )
-	{
-		super( min, max, schemeRange );
-		setKnots( new double[] { 0.0, 1.0 }, new double[] { 0.0, 1.0 } );
-	}
+    /**
+     * Starts linear: knots {@code (0, 0)} and {@code (1, 1)}.
+     */
+    public CustomInterpPresetFunc(final double min, final double max, final int schemeRange) {
+        super(min, max, schemeRange);
+        setKnots(new double[]{0.0, 1.0}, new double[]{0.0, 1.0});
+    }
 
-	/**
-	 * {@code shape} sampled at {@code numKnots} evenly spaced knots, for seeding
-	 * an editable curve.
-	 *
-	 * @throws IllegalArgumentException if {@code numKnots} is less than 2.
-	 */
-	public static CustomInterpPresetFunc sampled( final IPresetFunc shape, final int numKnots )
-	{
-		Objects.requireNonNull( shape, "shape" );
-		if ( numKnots < 2 )
-			throw new IllegalArgumentException( "numKnots must be at least 2, got " + numKnots );
+    /**
+     * {@code shape} sampled at {@code numKnots} evenly spaced knots, for seeding
+     * an editable curve.
+     *
+     * @throws IllegalArgumentException if {@code numKnots} is less than 2.
+     */
+    public static CustomInterpPresetFunc sampled(final IPresetFunc shape, final int numKnots) {
+        Objects.requireNonNull(shape, "shape");
+        if (numKnots < 2) {
+            throw new IllegalArgumentException("numKnots must be at least 2, got " + numKnots);
+        }
 
-		final double min = shape.getMin();
-		final double max = shape.getMax();
-		final int schemeRange = shape.getSchemeRange();
+        final double min = shape.getMin();
+        final double max = shape.getMax();
+        final int schemeRange = shape.getSchemeRange();
 
-		final double[] ts = new double[ numKnots ];
-		final double[] values = new double[ numKnots ];
-		for ( int i = 0; i < numKnots; i++ )
-		{
-			final double t = i / ( double ) ( numKnots - 1 );
-			final double rawValue = min + t * ( max - min );
-			ts[ i ] = t;
-			values[ i ] = Math.max( 0.0, Math.min( 1.0, shape.getSchemeValueForRaw( rawValue ) / schemeRange ) );
-		}
+        final double[] ts = new double[numKnots];
+        final double[] values = new double[numKnots];
+        for (int i = 0; i < numKnots; i++) {
+            final double t = i / (double) (numKnots - 1);
+            final double rawValue = min + t * (max - min);
+            ts[i] = t;
+            values[i] = Math.max(0.0, Math.min(1.0, shape.getSchemeValueForRaw(rawValue) / schemeRange));
+        }
 
-		final CustomInterpPresetFunc result = new CustomInterpPresetFunc( min, max, schemeRange );
-		result.setKnots( ts, values );
-		return result;
-	}
+        final CustomInterpPresetFunc result = new CustomInterpPresetFunc(min, max, schemeRange);
+        result.setKnots(ts, values);
+        return result;
+    }
 
-	/**
-	 * @param ts     domain fractions in {@code [0, 1]}, strictly ascending.
-	 * @param values scheme-value fractions in {@code [0, 1]}; need not be ascending.
-	 * @throws IllegalArgumentException as {@link #requireValidKnots}.
-	 */
-	public void setKnots( final double[] ts, final double[] values )
-	{
-		requireValidKnots( ts, values );
+    /**
+     * @param ts     domain fractions in {@code [0, 1]}, strictly ascending.
+     * @param values scheme-value fractions in {@code [0, 1]}; need not be ascending.
+     * @throws IllegalArgumentException as {@link #requireValidKnots}.
+     */
+    public void setKnots(final double[] ts, final double[] values) {
+        requireValidKnots(ts, values);
 
-		this.knotTs = ts.clone();
-		this.knotValues = values.clone();
-	}
+        this.knotTs = ts.clone();
+        this.knotValues = values.clone();
+    }
 
     /**
      * @throws IllegalArgumentException if there are fewer than 2 knots, the lengths differ,
@@ -127,50 +125,49 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc
         }
     }
 
-	public int getKnotCount()
-	{
-		return knotTs.length;
-	}
+    public int getKnotCount() {
+        return knotTs.length;
+    }
 
-	public double[] getKnotTs()
-	{
-		return knotTs.clone();
-	}
+    public double[] getKnotTs() {
+        return knotTs.clone();
+    }
 
-	public double[] getKnotValues()
-	{
-		return knotValues.clone();
-	}
+    public double[] getKnotValues() {
+        return knotValues.clone();
+    }
 
-	/** Knots carry over unchanged; they are domain fractions. */
-	@Override
-	public CustomInterpPresetFunc withRange( final double min, final double max )
-	{
-		final CustomInterpPresetFunc copy = new CustomInterpPresetFunc( min, max, getSchemeRange() );
-		copy.setKnots( knotTs, knotValues );
-		return copy;
-	}
+    /**
+     * Knots carry over unchanged; they are domain fractions.
+     */
+    @Override
+    public CustomInterpPresetFunc withRange(final double min, final double max) {
+        final CustomInterpPresetFunc copy = new CustomInterpPresetFunc(min, max, getSchemeRange());
+        copy.setKnots(knotTs, knotValues);
+        return copy;
+    }
 
-	@Override
-	double shape( final double t )
-	{
-		return interpolate( t );
-	}
+    @Override
+    double shape(final double t) {
+        return interpolate(t);
+    }
 
-	private double interpolate( final double t )
-	{
-		final int lastIndex = knotTs.length - 1;
-		if ( t <= knotTs[ 0 ] )
-			return knotValues[ 0 ];
-		if ( t >= knotTs[ lastIndex ] )
-			return knotValues[ lastIndex ];
+    private double interpolate(final double t) {
+        final int lastIndex = knotTs.length - 1;
+        if (t <= knotTs[0]) {
+            return knotValues[0];
+        }
+        if (t >= knotTs[lastIndex]) {
+            return knotValues[lastIndex];
+        }
 
-		int lo = 0;
-		while ( lo + 1 < knotTs.length && knotTs[ lo + 1 ] <= t )
-			lo++;
-		final int hi = lo + 1;
+        int lo = 0;
+        while (lo + 1 < knotTs.length && knotTs[lo + 1] <= t) {
+            lo++;
+        }
+        final int hi = lo + 1;
 
-		final double frac = ( t - knotTs[ lo ] ) / ( knotTs[ hi ] - knotTs[ lo ] );
-		return knotValues[ lo ] + frac * ( knotValues[ hi ] - knotValues[ lo ] );
-	}
+        final double frac = (t - knotTs[lo]) / (knotTs[hi] - knotTs[lo]);
+        return knotValues[lo] + frac * (knotValues[hi] - knotValues[lo]);
+    }
 }
