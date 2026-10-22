@@ -85,9 +85,6 @@ public class ContinuousColorScheme extends AbstractColorScheme {
         return ColorSchemeHelpers.interpolateRGBA(fixes[index], fixes[index + 1], frac);
     }
 
-    /**
-     * {@code ColorSchemeFactory#findName} relies on this.
-     */
     @Override
     public final boolean equals(final Object obj) {
         return obj instanceof ContinuousColorScheme && hasSameFixes((ContinuousColorScheme) obj);

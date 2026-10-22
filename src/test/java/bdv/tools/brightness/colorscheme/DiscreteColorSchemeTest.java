@@ -138,7 +138,6 @@ public class DiscreteColorSchemeTest
 			Assert.assertEquals( "fix " + i, tab10.getFixes()[ i ], tab10.getRGBA( i + 0.5 ) );
 	}
 
-	/** {@code ColorSchemeFactory#findName} relies on this. */
 	@Test
 	public void testEqualityIsByValue()
 	{

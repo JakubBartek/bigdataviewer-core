@@ -242,7 +242,7 @@ public class LutEditorDialog extends JDialog {
      * Shown when there is nothing better; safe to share since states are only read.
      */
     private static final EditorState NEUTRAL_STATE =
-            new EditorState(ContinuousColorScheme.DEFAULT, ColorSchemeFactory.findName(ContinuousColorScheme.DEFAULT), defaultMapping(), 0, 255);
+            new EditorState(ContinuousColorScheme.DEFAULT, null, defaultMapping(), 0, 255);
 
     /**
      * What "Reset" restores; taken by {@link #beginSession}.

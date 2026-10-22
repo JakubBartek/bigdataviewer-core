@@ -42,9 +42,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Stream;
@@ -190,44 +188,7 @@ public final class ColorSchemeFactory {
     private static final int DEFAULT_LEGACY_COLOR = ARGBType.rgba(255, 255, 255, 255);
 
     /**
-     * Reverse of {@link #loadFromJson(String)}; {@code null} if no resource matches.
-     */
-    public static synchronized String findName(final IColorScheme scheme) {
-        if (scheme == null) {
-            return null;
-        }
-        for (final Map.Entry<String, IColorScheme> candidate : cachedSchemes().entrySet()) {
-            if (scheme.equals(candidate.getValue())) {
-                return candidate.getKey();
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Parsed once: {@link #findName} runs on the EDT on every source change.
-     */
-    private static Map<String, IColorScheme> cachedSchemes() {
-        if (cachedSchemes == null) {
-            final Map<String, IColorScheme> schemes = new LinkedHashMap<>();
-            for (final String name : discoverNames()) {
-                final IColorScheme scheme = loadFromJson(name);
-                if (scheme != null) {
-                    schemes.put(name, scheme);
-                }
-            }
-            cachedSchemes = schemes;
-        }
-        return cachedSchemes;
-    }
-
-    /**
-     * Guarded by {@code ColorSchemeFactory.class}, via {@link #findName}.
-     */
-    private static Map<String, IColorScheme> cachedSchemes = null;
-
-    /**
-     * Cached like {@link #cachedSchemes()}, so {@link #loadFromJson} does not walk the resources each time.
+     * Cached so {@link #loadFromJson} does not walk the resources each time.
      */
     private static synchronized Set<String> exactNames() {
         if (exactNames == null) {

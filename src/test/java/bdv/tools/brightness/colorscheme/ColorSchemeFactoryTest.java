@@ -44,7 +44,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import net.imglib2.display.ColorConverter;
-import net.imglib2.display.ColorTable8;
 import net.imglib2.display.RealARGBColorConverter;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.real.DoubleType;
@@ -211,38 +210,6 @@ public class ColorSchemeFactoryTest
         Assert.assertEquals(new LegacyBdvColorScheme(ARGBType.rgba(255, 255, 255, 255)),
                 ColorSchemeFactory.loadFromLegacyConverter(colorless));
     }
-
-	/** By value, not identity. */
-	@Test
-	public void testFindNameRecoversLoadedSchemesName()
-	{
-		Assert.assertEquals( "tab10", ColorSchemeFactory.findName( ColorSchemeFactory.loadFromJson( "tab10" ) ) );
-		Assert.assertEquals( "viridis", ColorSchemeFactory.findName( ColorSchemeFactory.loadFromJson( "viridis" ) ) );
-	}
-
-	@Test
-	public void testFindNameReturnsNullForUnmatchedScheme()
-	{
-		Assert.assertNull( ColorSchemeFactory.findName( ContinuousColorScheme.DEFAULT ) );
-	}
-
-	/** The default {@link ColorTable8} ramp is exactly the bundled {@code gist_gray}. */
-	@Test
-	public void testFindNameMatchesSchemeAdaptedFromForeignColorTable()
-	{
-		Assert.assertEquals( "gist_gray", ColorSchemeFactory.findName( ContinuousColorScheme.of( new ColorTable8() ) ) );
-	}
-
-	/** The cache survives the first call. */
-	@Test
-	public void testFindNameCacheIsReusable()
-	{
-		Assert.assertEquals( "tab10", ColorSchemeFactory.findName( ColorSchemeFactory.loadFromJson( "tab10" ) ) );
-
-		final IColorScheme first = ColorSchemeFactory.loadFromJson( "tab10" );
-		Assert.assertEquals( "tab10", ColorSchemeFactory.findName( first ) );
-		Assert.assertEquals( "viridis", ColorSchemeFactory.findName( ColorSchemeFactory.loadFromJson( "viridis" ) ) );
-	}
 
     @Rule
     public final TemporaryFolder tmp = new TemporaryFolder();

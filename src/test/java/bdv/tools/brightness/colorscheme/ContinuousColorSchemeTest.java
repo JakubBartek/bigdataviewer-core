@@ -159,7 +159,6 @@ public class ContinuousColorSchemeTest
 		Assert.assertArrayEquals( new int[] { RED, GREEN }, scheme.getFixes() );
 	}
 
-	/** {@code ColorSchemeFactory#findName} shares cached instances. */
 	@Test
 	public void testIsImmutable()
 	{
@@ -181,7 +180,6 @@ public class ContinuousColorSchemeTest
 
 	// -- equality ------------------------------------------------------------
 
-	/** {@code ColorSchemeFactory#findName} relies on this. */
 	@Test
 	public void testEqualityIsByValue()
 	{
