@@ -196,7 +196,7 @@ public class LutEditorDialogTest
 			dialog.getColorSchemeCombo().setSelectedItem( "tab10" );
 			assertEquals( 1, dialog.getEditedRangeMin(), 0 );
 			assertEquals( 210, dialog.getEditedRangeMax(), 0 );
-			assertEquals( 1, dialog.getStepSize(), 0 );
+			assertEquals(1, dialog.getMapping().getStepSize(), 0);
 			assertEquals( 1, setup.getDisplayRangeMin(), 0 );
 			assertEquals( 210, setup.getDisplayRangeMax(), 0 );
 

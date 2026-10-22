@@ -203,10 +203,6 @@ public class LutEditorMapping {
         changeListeners.add(listener);
     }
 
-    public void removeChangeListener(final Runnable listener) {
-        changeListeners.remove(listener);
-    }
-
     private void fireChangeListeners() {
         for (final Runnable listener : changeListeners) {
             listener.run();

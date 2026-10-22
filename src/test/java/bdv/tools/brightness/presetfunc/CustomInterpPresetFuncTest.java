@@ -158,7 +158,6 @@ public class CustomInterpPresetFuncTest
 		final CustomInterpPresetFunc f = scaled();
 		f.setKnots( new double[] { 0.0, 0.4, 1.0 }, new double[] { 0.0, 0.9, 1.0 } );
 
-		Assert.assertEquals( 3, f.getKnotCount() );
 		Assert.assertArrayEquals( new double[] { 0.0, 0.4, 1.0 }, f.getKnotTs(), 1e-9 );
 		Assert.assertArrayEquals( new double[] { 0.0, 0.9, 1.0 }, f.getKnotValues(), 1e-9 );
 	}

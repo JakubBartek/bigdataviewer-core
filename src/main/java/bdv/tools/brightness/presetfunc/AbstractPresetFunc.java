@@ -109,13 +109,6 @@ abstract class AbstractPresetFunc implements IPresetFunc {
     }
 
     /**
-     * Tolerance of {@link #SNAP_ULPS} ULPs of {@code x}; only right if {@code x} did not come from a cancelling subtraction.
-     */
-    static double snappedToWhole(final double x) {
-        return snappedToWhole(x, SNAP_ULPS * Math.ulp(x));
-    }
-
-    /**
      * Rescales {@code f} so that {@code f(0) -> 0} and {@code f(1) -> 1}.
      */
     static double normalized(final double t, final DoubleUnaryOperator f) {

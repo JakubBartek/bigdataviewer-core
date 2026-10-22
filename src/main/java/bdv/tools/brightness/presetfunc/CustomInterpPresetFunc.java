@@ -54,36 +54,6 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc {
     }
 
     /**
-     * {@code shape} sampled at {@code numKnots} evenly spaced knots, for seeding
-     * an editable curve.
-     *
-     * @throws IllegalArgumentException if {@code numKnots} is less than 2.
-     */
-    public static CustomInterpPresetFunc sampled(final IPresetFunc shape, final int numKnots) {
-        Objects.requireNonNull(shape, "shape");
-        if (numKnots < 2) {
-            throw new IllegalArgumentException("numKnots must be at least 2, got " + numKnots);
-        }
-
-        final double min = shape.getMin();
-        final double max = shape.getMax();
-        final int schemeRange = shape.getSchemeRange();
-
-        final double[] ts = new double[numKnots];
-        final double[] values = new double[numKnots];
-        for (int i = 0; i < numKnots; i++) {
-            final double t = i / (double) (numKnots - 1);
-            final double rawValue = min + t * (max - min);
-            ts[i] = t;
-            values[i] = Math.max(0.0, Math.min(1.0, shape.getSchemeValueForRaw(rawValue) / schemeRange));
-        }
-
-        final CustomInterpPresetFunc result = new CustomInterpPresetFunc(min, max, schemeRange);
-        result.setKnots(ts, values);
-        return result;
-    }
-
-    /**
      * @param ts     domain fractions in {@code [0, 1]}, strictly ascending.
      * @param values scheme-value fractions in {@code [0, 1]}; need not be ascending.
      * @throws IllegalArgumentException as {@link #requireValidKnots}.
@@ -123,10 +93,6 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc {
                 throw new IllegalArgumentException("ts must be strictly ascending, got " + ts[i - 1] + " at index " + (i - 1) + " followed by " + ts[i]);
             }
         }
-    }
-
-    public int getKnotCount() {
-        return knotTs.length;
     }
 
     public double[] getKnotTs() {

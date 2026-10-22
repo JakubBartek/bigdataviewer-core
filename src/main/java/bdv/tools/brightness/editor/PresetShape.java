@@ -29,7 +29,6 @@ package bdv.tools.brightness.editor;
 
 import bdv.tools.brightness.presetfunc.AlphaSigmoidPresetFunc;
 import bdv.tools.brightness.presetfunc.AtanPresetFunc;
-import bdv.tools.brightness.presetfunc.CustomInterpPresetFunc;
 import bdv.tools.brightness.presetfunc.ExpPresetFunc;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import bdv.tools.brightness.presetfunc.LogPresetFunc;
@@ -112,7 +111,11 @@ public enum PresetShape {
         if (this == LINEAR) {
             return new double[]{0.0, 1.0};
         }
-        return sample().getKnotTs();
+        final double[] xs = new double[NUM_POINTS];
+        for (int i = 0; i < NUM_POINTS; i++) {
+            xs[i] = i / (double) (NUM_POINTS - 1);
+        }
+        return xs;
     }
 
     /**
@@ -122,12 +125,14 @@ public enum PresetShape {
         if (this == LINEAR) {
             return new double[]{0.0, 1.0};
         }
-        return sample().getKnotValues();
-    }
-
-    private CustomInterpPresetFunc sample() {
+        // over [0, 1] with a scheme range of 1, raw and scheme values are the fractions themselves
         final IPresetFunc shape = create(0.0, 1.0, 1);
-        return CustomInterpPresetFunc.sampled(shape, NUM_POINTS);
+        final double[] xs = xs();
+        final double[] ys = new double[xs.length];
+        for (int i = 0; i < xs.length; i++) {
+            ys[i] = Math.max(0.0, Math.min(1.0, shape.getSchemeValueForRaw(xs[i])));
+        }
+        return ys;
     }
 
     @FunctionalInterface

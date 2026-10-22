@@ -699,13 +699,6 @@ public class LutEditorDialog extends JDialog {
     /**
      * For tests.
      */
-    double getStepSize() {
-        return mappingModel.getStepSize();
-    }
-
-    /**
-     * For tests.
-     */
     JComboBox<Object> getColorSchemeCombo() {
         return comboColorScheme;
     }
