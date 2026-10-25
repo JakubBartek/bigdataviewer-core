@@ -78,8 +78,8 @@ import bdv.tools.brightness.converter.ColorSchemeConverter;
 import bdv.tools.brightness.converter.ColorSchemeConverterFactory;
 import bdv.tools.brightness.converter.PresetColorSchemeWrapper;
 import bdv.tools.brightness.colorscheme.IColorScheme;
+import bdv.tools.brightness.colorscheme.ColorSchemeType;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
-import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
 import bdv.tools.brightness.colorscheme.LegacyBdvColorScheme;
 import bdv.tools.brightness.colorscheme.ColorSchemeCategoryHelper;
 import bdv.tools.brightness.colorscheme.ColorSchemeFactory;
@@ -636,7 +636,7 @@ public class LutEditorDialog extends JDialog {
 
     private boolean isDiscrete()
     {
-        return this.currentScheme instanceof DiscreteColorScheme;
+        return this.currentScheme.getType() == ColorSchemeType.DISCRETE;
     }
 
     /**
@@ -815,7 +815,7 @@ public class LutEditorDialog extends JDialog {
 
         final LutEditorMapping presetMapping;
         try {
-            presetMapping = mappingFromPreset(preset, scheme instanceof DiscreteColorScheme);
+            presetMapping = mappingFromPreset(preset, scheme.getType());
         } catch (final IllegalArgumentException e) {
             this.labelStatus.setText("Configuration's curve is invalid: " + e.getMessage());
             return;
@@ -827,16 +827,16 @@ public class LutEditorDialog extends JDialog {
     }
 
     /**
-     * @throws IllegalArgumentException if {@code discrete} is false and the preset's curve is missing or invalid.
+     * @throws IllegalArgumentException if {@code type} is not discrete and the preset's curve is missing or invalid.
      */
-    private static LutEditorMapping mappingFromPreset(final EditorPreset preset, final boolean discrete)
+    private static LutEditorMapping mappingFromPreset(final EditorPreset preset, final ColorSchemeType type)
     {
         final LutEditorMapping mapping = new LutEditorMapping();
         mapping.setLeftBoundaryCondition(preset.getLeftBoundaryCondition());
         mapping.setRightBoundaryCondition(preset.getRightBoundaryCondition());
         mapping.setLeftSpecialColor(preset.getLeftSpecialColor());
         mapping.setRightSpecialColor(preset.getRightSpecialColor());
-        if (discrete) {
+        if (type == ColorSchemeType.DISCRETE) {
             mapping.setStepSize(preset.getStepSize());
         } else {
             mapping.getCurve().setPoints(preset.getCurveXs(), preset.getCurveValues());
@@ -866,7 +866,7 @@ public class LutEditorDialog extends JDialog {
             return false;
         }
         try {
-            return this.mappingModel.hasSameState(mappingFromPreset(preset, this.isDiscrete()));
+            return this.mappingModel.hasSameState(mappingFromPreset(preset, this.currentScheme.getType()));
         } catch (final IllegalArgumentException e) {
             return false;
         }
@@ -937,17 +937,19 @@ public class LutEditorDialog extends JDialog {
     }
 
     /**
-     * The fix count only for a scheme built from fixes.
+     * The fix count follows from the domain each {@link ColorSchemeType} defines.
      */
     private String schemeKindText()
     {
-        if (this.currentScheme instanceof DiscreteColorScheme) {
-            return "Discrete · " + ((DiscreteColorScheme) this.currentScheme).getFixCount() + " colors";
+        final int range = (int) this.currentScheme.getRange();
+        switch (this.currentScheme.getType()) {
+            case DISCRETE:
+                return "Discrete · " + range + " colors";
+            case CONTINUOUS:
+                return "Continuous · " + (range + 1) + " color fixes";
+            default:
+                return "";
         }
-        if (this.currentScheme instanceof ContinuousColorScheme) {
-            return "Continuous · " + ((ContinuousColorScheme) this.currentScheme).getFixCount() + " color fixes";
-        }
-        return "Continuous";
     }
 
     /**

@@ -149,16 +149,21 @@ public class ColorSchemeFactoryTest
 	@Test
 	public void testLoadFromJsonReflectsColorInterpolationDeclaration()
 	{
-		Assert.assertTrue( ColorSchemeFactory.loadFromJson( "Accent" ) instanceof DiscreteColorScheme );
-		Assert.assertTrue( ColorSchemeFactory.loadFromJson( "viridis" ) instanceof ContinuousColorScheme );
+        Assert.assertEquals(ColorSchemeType.DISCRETE, ColorSchemeFactory.loadFromJson("Accent").getType());
+        Assert.assertEquals(ColorSchemeType.CONTINUOUS, ColorSchemeFactory.loadFromJson("viridis").getType());
 	}
 
     @Test
-    public void testLoadPicksSchemeKindFromInterpolated() {
+    public void testLoadPicksSchemeKindFromType() {
         final int[] fixes = {ARGBType.rgba(255, 0, 0, 255), ARGBType.rgba(0, 0, 255, 255)};
 
-        Assert.assertEquals(new ContinuousColorScheme(fixes), ColorSchemeFactory.load(fixes, true));
-        Assert.assertEquals(new DiscreteColorScheme(fixes), ColorSchemeFactory.load(fixes, false));
+        Assert.assertEquals(new ContinuousColorScheme(fixes), ColorSchemeFactory.load(fixes, ColorSchemeType.CONTINUOUS));
+        Assert.assertEquals(new DiscreteColorScheme(fixes), ColorSchemeFactory.load(fixes, ColorSchemeType.DISCRETE));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testLoadRejectsTypeNone() {
+        ColorSchemeFactory.load(new int[]{ARGBType.rgba(255, 0, 0, 255), ARGBType.rgba(0, 0, 255, 255)}, ColorSchemeType.NONE);
     }
 
     @Test

@@ -110,12 +110,19 @@ public final class ColorSchemeFactory {
     }
 
     /**
-     * @param argbFixes    at least two packed ARGB colors.
-     * @param interpolated picks {@link ContinuousColorScheme} over {@link DiscreteColorScheme}.
+     * @param argbFixes at least two packed ARGB colors.
+     * @throws IllegalArgumentException for {@link ColorSchemeType#NONE}, which has no fixes-based scheme.
      */
-    public static IColorScheme load(final int[] argbFixes, final boolean interpolated)
+    public static IColorScheme load(final int[] argbFixes, final ColorSchemeType type)
     {
-        return interpolated ? new ContinuousColorScheme(argbFixes) : new DiscreteColorScheme(argbFixes);
+        switch (type) {
+            case DISCRETE:
+                return new DiscreteColorScheme(argbFixes);
+            case CONTINUOUS:
+                return new ContinuousColorScheme(argbFixes);
+            default:
+                throw new IllegalArgumentException("no color scheme built from fixes for type " + type);
+        }
     }
 
     /**
@@ -178,7 +185,7 @@ public final class ColorSchemeFactory {
                     ColorSchemeHelpers.unitToChannel(rgba.get(3).getAsDouble()));
         }
         final boolean interpolated = !root.has("color_interpolation") || root.get("color_interpolation").getAsBoolean();
-        return load(fixes, interpolated);
+        return load(fixes, interpolated ? ColorSchemeType.CONTINUOUS : ColorSchemeType.DISCRETE);
     }
 
     /**

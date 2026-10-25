@@ -31,7 +31,6 @@ package bdv.tools.brightness.colorscheme;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -56,7 +55,7 @@ public class ListedColorsSchemeTest {
     public void testIsDiscrete() {
         final IColorScheme scheme = new ListedColorsScheme(COLORS);
 
-        assertTrue(scheme instanceof DiscreteColorScheme);
+        assertEquals(ColorSchemeType.DISCRETE, scheme.getType());
         for (int i = 0; i < COLORS.length; i++) {
             assertEquals("fix " + i, COLORS[i], scheme.getRGBA(i + 0.5));
         }

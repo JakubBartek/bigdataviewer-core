@@ -27,9 +27,8 @@
  */
 package bdv.tools.brightness.editor;
 
+import bdv.tools.brightness.colorscheme.ColorSchemeType;
 import bdv.tools.brightness.colorscheme.IColorScheme;
-import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
-import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
 import bdv.tools.brightness.converter.PresetColorSchemeWrapper;
 import bdv.tools.brightness.presetfunc.CustomInterpPresetFunc;
 import bdv.tools.brightness.presetfunc.IPresetFunc;
@@ -39,13 +38,13 @@ import bdv.tools.brightness.presetfunc.StepPresetFunc;
  * Translates the LUT editor's {@link LutEditorMapping} and {@link IColorScheme}
  * into the {@link PresetColorSchemeWrapper} that renders (see
  * {@link bdv.tools.brightness.converter.ColorSchemeConverter}).
- * The scheme's kind picks the preset function feeding it:
+ * The scheme's {@link ColorSchemeType} picks the preset function feeding it:
  * <ul>
- * <li>{@link ContinuousColorScheme}: the editor's {@link Curve} as a
+ * <li>{@link ColorSchemeType#DISCRETE}: a {@link StepPresetFunc}; the curve is
+ * ignored.</li>
+ * <li>Any other: the editor's {@link Curve} as a
  * {@link CustomInterpPresetFunc}, or the exact {@link PresetShape} it was
  * sampled from while still unedited.</li>
- * <li>{@link DiscreteColorScheme}: a {@link StepPresetFunc}; the curve is
- * ignored.</li>
  * </ul>
  * Boundary conditions and their colors pass through unchanged.
  */
@@ -58,7 +57,7 @@ public final class ColorSchemeWrapperFactory {
     {
         final double lo = min;
         final double hi = max > min ? max : min + 1; // both preset functions require max > min
-        final IPresetFunc presetFunc = scheme instanceof DiscreteColorScheme
+        final IPresetFunc presetFunc = scheme.getType() == ColorSchemeType.DISCRETE
                 ? stepFunc(mapping, scheme, lo, hi)
                 : curveFunc(mapping, scheme, lo, hi);
 

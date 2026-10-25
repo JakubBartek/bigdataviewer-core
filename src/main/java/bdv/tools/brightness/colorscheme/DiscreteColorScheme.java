@@ -46,6 +46,12 @@ public class DiscreteColorScheme extends AbstractFixesBasedColorScheme {
     }
 
     @Override
+    public final ColorSchemeType getType()
+    {
+        return ColorSchemeType.DISCRETE;
+    }
+
+    @Override
     int colorAt(final double schemeValue)
     {
         final int lastIndex = this.fixes.length - 1;

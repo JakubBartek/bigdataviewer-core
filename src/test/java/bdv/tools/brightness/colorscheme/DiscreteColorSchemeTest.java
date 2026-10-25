@@ -57,6 +57,11 @@ public class DiscreteColorSchemeTest
 		Assert.assertEquals( 10, new DiscreteColorScheme( new int[ 10 ] ).getRange(), 0.0 );
 	}
 
+    @Test
+    public void testTypeIsDiscrete() {
+        Assert.assertEquals(ColorSchemeType.DISCRETE, threeFixes().getType());
+    }
+
 	@Test
 	public void testConstructorRejectsFewerThanTwoFixes()
 	{

@@ -80,6 +80,12 @@ public class ContinuousColorScheme extends AbstractFixesBasedColorScheme {
     }
 
     @Override
+    public final ColorSchemeType getType()
+    {
+        return ColorSchemeType.CONTINUOUS;
+    }
+
+    @Override
     int colorAt(final double schemeValue)
     {
         final int lastIndex = this.fixes.length - 1;

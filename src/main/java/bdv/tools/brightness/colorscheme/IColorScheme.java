@@ -51,4 +51,6 @@ public interface IColorScheme {
      * Length of the scheme-value domain, which starts at {@code 0}.
      */
     double getRange();
+
+    ColorSchemeType getType();
 }

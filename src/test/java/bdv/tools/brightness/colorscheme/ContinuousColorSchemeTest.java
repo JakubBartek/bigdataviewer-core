@@ -58,6 +58,11 @@ public class ContinuousColorSchemeTest
 		Assert.assertEquals( 9, new ContinuousColorScheme( new int[ 10 ] ).getRange(), 0.0 );
 	}
 
+    @Test
+    public void testTypeIsContinuous() {
+        Assert.assertEquals(ColorSchemeType.CONTINUOUS, threeFixes().getType());
+    }
+
 	@Test
 	public void testConstructorRejectsFewerThanTwoFixes()
 	{

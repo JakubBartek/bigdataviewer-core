@@ -56,9 +56,9 @@ import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.SwingConstants;
 
+import bdv.tools.brightness.colorscheme.ColorSchemeType;
 import bdv.tools.brightness.colorscheme.IColorScheme;
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
-import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
 import bdv.tools.brightness.converter.PresetColorSchemeWrapper;
 import bdv.tools.brightness.presetfunc.IPresetFunc;
 
@@ -362,7 +362,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
     private boolean isDiscrete()
     {
-        return this.colorScheme instanceof DiscreteColorScheme;
+        return this.colorScheme.getType() == ColorSchemeType.DISCRETE;
     }
 
     private int plotLeft()
