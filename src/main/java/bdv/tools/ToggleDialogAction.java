@@ -49,5 +49,10 @@ public class ToggleDialogAction extends AbstractNamedAction
 		dialog.setVisible( ! dialog.isVisible() );
 	}
 
+	public Dialog getDialog()
+	{
+		return this.dialog;
+	}
+
 	private static final long serialVersionUID = 1L;
 }

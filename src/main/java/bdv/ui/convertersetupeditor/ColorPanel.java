@@ -33,20 +33,17 @@ import java.awt.Color;
 
 import java.awt.Dimension;
 import javax.swing.JButton;
-import javax.swing.JColorChooser;
 import javax.swing.JPanel;
 
 import javax.swing.UIManager;
 import net.imglib2.type.numeric.ARGBType;
 import net.miginfocom.swing.MigLayout;
 
-import org.scijava.listeners.Listeners;
-
 import bdv.tools.brightness.ColorIcon;
 
 /**
- * A {@code JPanel} with a color button (for setting {@code ConverterSetup}
- * colors).
+ * A {@code JPanel} with a button showing the {@code ConverterSetup} color;
+ * clicking it runs an action supplied by the owner.
  *
  * @author Tobias Pietzsch
  */
@@ -55,13 +52,6 @@ class ColorPanel extends JPanel
 	private final JButton colorButton;
 
 	private final ARGBType color = new ARGBType();
-
-	public interface ChangeListener
-	{
-		void colorChanged();
-	}
-
-	private final Listeners.List< ChangeListener > listeners = new Listeners.SynchronizedList<>();
 
 	/**
 	 * Whether the color reflects a set of sources all having the same color
@@ -78,7 +68,7 @@ class ColorPanel extends JPanel
 	 */
 	private Color inConsistentBg = Color.WHITE;
 
-	public ColorPanel()
+	public ColorPanel(final Runnable buttonAction)
 	{
 		setLayout( new MigLayout( "ins 0, fillx, filly, hidemode 3", "[grow]", "" ) );
 		updateColors();
@@ -86,7 +76,7 @@ class ColorPanel extends JPanel
 		colorButton = new JButton();
 		this.add( colorButton, "center" );
 
-		colorButton.addActionListener( e -> chooseColor() );
+		this.colorButton.addActionListener(e -> buttonAction.run());
 
 		colorButton.setBorderPainted( false );
 		colorButton.setFocusPainted( false );
@@ -125,20 +115,6 @@ class ColorPanel extends JPanel
 		setBackground( isConsistent ? consistentBg : inConsistentBg );
 	}
 
-	private void chooseColor()
-	{
-		final Color newColor = JColorChooser.showDialog( null, "Set Source Color", new Color( color.get() ) );
-		if ( newColor == null )
-			return;
-		setColor( new ARGBType(  newColor.getRGB() | 0xff000000 ) );
-		listeners.list.forEach( ChangeListener::colorChanged );
-	};
-
-	public Listeners< ChangeListener > changeListeners()
-	{
-		return listeners;
-	}
-
 	public synchronized void setColor( final ARGBType color )
 	{
 		if ( color == null )
@@ -146,10 +122,5 @@ class ColorPanel extends JPanel
 		else
 			this.color.set( color );
 		colorButton.setIcon( new ColorIcon( new Color( this.color.get() ), 30, 30, 10, 10, true ) );
-	}
-
-	public ARGBType getColor()
-	{
-		return color.copy();
 	}
 }

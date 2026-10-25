@@ -53,26 +53,28 @@ public class ConverterSetupEditPanel extends JPanel
 
 	public ConverterSetupEditPanel(
 			final SourceGroupTree tree,
-			final ConverterSetups converterSetups )
+			final ConverterSetups converterSetups,
+			final Runnable colorButtonAction)
 	{
-		this();
+		this(colorButtonAction);
 		new BoundedRangeEditor( tree, converterSetups, rangePanel, converterSetups.getBounds() );
 		new ColorEditor( tree, converterSetups, colorPanel );
 	}
 
 	public ConverterSetupEditPanel(
 			final SourceTable table,
-			final ConverterSetups converterSetups )
+			final ConverterSetups converterSetups,
+			final Runnable colorButtonAction)
 	{
-		this();
+		this(colorButtonAction);
 		new BoundedRangeEditor( table, converterSetups, rangePanel, converterSetups.getBounds() );
 		new ColorEditor( table, converterSetups, colorPanel );
 	}
 
-	public ConverterSetupEditPanel()
+	public ConverterSetupEditPanel(final Runnable colorButtonAction)
 	{
 		super( new MigLayout( "ins 0, fillx, hidemode 3", "[]0[grow]", "" ) );
-		colorPanel = new ColorPanel();
+		this.colorPanel = new ColorPanel(colorButtonAction);
 		rangePanel = new BoundedRangePanel();
 
 		( ( MigLayout ) rangePanel.getLayout() ).setLayoutConstraints( "ins 5 5 5 10, fillx, filly, hidemode 3" );

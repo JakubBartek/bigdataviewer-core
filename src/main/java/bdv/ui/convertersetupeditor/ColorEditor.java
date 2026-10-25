@@ -99,29 +99,10 @@ class ColorEditor
 		this.selectedConverterSetups = selectedConverterSetups;
 		this.colorPanel = colorPanel;
 
-		colorPanel.changeListeners().add( this::updateConverterSetupColors );
 		converterSetups.listeners().add( s -> updateColorPanel() );
 	}
 
-	private boolean blockUpdates = false;
-
 	private List< ConverterSetup > converterSetups;
-
-	private synchronized void updateConverterSetupColors()
-	{
-		if ( blockUpdates || converterSetups == null || converterSetups.isEmpty() )
-			return;
-
-		ARGBType color = colorPanel.getColor();
-
-		for ( final ConverterSetup converterSetup : converterSetups )
-		{
-			if ( converterSetup.supportsColor() )
-				converterSetup.setColor( color );
-		}
-
-		updateColorPanel();
-	}
 
 	private synchronized void updateSelection()
 	{
@@ -134,7 +115,6 @@ class ColorEditor
 		if ( converterSetups == null || converterSetups.isEmpty() )
 		{
 			SwingUtilities.invokeLater( () -> {
-				colorPanel.setEnabled( false );
 				colorPanel.setColor( null );
 				colorPanel.setConsistent( true );
 			} );
@@ -155,16 +135,10 @@ class ColorEditor
 			}
 			final ARGBType finalColor = color;
 			final boolean isConsistent = allColorsEqual;
-			SwingUtilities.invokeLater( () -> {
-				synchronized ( ColorEditor.this )
-				{
-					blockUpdates = true;
-					colorPanel.setEnabled( finalColor != null );
-					colorPanel.setColor( finalColor );
-					colorPanel.setConsistent( isConsistent );
-					blockUpdates = false;
-				}
-			} );
+			SwingUtilities.invokeLater(() -> {
+				this.colorPanel.setColor(finalColor);
+				this.colorPanel.setConsistent(isConsistent);
+			});
 		}
 	}
 }

@@ -75,7 +75,7 @@ public class PlaygroundTable
 		table.setFillsViewportHeight( true );
 		table.setDragEnabled( true );
 
-		final ConverterSetupEditPanel editPanel = new ConverterSetupEditPanel( table, converterSetups );
+		final ConverterSetupEditPanel editPanel = new ConverterSetupEditPanel(table, converterSetups, () -> {});
 
 		//Create and set up the window.
 		final JFrame frame = new JFrame( "Sources Table" );

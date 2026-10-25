@@ -93,7 +93,7 @@ public class PlaygroundCards
 		table.setFillsViewportHeight( true );
 		table.setDragEnabled( true );
 
-		final ConverterSetupEditPanel editPanelTable = new ConverterSetupEditPanel( table, converterSetups );
+		final ConverterSetupEditPanel editPanelTable = new ConverterSetupEditPanel(table, converterSetups, () -> {});
 
 		final JPanel tablePanel = new JPanel( new BorderLayout() );
 		final JScrollPane scrollPaneTable = new JScrollPane( table );
@@ -112,7 +112,7 @@ public class PlaygroundCards
 		tree.setExpandsSelectedPaths( true );
 		tree.getSelectionModel().setSelectionMode( TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION );
 
-		final ConverterSetupEditPanel editPanelTree = new ConverterSetupEditPanel( tree, converterSetups );
+		final ConverterSetupEditPanel editPanelTree = new ConverterSetupEditPanel(tree, converterSetups, () -> {});
 
 		final JPanel treePanel = new JPanel( new BorderLayout() );
 		final JScrollPane scrollPaneTree = new JScrollPane( tree );

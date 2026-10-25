@@ -28,6 +28,8 @@
  */
 package bdv.ui;
 
+import bdv.BigDataViewerActions;
+import bdv.tools.ToggleDialogAction;
 import bdv.ui.convertersetupeditor.ConverterSetupEditPanel;
 import bdv.ui.sourcegrouptree.SourceGroupTree;
 import bdv.ui.sourcetable.SourceTable;
@@ -37,8 +39,10 @@ import bdv.viewer.ConverterSetups;
 import bdv.viewer.ViewerState;
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.Dialog;
 import java.awt.Dimension;
 import java.awt.Insets;
+import javax.swing.Action;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.UIManager;
@@ -66,13 +70,14 @@ public class BdvDefaultCards
 	public static void setup( final CardPanel cards, final AbstractViewerPanel viewer, final ConverterSetups converterSetups )
 	{
 		final ViewerState state = viewer.state();
+		final Runnable showLutEditor = () -> showLutEditor(viewer);
 
 		// -- Sources table --
 		final SourceTable table = new SourceTable( state, converterSetups, viewer.getInputTriggerConfig() );
 		table.setPreferredScrollableViewportSize( new Dimension( 300, 200 ) );
 		table.setFillsViewportHeight( true );
 		table.setDragEnabled( true );
-		final ConverterSetupEditPanel editPanelTable = new ConverterSetupEditPanel( table, converterSetups );
+		final ConverterSetupEditPanel editPanelTable = new ConverterSetupEditPanel(table, converterSetups, showLutEditor);
 		final JPanel tablePanel = new JPanel( new BorderLayout() );
 		final JScrollPane scrollPaneTable = new MyScrollPane( table, "Table.background" );
 		scrollPaneTable.addMouseWheelListener( new MouseWheelScrollListener( scrollPaneTable ) );
@@ -90,7 +95,7 @@ public class BdvDefaultCards
 		tree.setShowsRootHandles( true );
 		tree.setExpandsSelectedPaths( true );
 		tree.getSelectionModel().setSelectionMode( TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION );
-		final ConverterSetupEditPanel editPanelTree = new ConverterSetupEditPanel( tree, converterSetups );
+		final ConverterSetupEditPanel editPanelTree = new ConverterSetupEditPanel(tree, converterSetups, showLutEditor);
 		final JPanel treePanel = new JPanel( new BorderLayout() );
 		final JScrollPane scrollPaneTree = new MyScrollPane( tree, "Tree.background" );
 		scrollPaneTree.addMouseWheelListener( new MouseWheelScrollListener( scrollPaneTree ) );
@@ -101,6 +106,20 @@ public class BdvDefaultCards
 		cards.addCard( DEFAULT_VIEWERMODES_CARD, "Display Modes", new DisplaySettingsPanel( viewer.state() ), true, new Insets( 0, 4, 4, 0 ) );
 		cards.addCard( DEFAULT_SOURCES_CARD, "Sources", tablePanel, true, new Insets( 0, 0, 0, 0 ) );
 		cards.addCard( DEFAULT_SOURCEGROUPS_CARD, "Groups", treePanel, true, new Insets( 0, 0, 0, 0 ) );
+	}
+
+	/**
+	 * Looked up at click time: the dialog is created after the cards, by whoever
+	 * owns the viewer, and registered in its action map.
+	 */
+	private static void showLutEditor(final AbstractViewerPanel viewer)
+	{
+		final Action action = viewer.getActionMap().get(BigDataViewerActions.LUT_EDITOR);
+		if (action instanceof ToggleDialogAction) {
+			final Dialog dialog = ((ToggleDialogAction) action).getDialog();
+			dialog.setVisible(true);
+			dialog.toFront();
+		}
 	}
 
 	static class MyScrollPane extends JScrollPane
