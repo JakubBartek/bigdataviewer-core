@@ -891,10 +891,22 @@ public class LutEditorDialog extends JDialog {
             layoutShape.show(panelShape, isDiscrete() ? SHAPE_CARD_DISCRETE : SHAPE_CARD_CONTINUOUS);
             comboMappingPreset.setSelectedItem(mappingModel.getPreset());
             updateStepSizeField();
-            labelSchemeKind.setText((isDiscrete() ? "Discrete" : "Continuous")
-                    + " \u00b7 " + currentScheme.getFixCount() + (isDiscrete() ? " colors" : " color fixes"));
+            labelSchemeKind.setText(schemeKindText());
             updateCurveHint();
         });
+    }
+
+    /**
+     * The fix count only for a scheme built from fixes.
+     */
+    private String schemeKindText() {
+        if (currentScheme instanceof DiscreteColorScheme) {
+            return "Discrete · " + ((DiscreteColorScheme) currentScheme).getFixCount() + " colors";
+        }
+        if (currentScheme instanceof ContinuousColorScheme) {
+            return "Continuous · " + ((ContinuousColorScheme) currentScheme).getFixCount() + " color fixes";
+        }
+        return "Continuous";
     }
 
     /**
@@ -948,9 +960,9 @@ public class LutEditorDialog extends JDialog {
      * {@code [min, min + stepSize * N]}, which differs from the display range once a step size is typed.
      */
     private void updateStepCoverageLabel(final double stepSize) {
-        final int colors = currentScheme.getFixCount();
+        final double colors = currentScheme.getRange();
         final double end = editedRangeMin + stepSize * colors;
-        labelStepCoverage.setText(colors + " colors \u00d7 " + formatValue(stepSize)
+        labelStepCoverage.setText(formatValue(colors) + " colors \u00d7 " + formatValue(stepSize)
                 + " covers " + formatValue(editedRangeMin) + " \u2013 " + formatValue(end));
     }
 
@@ -961,7 +973,7 @@ public class LutEditorDialog extends JDialog {
         }
         final double lo = editedRangeMin;
         final double hi = editedRangeMax > editedRangeMin ? editedRangeMax : editedRangeMin + 1;
-        return StepPresetFunc.defaultStepSize(lo, hi, currentScheme.getFixCount());
+        return StepPresetFunc.defaultStepSize(lo, hi, currentScheme.getRange());
     }
 
     /**
@@ -1555,7 +1567,7 @@ public class LutEditorDialog extends JDialog {
             final int h = getHeight();
 
             if (scheme != null) {
-                final int schemeRange = scheme.getRange();
+                final double schemeRange = scheme.getRange();
                 for (int i = 0; i < w; i++) {
                     final double t = w > 1 ? i / (double) (w - 1) : 0.0;
                     g.setColor(new Color(scheme.getRGB(t * schemeRange)));

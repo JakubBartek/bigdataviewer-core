@@ -71,7 +71,7 @@ public final class ColorSchemeWrapperFactory {
      * {@code hi} is only used to resolve {@link LutEditorMapping#AUTO_STEP_SIZE}.
      */
     private static IPresetFunc stepFunc(final LutEditorMapping mapping, final IColorScheme scheme, final double lo, final double hi) {
-        final int schemeRange = scheme.getRange();
+        final double schemeRange = scheme.getRange();
         final double chosen = mapping.getStepSize();
         final double stepSize = chosen > 0.0 ? chosen : StepPresetFunc.defaultStepSize(lo, hi, schemeRange);
         return new StepPresetFunc(lo, schemeRange, stepSize);

@@ -35,7 +35,7 @@ package bdv.tools.brightness.presetfunc;
 public class AlphaSigmoidPresetFunc extends AbstractPresetFunc {
     private static final double ALPHA = 0.5;
 
-    public AlphaSigmoidPresetFunc(final double min, final double max, final int schemeRange) {
+    public AlphaSigmoidPresetFunc(final double min, final double max, final double schemeRange) {
         super(min, max, schemeRange);
     }
 

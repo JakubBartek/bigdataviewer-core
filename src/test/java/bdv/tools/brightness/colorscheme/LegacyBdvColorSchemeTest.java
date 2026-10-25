@@ -68,8 +68,8 @@ public class LegacyBdvColorSchemeTest
 
 		assertEquals( color, scheme.getColor() );
 		assertEquals( 2, scheme.getFixCount() );
-		assertEquals( ARGBType.rgba( 0, 0, 0, 255 ), scheme.getFixes()[ 0 ] );
-		assertEquals( color, scheme.getFixes()[ 1 ] );
+		assertEquals( ARGBType.rgba( 0, 0, 0, 255 ), scheme.getFixesRef()[ 0 ] );
+		assertEquals( color, scheme.getFixesRef()[ 1 ] );
 	}
 
 	/** The old converter renders black at its color's alpha, not opaque black. */
@@ -78,7 +78,7 @@ public class LegacyBdvColorSchemeTest
 	{
 		final LegacyBdvColorScheme scheme = new LegacyBdvColorScheme( ARGBType.rgba( 255, 0, 0, 77 ) );
 
-		assertEquals( ARGBType.rgba( 0, 0, 0, 77 ), scheme.getFixes()[ 0 ] );
+		assertEquals( ARGBType.rgba( 0, 0, 0, 77 ), scheme.getFixesRef()[ 0 ] );
 	}
 
 	@Test

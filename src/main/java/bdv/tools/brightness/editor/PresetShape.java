@@ -75,7 +75,7 @@ public enum PresetShape {
         return label;
     }
 
-    public IPresetFunc create(final double min, final double max, final int schemeRange) {
+    public IPresetFunc create(final double min, final double max, final double schemeRange) {
         return factory.create(min, max, schemeRange);
     }
 
@@ -137,6 +137,6 @@ public enum PresetShape {
 
     @FunctionalInterface
     private interface IPresetFuncFactory {
-        IPresetFunc create(double min, double max, int schemeRange);
+        IPresetFunc create(double min, double max, double schemeRange);
     }
 }

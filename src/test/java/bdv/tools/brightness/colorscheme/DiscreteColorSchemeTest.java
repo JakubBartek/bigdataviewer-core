@@ -52,9 +52,9 @@ public class DiscreteColorSchemeTest
 	@Test
 	public void testRangeEqualsFixCount()
 	{
-		Assert.assertEquals( 3, threeFixes().getRange() );
-		Assert.assertEquals( 2, new DiscreteColorScheme( new int[] { RED, GREEN } ).getRange() );
-		Assert.assertEquals( 10, new DiscreteColorScheme( new int[ 10 ] ).getRange() );
+		Assert.assertEquals( 3, threeFixes().getRange(), 0.0 );
+		Assert.assertEquals( 2, new DiscreteColorScheme( new int[] { RED, GREEN } ).getRange(), 0.0 );
+		Assert.assertEquals( 10, new DiscreteColorScheme( new int[ 10 ] ).getRange(), 0.0 );
 	}
 
 	@Test
@@ -130,12 +130,11 @@ public class DiscreteColorSchemeTest
 	@Test
 	public void testReproducesEveryFixExactlyWithinItsSlot()
 	{
-		final IColorScheme tab10 = ColorSchemeFactory.loadFromJson( "tab10" );
-		Assert.assertTrue( tab10 instanceof DiscreteColorScheme );
+		final DiscreteColorScheme tab10 = ( DiscreteColorScheme ) ColorSchemeFactory.loadFromJson( "tab10" );
 
-		Assert.assertEquals( tab10.getFixCount(), tab10.getRange() );
+		Assert.assertEquals( tab10.getFixCount(), tab10.getRange(), 0.0 );
 		for ( int i = 0; i < tab10.getFixCount(); i++ )
-			Assert.assertEquals( "fix " + i, tab10.getFixes()[ i ], tab10.getRGBA( i + 0.5 ) );
+			Assert.assertEquals( "fix " + i, tab10.getFixesRef()[ i ], tab10.getRGBA( i + 0.5 ) );
 	}
 
 	@Test

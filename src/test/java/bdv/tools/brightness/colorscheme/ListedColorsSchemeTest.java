@@ -48,8 +48,8 @@ public class ListedColorsSchemeTest {
     public void testKeepsTheListedColorsAsFixesInOrder() {
         final ListedColorsScheme scheme = new ListedColorsScheme(COLORS);
 
-        assertArrayEquals(COLORS, scheme.getFixes());
-        assertEquals(COLORS.length, scheme.getRange());
+        assertArrayEquals(COLORS, scheme.getFixesRef());
+        assertEquals(COLORS.length, scheme.getRange(), 0.0);
     }
 
     @Test

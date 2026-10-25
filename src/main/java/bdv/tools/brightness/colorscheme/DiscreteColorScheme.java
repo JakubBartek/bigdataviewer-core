@@ -33,13 +33,13 @@ import java.util.Arrays;
  * {@code N} color fixes without blending (e.g. label ids). The domain is the
  * half-open interval {@code [0, N)}; a scheme value is floored to its fix.
  */
-public class DiscreteColorScheme extends AbstractColorScheme {
+public class DiscreteColorScheme extends AbstractFixesBasedColorScheme {
     public DiscreteColorScheme(final int[] argbFixes) {
         super(argbFixes);
     }
 
     @Override
-    public int getRange() {
+    public double getRange() {
         return fixes.length;
     }
 

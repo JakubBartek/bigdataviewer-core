@@ -35,7 +35,7 @@ package bdv.tools.brightness.presetfunc;
 public class TanPresetFunc extends AbstractPresetFunc {
     private static final double K = 1.4;
 
-    public TanPresetFunc(final double min, final double max, final int schemeRange) {
+    public TanPresetFunc(final double min, final double max, final double schemeRange) {
         super(min, max, schemeRange);
     }
 

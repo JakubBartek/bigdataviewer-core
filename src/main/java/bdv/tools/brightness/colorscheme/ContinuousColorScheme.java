@@ -40,7 +40,7 @@ import net.imglib2.type.numeric.ARGBType;
  * A value: subclasses only add named constructors, and compare equal to a
  * plain scheme with the same fixes.
  */
-public class ContinuousColorScheme extends AbstractColorScheme {
+public class ContinuousColorScheme extends AbstractFixesBasedColorScheme {
     /**
      * Black-to-white gradient, used until a scheme is chosen.
      */
@@ -60,19 +60,19 @@ public class ContinuousColorScheme extends AbstractColorScheme {
         final int n = colorTable.getLength();
         // RGB-only tables (e.g. grayscale ColorTable8) are opaque
         final boolean hasAlpha = colorTable.getComponentCount() > ColorTable.ALPHA;
-        final int[] argb = new int[n];
+        final int[] listOfColors = new int[n];
         for (int i = 0; i < n; i++) {
-            argb[i] = ARGBType.rgba(
+            listOfColors[i] = ARGBType.rgba(
                     colorTable.get(ColorTable.RED, i),
                     colorTable.get(ColorTable.GREEN, i),
                     colorTable.get(ColorTable.BLUE, i),
                     hasAlpha ? colorTable.get(ColorTable.ALPHA, i) : 255);
         }
-        return new ContinuousColorScheme(argb);
+        return new ContinuousColorScheme(listOfColors);
     }
 
     @Override
-    public int getRange() {
+    public double getRange() {
         return fixes.length - 1;
     }
 

@@ -46,7 +46,7 @@ public class StepPresetFunc extends AbstractPresetFunc {
      *                                  {@code min} is too large for the scheme's width to
      *                                  change it.
      */
-    public StepPresetFunc(final double min, final int schemeRange, final double stepSize) {
+    public StepPresetFunc(final double min, final double schemeRange, final double stepSize) {
         super(min, min + requirePositive(stepSize) * schemeRange, schemeRange);
         this.stepSize = stepSize;
     }
@@ -64,8 +64,8 @@ public class StepPresetFunc extends AbstractPresetFunc {
     /**
      * The step size that spreads the scheme exactly once across {@code [min, max]}.
      */
-    public static double defaultStepSize(final double min, final double max, final int schemeRange) {
-        return (max - min) / (double) schemeRange;
+    public static double defaultStepSize(final double min, final double max, final double schemeRange) {
+        return (max - min) / schemeRange;
     }
 
     /**

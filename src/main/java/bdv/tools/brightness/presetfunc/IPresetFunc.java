@@ -44,9 +44,9 @@ public interface IPresetFunc {
     double getMax();
 
     /**
-     * Must equal the color scheme's, hence a whole fix count.
+     * Must equal the color scheme's range.
      */
-    int getSchemeRange();
+    double getSchemeRange();
 
     /**
      * Clamps {@code rawValue} into the domain. All {@code double}: a

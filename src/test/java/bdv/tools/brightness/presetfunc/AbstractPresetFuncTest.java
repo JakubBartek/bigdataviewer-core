@@ -80,7 +80,7 @@ public class AbstractPresetFuncTest
 			final IPresetFunc f = build( factory );
 			Assert.assertEquals( f.getClass().getSimpleName(), 100f, f.getMin(), 0f );
 			Assert.assertEquals( f.getClass().getSimpleName(), 200f, f.getMax(), 0f );
-			Assert.assertEquals( f.getClass().getSimpleName(), 10, f.getSchemeRange() );
+			Assert.assertEquals( f.getClass().getSimpleName(), 10, f.getSchemeRange(), 0.0 );
 		}
 	}
 
@@ -161,7 +161,7 @@ public class AbstractPresetFuncTest
 
 			Assert.assertEquals( name, 300f, reranged.getMin(), 0f );
 			Assert.assertEquals( name, 500f, reranged.getMax(), 0f );
-			Assert.assertEquals( name, original.getSchemeRange(), reranged.getSchemeRange() );
+			Assert.assertEquals( name, original.getSchemeRange(), reranged.getSchemeRange(), 0.0 );
 
 			// The 25%/50%/75% points of each range must produce the same scheme value.
 			Assert.assertEquals( name, original.getSchemeValueForRaw( 125f ), reranged.getSchemeValueForRaw( 350f ), 1e-4f );

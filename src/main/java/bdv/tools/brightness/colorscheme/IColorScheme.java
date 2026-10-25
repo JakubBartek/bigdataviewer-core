@@ -50,15 +50,5 @@ public interface IColorScheme {
     /**
      * Length of the scheme-value domain, which starts at {@code 0}.
      */
-    int getRange();
-
-    /**
-     * Always at least 2.
-     */
-    int getFixCount();
-
-    /**
-     * A copy of the packed-ARGB color fixes.
-     */
-    int[] getFixes();
+    double getRange();
 }

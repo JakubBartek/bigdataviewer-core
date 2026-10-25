@@ -48,7 +48,7 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc {
     /**
      * Starts linear: knots {@code (0, 0)} and {@code (1, 1)}.
      */
-    public CustomInterpPresetFunc(final double min, final double max, final int schemeRange) {
+    public CustomInterpPresetFunc(final double min, final double max, final double schemeRange) {
         super(min, max, schemeRange);
         setKnots(new double[]{0.0, 1.0}, new double[]{0.0, 1.0});
     }

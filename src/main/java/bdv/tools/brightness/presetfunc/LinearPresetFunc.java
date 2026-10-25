@@ -31,7 +31,7 @@ package bdv.tools.brightness.presetfunc;
  * The identity shape: scheme value proportional to raw value.
  */
 public class LinearPresetFunc extends AbstractPresetFunc {
-    public LinearPresetFunc(final double min, final double max, final int schemeRange) {
+    public LinearPresetFunc(final double min, final double max, final double schemeRange) {
         super(min, max, schemeRange);
     }
 

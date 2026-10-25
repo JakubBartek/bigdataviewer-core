@@ -113,13 +113,13 @@ public class ColorSchemeFactoryTest
 	@Test
 	public void testLoadFromJsonParsesFixesRGBA()
 	{
-		final IColorScheme scheme = ColorSchemeFactory.loadFromJson( "Accent" );
+		final DiscreteColorScheme scheme = ( DiscreteColorScheme ) ColorSchemeFactory.loadFromJson( "Accent" );
 
 		Assert.assertNotNull( scheme );
 		Assert.assertEquals( 8, scheme.getFixCount() );
 
 		// index "0": [0.4980392156862745, 0.788235294117647, 0.4980392156862745, 1.0]
-		final int argb = scheme.getFixes()[ 0 ];
+		final int argb = scheme.getFixesRef()[ 0 ];
 		Assert.assertEquals( 127, ARGBType.red( argb ) );
 		Assert.assertEquals( 201, ARGBType.green( argb ) );
 		Assert.assertEquals( 127, ARGBType.blue( argb ) );
@@ -134,13 +134,13 @@ public class ColorSchemeFactoryTest
 		final IColorScheme second = ColorSchemeFactory.loadFromJson( "tab10" );
 
 		Assert.assertEquals( first, second );
-		Assert.assertEquals( first.getFixCount(), second.getFixCount() );
+		Assert.assertEquals( first.getRange(), second.getRange(), 0.0 );
 	}
 
 	@Test
 	public void testLoadFromJsonHandlesLargeContinuousScheme()
 	{
-		final IColorScheme scheme = ColorSchemeFactory.loadFromJson( "viridis" );
+		final ContinuousColorScheme scheme = ( ContinuousColorScheme ) ColorSchemeFactory.loadFromJson( "viridis" );
 
 		Assert.assertNotNull( scheme );
 		Assert.assertEquals( 256, scheme.getFixCount() );

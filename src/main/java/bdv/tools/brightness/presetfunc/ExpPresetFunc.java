@@ -35,7 +35,7 @@ package bdv.tools.brightness.presetfunc;
 public class ExpPresetFunc extends AbstractPresetFunc {
     private static final double K = 4.0;
 
-    public ExpPresetFunc(final double min, final double max, final int schemeRange) {
+    public ExpPresetFunc(final double min, final double max, final double schemeRange) {
         super(min, max, schemeRange);
     }
 

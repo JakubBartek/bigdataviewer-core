@@ -44,13 +44,13 @@ abstract class AbstractPresetFunc implements IPresetFunc {
 
     private final double max;
 
-    private final int schemeRange;
+    private final double schemeRange;
 
-    AbstractPresetFunc(final double min, final double max, final int schemeRange) {
+    AbstractPresetFunc(final double min, final double max, final double schemeRange) {
         if (!(max > min)) {
             throw new IllegalArgumentException("max must be strictly greater than min, got min=" + min + ", max=" + max);
         }
-        if (schemeRange <= 0) {
+        if (!(schemeRange > 0.0)) {
             throw new IllegalArgumentException("schemeRange must be strictly positive, got " + schemeRange);
         }
 
@@ -70,7 +70,7 @@ abstract class AbstractPresetFunc implements IPresetFunc {
     }
 
     @Override
-    public final int getSchemeRange() {
+    public final double getSchemeRange() {
         return schemeRange;
     }
 

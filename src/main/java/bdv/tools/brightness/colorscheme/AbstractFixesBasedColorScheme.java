@@ -36,7 +36,7 @@ import net.imglib2.type.numeric.ARGBType;
  * {@link ContinuousColorScheme}, which differ only in {@link #colorAt(double)}
  * and {@link IColorScheme#getRange()}.
  */
-abstract class AbstractColorScheme implements IColorScheme {
+abstract class AbstractFixesBasedColorScheme implements IColorScheme {
     /**
      * Color fixes, packed ARGB (see {@link ARGBType#rgba(int, int, int, int)}); always at least 2.
      */
@@ -45,7 +45,7 @@ abstract class AbstractColorScheme implements IColorScheme {
     /**
      * @param argbFixes copied, so a scheme is immutable and can be shared.
      */
-    AbstractColorScheme(final int[] argbFixes) {
+    AbstractFixesBasedColorScheme(final int[] argbFixes) {
         if (argbFixes.length < 2) {
             throw new IllegalArgumentException("a color scheme needs at least 2 color fixes, got " + argbFixes.length);
         }
@@ -54,25 +54,24 @@ abstract class AbstractColorScheme implements IColorScheme {
 
     @Override
     public final int getRGBA(final double schemeValue) {
-        return colorAt(schemeValue);
+        return this.colorAt(schemeValue);
     }
 
     @Override
     public final int getRGB(final double schemeValue) {
-        return ColorSchemeHelpers.opaque(colorAt(schemeValue));
+        return ColorSchemeHelpers.opaque(this.colorAt(schemeValue));
     }
 
-    @Override
     public final int getFixCount() {
-        return fixes.length;
+        return this.fixes.length;
     }
 
-    @Override
-    public final int[] getFixes() {
-        return fixes.clone();
+    public final int[] getFixesRef() {
+        return this.fixes;
     }
 
-    final boolean hasSameFixes(final AbstractColorScheme other) {
+    final boolean hasSameFixes(final AbstractFixesBasedColorScheme other)
+    {
         return Arrays.equals(fixes, other.fixes);
     }
 

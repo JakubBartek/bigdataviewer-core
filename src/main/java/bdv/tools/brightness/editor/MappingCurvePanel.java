@@ -417,7 +417,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
      * The scale the y axis is labelled in.
      */
     private double curveYToColorIndex(final double curveY) {
-        return curveY * (colorScheme.getFixCount() - 1);
+        return curveY * colorScheme.getRange();
     }
 
     @Override
@@ -428,7 +428,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
         // rebuilt per paint so the preview is always in sync
         final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build(colorScheme, model, rangeMin, rangeMax);
-        final int schemeRange = wrapper.getColorScheme().getRange();
+        final double schemeRange = wrapper.getColorScheme().getRange();
         final int[] fixBoundaries = isDiscrete() ? fixBoundaryColumns(wrapper) : null;
 
         drawGrid(g2, fixBoundaries, schemeRange);
@@ -448,7 +448,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
      * shows the discreteness. {@code fixBoundaries} is {@code null} for a
      * continuous scheme.
      */
-    private void drawGrid(final Graphics2D g, final int[] fixBoundaries, final int schemeRange) {
+    private void drawGrid(final Graphics2D g, final int[] fixBoundaries, final double schemeRange) {
         final int left = plotLeft();
         final int right = plotRight();
         final int top = plotTop();
@@ -478,7 +478,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         g.drawRect(left, top, right - left, bottom - top);
     }
 
-    private boolean drawsFixGrid(final int[] fixBoundaries, final int schemeRange) {
+    private boolean drawsFixGrid(final int[] fixBoundaries, final double schemeRange) {
         if (fixBoundaries == null) {
             return false;
         }
@@ -494,7 +494,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
      * the color bar.
      */
     private int[] fixBoundaryColumns(final PresetColorSchemeWrapper wrapper) {
-        final int schemeRange = wrapper.getColorScheme().getRange();
+        final double schemeRange = wrapper.getColorScheme().getRange();
         final int left = plotLeft();
         final int right = plotRight();
         final int[] columns = new int[Math.max(1, right - left + 1)];
@@ -515,8 +515,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     /**
      * As {@link bdv.tools.brightness.colorscheme.DiscreteColorScheme} resolves it.
      */
-    private static int fixIndex(final double schemeValue, final int schemeRange) {
-        return Math.max(0, Math.min(schemeRange - 1, (int) Math.floor(schemeValue)));
+    private static int fixIndex(final double schemeValue, final double schemeRange) {
+        return (int) Math.max(0, Math.min(schemeRange - 1, Math.floor(schemeValue)));
     }
 
     /**
@@ -543,7 +543,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         final IPresetFunc presetFunc = wrapper.getPresetFunc();
         final double domainMin = presetFunc.getMin();
         final double domainMax = presetFunc.getMax();
-        final int schemeRange = wrapper.getColorScheme().getRange();
+        final double schemeRange = wrapper.getColorScheme().getRange();
         final int left = plotLeft();
         final int right = plotRight();
 
@@ -582,7 +582,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         g.draw(outOfDomain);
     }
 
-    private static int schemeValueToOutput(final double schemeValue, final int schemeRange) {
+    private static int schemeValueToOutput(final double schemeValue, final double schemeRange) {
         final double clamped = Math.max(0.0, Math.min(schemeRange, schemeValue));
         return (int) Math.round(clamped / schemeRange * 255.0);
     }
@@ -611,7 +611,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         final int top = plotTop();
         final int bottom = plotBottom();
 
-        final int schemeRange = scheme.getRange();
+        final double schemeRange = scheme.getRange();
 
         for (int py = top; py < bottom; py++) {
             final double t = (bottom - py) / (double) plotHeight();
@@ -635,11 +635,11 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     /**
      * Only for a discrete scheme whose bands are tall enough for text.
      */
-    private boolean labelsEveryBand(final int schemeRange, final FontMetrics fm) {
+    private boolean labelsEveryBand(final double schemeRange, final FontMetrics fm) {
         return isDiscrete() && plotHeight() / (double) schemeRange >= fm.getHeight() + 2;
     }
 
-    private void drawBandLabels(final Graphics2D g, final int barLeft, final int schemeRange) {
+    private void drawBandLabels(final Graphics2D g, final int barLeft, final double schemeRange) {
         final FontMetrics fm = g.getFontMetrics();
         for (int fix = 0; fix < schemeRange; fix++) {
             final String text = Integer.toString(fix);
@@ -654,7 +654,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
      */
     private void drawFractionLabels(final Graphics2D g, final int barLeft) {
         final FontMetrics fm = g.getFontMetrics();
-        final int lastColor = colorScheme.getFixCount() - 1;
+        final double lastColor = isDiscrete() ? colorScheme.getRange() - 1 : colorScheme.getRange();
         final String[] continuousLabels = quarterTickLabels(0, lastColor);
         for (int i = 0; i <= 4; i++) {
             final double frac = i / 4.0;

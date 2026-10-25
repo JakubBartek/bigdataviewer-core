@@ -53,9 +53,9 @@ public class ContinuousColorSchemeTest
 	@Test
 	public void testRangeEqualsFixCountMinusOne()
 	{
-		Assert.assertEquals( 2, threeFixes().getRange() );
-		Assert.assertEquals( 1, new ContinuousColorScheme( new int[] { RED, GREEN } ).getRange() );
-		Assert.assertEquals( 9, new ContinuousColorScheme( new int[ 10 ] ).getRange() );
+		Assert.assertEquals( 2, threeFixes().getRange(), 0.0 );
+		Assert.assertEquals( 1, new ContinuousColorScheme( new int[] { RED, GREEN } ).getRange(), 0.0 );
+		Assert.assertEquals( 9, new ContinuousColorScheme( new int[ 10 ] ).getRange(), 0.0 );
 	}
 
 	@Test
@@ -141,11 +141,10 @@ public class ContinuousColorSchemeTest
 	@Test
 	public void testReproducesEveryFixExactlyAtItsIndex()
 	{
-		final IColorScheme viridis = ColorSchemeFactory.loadFromJson( "viridis" );
-		Assert.assertTrue( viridis instanceof ContinuousColorScheme );
+		final ContinuousColorScheme viridis = ( ContinuousColorScheme ) ColorSchemeFactory.loadFromJson( "viridis" );
 
 		for ( int i = 0; i < viridis.getFixCount(); i++ )
-			Assert.assertEquals( "fix " + i, viridis.getFixes()[ i ], viridis.getRGBA( i ) );
+			Assert.assertEquals( "fix " + i, viridis.getFixesRef()[ i ], viridis.getRGBA( i ) );
 	}
 
 	// -- fixes (shared with DiscreteColorScheme) ------------------------------
@@ -156,7 +155,7 @@ public class ContinuousColorSchemeTest
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { RED, GREEN } );
 
 		Assert.assertEquals( 2, scheme.getFixCount() );
-		Assert.assertArrayEquals( new int[] { RED, GREEN }, scheme.getFixes() );
+		Assert.assertArrayEquals( new int[] { RED, GREEN }, scheme.getFixesRef() );
 	}
 
 	@Test
@@ -166,16 +165,13 @@ public class ContinuousColorSchemeTest
 		final ContinuousColorScheme scheme = new ContinuousColorScheme( source );
 
 		source[ 0 ] = GREEN;
-		Assert.assertEquals( RED, scheme.getFixes()[ 0 ] );
-
-		scheme.getFixes()[ 1 ] = RED;
-		Assert.assertEquals( GREEN, scheme.getFixes()[ 1 ] );
+		Assert.assertEquals( RED, scheme.getFixesRef()[ 0 ] );
 	}
 
 	@Test
 	public void testDefaultIsABlackToWhiteRamp()
 	{
-		Assert.assertArrayEquals( new int[] { 0xff000000, 0xffffffff }, ContinuousColorScheme.DEFAULT.getFixes() );
+		Assert.assertArrayEquals( new int[] { 0xff000000, 0xffffffff }, ContinuousColorScheme.DEFAULT.getFixesRef() );
 	}
 
 	// -- equality ------------------------------------------------------------
@@ -214,9 +210,9 @@ public class ContinuousColorSchemeTest
 		final ContinuousColorScheme scheme = ContinuousColorScheme.of( grayscale );
 
 		Assert.assertEquals( 256, scheme.getFixCount() );
-		Assert.assertEquals( 0xff000000, scheme.getFixes()[ 0 ] );
-		Assert.assertEquals( 0xffffffff, scheme.getFixes()[ 255 ] );
-		Assert.assertEquals( 255, ARGBType.alpha( scheme.getFixes()[ 128 ] ) );
+		Assert.assertEquals( 0xff000000, scheme.getFixesRef()[ 0 ] );
+		Assert.assertEquals( 0xffffffff, scheme.getFixesRef()[ 255 ] );
+		Assert.assertEquals( 255, ARGBType.alpha( scheme.getFixesRef()[ 128 ] ) );
 	}
 
 	@Test
@@ -227,6 +223,6 @@ public class ContinuousColorSchemeTest
 				new byte[] { 0, ( byte ) 255 },
 				new byte[] { 0, 0 } );
 
-		Assert.assertArrayEquals( new int[] { RED, GREEN }, ContinuousColorScheme.of( table ).getFixes() );
+		Assert.assertArrayEquals( new int[] { RED, GREEN }, ContinuousColorScheme.of( table ).getFixesRef() );
 	}
 }
