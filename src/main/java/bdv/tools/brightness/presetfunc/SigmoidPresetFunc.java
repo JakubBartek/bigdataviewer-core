@@ -34,17 +34,20 @@ package bdv.tools.brightness.presetfunc;
 public class SigmoidPresetFunc extends AbstractPresetFunc {
     private static final double K = 10.0;
 
-    public SigmoidPresetFunc(final double min, final double max, final double schemeRange) {
+    public SigmoidPresetFunc(final double min, final double max, final double schemeRange)
+    {
         super(min, max, schemeRange);
     }
 
     @Override
-    double shape(final double t) {
+    double shape(final double t)
+    {
         return normalized(t, x -> 1.0 / (1.0 + Math.exp(-K * (x - 0.5))));
     }
 
     @Override
-    public SigmoidPresetFunc withRange(final double min, final double max) {
-        return new SigmoidPresetFunc(min, max, getSchemeRange());
+    public SigmoidPresetFunc withRange(final double min, final double max)
+    {
+        return new SigmoidPresetFunc(min, max, this.getSchemeRange());
     }
 }

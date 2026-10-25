@@ -81,13 +81,15 @@ public class EditorPreset {
     /**
      * For Gson.
      */
-    EditorPreset() {
+    EditorPreset()
+    {
     }
 
     public EditorPreset(final String name, final String colorSchemeName,
                         final BoundaryCondition leftBoundaryCondition, final BoundaryCondition rightBoundaryCondition,
                         final int leftSpecialColor, final int rightSpecialColor, final double stepSize,
-                        final double[] curveXs, final double[] curveValues) {
+                        final double[] curveXs, final double[] curveValues)
+    {
         this.name = name;
         this.colorSchemeName = colorSchemeName;
         this.leftBoundaryCondition = leftBoundaryCondition.name();
@@ -99,74 +101,85 @@ public class EditorPreset {
         this.curveValues = curveValues;
     }
 
-    public String getName() {
-        return name;
+    public String getName()
+    {
+        return this.name;
     }
 
-    public String getColorSchemeName() {
-        return colorSchemeName;
+    public String getColorSchemeName()
+    {
+        return this.colorSchemeName;
     }
 
     /**
      * Legacy fallback: treat-min-as-background is {@link BoundaryCondition#SPECIAL}, else cyclic is {@link BoundaryCondition#CYCLE}.
      */
-    public BoundaryCondition getLeftBoundaryCondition() {
-        if (leftBoundaryCondition != null) {
-            return parse(leftBoundaryCondition);
+    public BoundaryCondition getLeftBoundaryCondition()
+    {
+        if (this.leftBoundaryCondition != null) {
+            return parse(this.leftBoundaryCondition);
         }
-        if (Boolean.TRUE.equals(treatMinAsBackground)) {
+        if (Boolean.TRUE.equals(this.treatMinAsBackground)) {
             return BoundaryCondition.SPECIAL;
         }
-        return legacyRangeMode();
+        return this.legacyRangeMode();
     }
 
     /**
      * Legacy fallback: cyclic is {@link BoundaryCondition#CYCLE}.
      */
-    public BoundaryCondition getRightBoundaryCondition() {
-        if (rightBoundaryCondition != null) {
-            return parse(rightBoundaryCondition);
+    public BoundaryCondition getRightBoundaryCondition()
+    {
+        if (this.rightBoundaryCondition != null) {
+            return parse(this.rightBoundaryCondition);
         }
-        return legacyRangeMode();
+        return this.legacyRangeMode();
     }
 
     /**
      * Legacy fallback: {@code backgroundColor}.
      */
-    public int getLeftSpecialColor() {
-        if (leftSpecialColor != null) {
-            return leftSpecialColor;
+    public int getLeftSpecialColor()
+    {
+        if (this.leftSpecialColor != null) {
+            return this.leftSpecialColor;
         }
-        if (backgroundColor != null) {
-            return backgroundColor;
+        if (this.backgroundColor != null) {
+            return this.backgroundColor;
         }
         return LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR;
     }
 
-    public int getRightSpecialColor() {
-        return rightSpecialColor != null ? rightSpecialColor : LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR;
+    public int getRightSpecialColor()
+    {
+        return this.rightSpecialColor != null ? this.rightSpecialColor : LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR;
     }
 
-    public double getStepSize() {
-        return stepSize != null ? stepSize : LutEditorMapping.AUTO_STEP_SIZE;
+    public double getStepSize()
+    {
+        return this.stepSize != null ? this.stepSize : LutEditorMapping.AUTO_STEP_SIZE;
     }
 
-    public double[] getCurveXs() {
-        return curveXs;
+    public double[] getCurveXs()
+    {
+        return this.curveXs;
     }
 
-    public double[] getCurveValues() {
-        return curveValues;
+    public double[] getCurveValues()
+    {
+        return this.curveValues;
     }
 
-    private BoundaryCondition legacyRangeMode() {
-        return Boolean.TRUE.equals(cyclic) ? BoundaryCondition.CYCLE : BoundaryCondition.CLAMP;
+    private BoundaryCondition legacyRangeMode()
+    {
+        return Boolean.TRUE.equals(this.cyclic) ? BoundaryCondition.CYCLE : BoundaryCondition.CLAMP;
     }
 
     /**
      * Unknown names fall back to {@link BoundaryCondition#CLAMP}; preset files are user-editable.
      */
-    private static BoundaryCondition parse(final String name) {
+    private static BoundaryCondition parse(final String name)
+    {
         try {
             return BoundaryCondition.valueOf(name);
         } catch (final IllegalArgumentException e) {

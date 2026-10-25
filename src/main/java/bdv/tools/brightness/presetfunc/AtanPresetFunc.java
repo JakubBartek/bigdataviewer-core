@@ -35,17 +35,20 @@ package bdv.tools.brightness.presetfunc;
 public class AtanPresetFunc extends AbstractPresetFunc {
     private static final double K = 6.0;
 
-    public AtanPresetFunc(final double min, final double max, final double schemeRange) {
+    public AtanPresetFunc(final double min, final double max, final double schemeRange)
+    {
         super(min, max, schemeRange);
     }
 
     @Override
-    double shape(final double t) {
+    double shape(final double t)
+    {
         return normalized(t, x -> Math.atan(K * (x - 0.5)));
     }
 
     @Override
-    public AtanPresetFunc withRange(final double min, final double max) {
-        return new AtanPresetFunc(min, max, getSchemeRange());
+    public AtanPresetFunc withRange(final double min, final double max)
+    {
+        return new AtanPresetFunc(min, max, this.getSchemeRange());
     }
 }

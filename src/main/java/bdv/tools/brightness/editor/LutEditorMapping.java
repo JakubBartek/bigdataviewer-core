@@ -79,95 +79,111 @@ public class LutEditorMapping {
 
     private final List<Runnable> changeListeners = new ArrayList<>();
 
-    public LutEditorMapping() {
-        applyPreset(PresetShape.LINEAR);
+    public LutEditorMapping()
+    {
+        this.applyPreset(PresetShape.LINEAR);
     }
 
     /**
      * Only used for a continuous scheme.
      */
-    public Curve getCurve() {
-        return curve;
+    public Curve getCurve()
+    {
+        return this.curve;
     }
 
     // -- boundary conditions -------------------------------------------------
 
-    public BoundaryCondition getLeftBoundaryCondition() {
-        return leftBoundaryCondition;
+    public BoundaryCondition getLeftBoundaryCondition()
+    {
+        return this.leftBoundaryCondition;
     }
 
-    public void setLeftBoundaryCondition(final BoundaryCondition leftBoundaryCondition) {
+    public void setLeftBoundaryCondition(final BoundaryCondition leftBoundaryCondition)
+    {
         this.leftBoundaryCondition = Objects.requireNonNull(leftBoundaryCondition, "leftBoundaryCondition");
-        fireChangeListeners();
+        this.fireChangeListeners();
     }
 
-    public BoundaryCondition getRightBoundaryCondition() {
-        return rightBoundaryCondition;
+    public BoundaryCondition getRightBoundaryCondition()
+    {
+        return this.rightBoundaryCondition;
     }
 
-    public void setRightBoundaryCondition(final BoundaryCondition rightBoundaryCondition) {
+    public void setRightBoundaryCondition(final BoundaryCondition rightBoundaryCondition)
+    {
         this.rightBoundaryCondition = Objects.requireNonNull(rightBoundaryCondition, "rightBoundaryCondition");
-        fireChangeListeners();
+        this.fireChangeListeners();
     }
 
-    public int getLeftSpecialColor() {
-        return leftSpecialColor;
+    public int getLeftSpecialColor()
+    {
+        return this.leftSpecialColor;
     }
 
-    public void setLeftSpecialColor(final int leftSpecialColor) {
+    public void setLeftSpecialColor(final int leftSpecialColor)
+    {
         this.leftSpecialColor = leftSpecialColor;
-        fireChangeListeners();
+        this.fireChangeListeners();
     }
 
-    public int getRightSpecialColor() {
-        return rightSpecialColor;
+    public int getRightSpecialColor()
+    {
+        return this.rightSpecialColor;
     }
 
-    public void setRightSpecialColor(final int rightSpecialColor) {
+    public void setRightSpecialColor(final int rightSpecialColor)
+    {
         this.rightSpecialColor = rightSpecialColor;
-        fireChangeListeners();
+        this.fireChangeListeners();
     }
 
     // -- step size -----------------------------------------------------------
 
-    public double getStepSize() {
-        return stepSize;
+    public double getStepSize()
+    {
+        return this.stepSize;
     }
 
     /**
      * @param stepSize raw values per color fix; non-positive means {@link #AUTO_STEP_SIZE}.
      */
-    public void setStepSize(final double stepSize) {
+    public void setStepSize(final double stepSize)
+    {
         this.stepSize = stepSize > 0.0 ? stepSize : AUTO_STEP_SIZE;
-        fireChangeListeners();
+        this.fireChangeListeners();
     }
 
     // -- curve ---------------------------------------------------------------
 
-    public PresetShape getPreset() {
-        return preset;
+    public PresetShape getPreset()
+    {
+        return this.preset;
     }
 
     /**
      * Replaces the curve's control points with the preset's shape.
      */
-    public void applyPreset(final PresetShape preset) {
+    public void applyPreset(final PresetShape preset)
+    {
         this.preset = preset;
-        curve.setPoints(preset.xs(), preset.ys());
-        fireChangeListeners();
+        this.curve.setPoints(preset.xs(), preset.ys());
+        this.fireChangeListeners();
     }
 
     /**
      * Flips the current curve vertically, including hand-dragged edits.
      */
-    public void invertCurve() {
-        curve.invert();
-        fireChangeListeners();
+    public void invertCurve()
+    {
+        this.curve.invert();
+        this.fireChangeListeners();
     }
 
     // -- bulk state ----------------------------------------------------------
 
-    public void copyFrom(final LutEditorMapping other) {
+    public void copyFrom(final LutEditorMapping other)
+    {
         this.leftBoundaryCondition = other.leftBoundaryCondition;
         this.rightBoundaryCondition = other.rightBoundaryCondition;
         this.leftSpecialColor = other.leftSpecialColor;
@@ -175,36 +191,40 @@ public class LutEditorMapping {
         this.stepSize = other.stepSize;
         this.preset = other.preset;
         this.curve.setPoints(other.curve.xsArray(), other.curve.ysArray());
-        fireChangeListeners();
+        this.fireChangeListeners();
     }
 
     /**
      * Whether the editor still matches a saved configuration; not a general {@code equals}.
      */
-    public boolean hasSameState(final LutEditorMapping other) {
-        return leftBoundaryCondition == other.leftBoundaryCondition
-                && rightBoundaryCondition == other.rightBoundaryCondition
-                && leftSpecialColor == other.leftSpecialColor
-                && rightSpecialColor == other.rightSpecialColor
-                && Double.compare(stepSize, other.stepSize) == 0
-                && preset == other.preset
-                && Arrays.equals(curve.xsArray(), other.curve.xsArray())
-                && Arrays.equals(curve.ysArray(), other.curve.ysArray());
+    public boolean hasSameState(final LutEditorMapping other)
+    {
+        return this.leftBoundaryCondition == other.leftBoundaryCondition
+                && this.rightBoundaryCondition == other.rightBoundaryCondition
+                && this.leftSpecialColor == other.leftSpecialColor
+                && this.rightSpecialColor == other.rightSpecialColor
+                && Double.compare(this.stepSize, other.stepSize) == 0
+                && this.preset == other.preset
+                && Arrays.equals(this.curve.xsArray(), other.curve.xsArray())
+                && Arrays.equals(this.curve.ysArray(), other.curve.ysArray());
     }
 
     /**
      * Call after editing the curve's points directly.
      */
-    public void notifyCurveEdited() {
-        fireChangeListeners();
+    public void notifyCurveEdited()
+    {
+        this.fireChangeListeners();
     }
 
-    public void addChangeListener(final Runnable listener) {
-        changeListeners.add(listener);
+    public void addChangeListener(final Runnable listener)
+    {
+        this.changeListeners.add(listener);
     }
 
-    private void fireChangeListeners() {
-        for (final Runnable listener : changeListeners) {
+    private void fireChangeListeners()
+    {
+        for (final Runnable listener : this.changeListeners) {
             listener.run();
         }
     }

@@ -50,10 +50,12 @@ import bdv.tools.brightness.presetfunc.StepPresetFunc;
  * Boundary conditions and their colors pass through unchanged.
  */
 public final class ColorSchemeWrapperFactory {
-    private ColorSchemeWrapperFactory() {
+    private ColorSchemeWrapperFactory()
+    {
     }
 
-    public static PresetColorSchemeWrapper build(final IColorScheme scheme, final LutEditorMapping mapping, final double min, final double max) {
+    public static PresetColorSchemeWrapper build(final IColorScheme scheme, final LutEditorMapping mapping, final double min, final double max)
+    {
         final double lo = min;
         final double hi = max > min ? max : min + 1; // both preset functions require max > min
         final IPresetFunc presetFunc = scheme instanceof DiscreteColorScheme
@@ -70,14 +72,16 @@ public final class ColorSchemeWrapperFactory {
     /**
      * {@code hi} is only used to resolve {@link LutEditorMapping#AUTO_STEP_SIZE}.
      */
-    private static IPresetFunc stepFunc(final LutEditorMapping mapping, final IColorScheme scheme, final double lo, final double hi) {
+    private static IPresetFunc stepFunc(final LutEditorMapping mapping, final IColorScheme scheme, final double lo, final double hi)
+    {
         final double schemeRange = scheme.getRange();
         final double chosen = mapping.getStepSize();
         final double stepSize = chosen > 0.0 ? chosen : StepPresetFunc.defaultStepSize(lo, hi, schemeRange);
         return new StepPresetFunc(lo, schemeRange, stepSize);
     }
 
-    private static IPresetFunc curveFunc(final LutEditorMapping mapping, final IColorScheme scheme, final double lo, final double hi) {
+    private static IPresetFunc curveFunc(final LutEditorMapping mapping, final IColorScheme scheme, final double lo, final double hi)
+    {
         final double[] xs = mapping.getCurve().xsArray();
         final double[] ys = mapping.getCurve().ysArray();
         final PresetShape shape = PresetShape.matching(xs, ys);

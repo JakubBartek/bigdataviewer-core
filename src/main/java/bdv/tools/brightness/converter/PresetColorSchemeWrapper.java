@@ -77,7 +77,8 @@ public class PresetColorSchemeWrapper {
      *                                  {@code colorScheme} and {@code presetFunc} differ.
      */
     public PresetColorSchemeWrapper(final IColorScheme colorScheme, final IPresetFunc presetFunc,
-                                    final BoundaryCondition leftBoundaryCondition, final BoundaryCondition rightBoundaryCondition) {
+                                    final BoundaryCondition leftBoundaryCondition, final BoundaryCondition rightBoundaryCondition)
+    {
         this.colorScheme = Objects.requireNonNull(colorScheme, "colorScheme");
         this.presetFunc = Objects.requireNonNull(presetFunc, "presetFunc");
         this.leftBoundaryCondition = Objects.requireNonNull(leftBoundaryCondition, "leftBoundaryCondition");
@@ -88,16 +89,19 @@ public class PresetColorSchemeWrapper {
     /**
      * Same as the full constructor, with both boundary conditions set to {@link BoundaryCondition#CLAMP}.
      */
-    public PresetColorSchemeWrapper(final IColorScheme colorScheme, final IPresetFunc presetFunc) {
+    public PresetColorSchemeWrapper(final IColorScheme colorScheme, final IPresetFunc presetFunc)
+    {
         this(colorScheme, presetFunc, BoundaryCondition.CLAMP, BoundaryCondition.CLAMP);
     }
 
-    public IColorScheme getColorScheme() {
-        return colorScheme;
+    public IColorScheme getColorScheme()
+    {
+        return this.colorScheme;
     }
 
-    public IPresetFunc getPresetFunc() {
-        return presetFunc;
+    public IPresetFunc getPresetFunc()
+    {
+        return this.presetFunc;
     }
 
     /**
@@ -106,50 +110,59 @@ public class PresetColorSchemeWrapper {
      *
      * @throws IllegalArgumentException if {@code max} is not strictly greater than {@code min}.
      */
-    public void setRawDomain(final double min, final double max) {
+    public void setRawDomain(final double min, final double max)
+    {
         if (!(max > min)) {
             throw new IllegalArgumentException("max must be strictly greater than min, got min=" + min + ", max=" + max);
         }
-        this.presetFunc = presetFunc.withRange(min, max);
+        this.presetFunc = this.presetFunc.withRange(min, max);
     }
 
     // -- boundary conditions -------------------------------------------------
 
-    public BoundaryCondition getLeftBoundaryCondition() {
-        return leftBoundaryCondition;
+    public BoundaryCondition getLeftBoundaryCondition()
+    {
+        return this.leftBoundaryCondition;
     }
 
-    public void setLeftBoundaryCondition(final BoundaryCondition leftBoundaryCondition) {
+    public void setLeftBoundaryCondition(final BoundaryCondition leftBoundaryCondition)
+    {
         this.leftBoundaryCondition = Objects.requireNonNull(leftBoundaryCondition, "leftBoundaryCondition");
     }
 
-    public BoundaryCondition getRightBoundaryCondition() {
-        return rightBoundaryCondition;
+    public BoundaryCondition getRightBoundaryCondition()
+    {
+        return this.rightBoundaryCondition;
     }
 
-    public void setRightBoundaryCondition(final BoundaryCondition rightBoundaryCondition) {
+    public void setRightBoundaryCondition(final BoundaryCondition rightBoundaryCondition)
+    {
         this.rightBoundaryCondition = Objects.requireNonNull(rightBoundaryCondition, "rightBoundaryCondition");
     }
 
     /**
      * Packed-ARGB color for values left of the domain when the left condition is {@link BoundaryCondition#SPECIAL}.
      */
-    public int getLeftSpecialColor() {
-        return leftSpecialColor;
+    public int getLeftSpecialColor()
+    {
+        return this.leftSpecialColor;
     }
 
-    public void setLeftSpecialColor(final int leftSpecialColor) {
+    public void setLeftSpecialColor(final int leftSpecialColor)
+    {
         this.leftSpecialColor = leftSpecialColor;
     }
 
     /**
      * As {@link #getLeftSpecialColor()}, for a raw value that hits the right boundary.
      */
-    public int getRightSpecialColor() {
-        return rightSpecialColor;
+    public int getRightSpecialColor()
+    {
+        return this.rightSpecialColor;
     }
 
-    public void setRightSpecialColor(final int rightSpecialColor) {
+    public void setRightSpecialColor(final int rightSpecialColor)
+    {
         this.rightSpecialColor = rightSpecialColor;
     }
 
@@ -160,46 +173,50 @@ public class PresetColorSchemeWrapper {
      * like {@link BoundaryCondition#CLAMP}; the special color only shows up in
      * {@link #getRGBForRaw(double)}/{@link #getRGBAForRaw(double)}.
      */
-    public double getSchemeValueForRaw(final double rawValue) {
-        final BoundaryCondition hit = boundaryHit(rawValue);
+    public double getSchemeValueForRaw(final double rawValue)
+    {
+        final BoundaryCondition hit = this.boundaryHit(rawValue);
         if (hit == BoundaryCondition.CYCLE) {
-            return presetFunc.getSchemeValueForRaw(cycled(rawValue));
+            return this.presetFunc.getSchemeValueForRaw(this.cycled(rawValue));
         }
         // the preset function clamps on its own
-        return presetFunc.getSchemeValueForRaw(rawValue);
+        return this.presetFunc.getSchemeValueForRaw(rawValue);
     }
 
     /**
      * Fully opaque, a SPECIAL boundary color included; see {@link IColorScheme#getRGB(double)}.
      */
-    public int getRGBForRaw(final double rawValue) {
-        final Integer special = specialColorForRaw(rawValue);
+    public int getRGBForRaw(final double rawValue)
+    {
+        final Integer special = this.specialColorForRaw(rawValue);
         if (special != null) {
             return ColorSchemeHelpers.opaque(special);
         }
-        return colorScheme.getRGB(getSchemeValueForRaw(rawValue));
+        return this.colorScheme.getRGB(this.getSchemeValueForRaw(rawValue));
     }
 
     /**
      * Keeps the alpha of the color fix or SPECIAL boundary color; see {@link IColorScheme#getRGBA(double)}.
      */
-    public int getRGBAForRaw(final double rawValue) {
-        final Integer special = specialColorForRaw(rawValue);
+    public int getRGBAForRaw(final double rawValue)
+    {
+        final Integer special = this.specialColorForRaw(rawValue);
         if (special != null) {
             return special;
         }
-        return colorScheme.getRGBA(getSchemeValueForRaw(rawValue));
+        return this.colorScheme.getRGBA(this.getSchemeValueForRaw(rawValue));
     }
 
     /**
      * Which boundary {@code rawValue} hits and with what condition, or {@code null} if it is inside the domain.
      */
-    private BoundaryCondition boundaryHit(final double rawValue) {
-        if (rawValue < presetFunc.getMin()) {
-            return leftBoundaryCondition;
+    private BoundaryCondition boundaryHit(final double rawValue)
+    {
+        if (rawValue < this.presetFunc.getMin()) {
+            return this.leftBoundaryCondition;
         }
-        if (isAboveDomain(rawValue)) {
-            return rightBoundaryCondition;
+        if (this.isAboveDomain(rawValue)) {
+            return this.rightBoundaryCondition;
         }
         return null;
     }
@@ -210,21 +227,23 @@ public class PresetColorSchemeWrapper {
      * (like 360 and 0 degrees). Otherwise it is closed and {@code max} resolves
      * to the last fix.
      */
-    private boolean isAboveDomain(final double rawValue) {
-        return rightBoundaryCondition == BoundaryCondition.CYCLE
-                ? rawValue >= presetFunc.getMax()
-                : rawValue > presetFunc.getMax();
+    private boolean isAboveDomain(final double rawValue)
+    {
+        return this.rightBoundaryCondition == BoundaryCondition.CYCLE
+                ? rawValue >= this.presetFunc.getMax()
+                : rawValue > this.presetFunc.getMax();
     }
 
     /**
      * The SPECIAL color for {@code rawValue} if it hit a SPECIAL boundary, else {@code null} (so the scheme-value path is used instead).
      */
-    private Integer specialColorForRaw(final double rawValue) {
-        if (rawValue < presetFunc.getMin() && leftBoundaryCondition == BoundaryCondition.SPECIAL) {
-            return leftSpecialColor;
+    private Integer specialColorForRaw(final double rawValue)
+    {
+        if (rawValue < this.presetFunc.getMin() && this.leftBoundaryCondition == BoundaryCondition.SPECIAL) {
+            return this.leftSpecialColor;
         }
-        if (isAboveDomain(rawValue) && rightBoundaryCondition == BoundaryCondition.SPECIAL) {
-            return rightSpecialColor;
+        if (this.isAboveDomain(rawValue) && this.rightBoundaryCondition == BoundaryCondition.SPECIAL) {
+            return this.rightSpecialColor;
         }
         return null;
     }
@@ -232,9 +251,10 @@ public class PresetColorSchemeWrapper {
     /**
      * {@code rawValue} wrapped into {@code [presetFunc.getMin(), presetFunc.getMax())}.
      */
-    private double cycled(final double rawValue) {
-        final double domainMin = presetFunc.getMin();
-        final double period = presetFunc.getMax() - domainMin;
+    private double cycled(final double rawValue)
+    {
+        final double domainMin = this.presetFunc.getMin();
+        final double period = this.presetFunc.getMax() - domainMin;
         double offset = (rawValue - domainMin) % period;
         if (offset < 0) {
             offset += period;
@@ -250,7 +270,8 @@ public class PresetColorSchemeWrapper {
         return domainMin + offset;
     }
 
-    private static void requireMatchingSchemeRange(final IColorScheme colorScheme, final IPresetFunc presetFunc) {
+    private static void requireMatchingSchemeRange(final IColorScheme colorScheme, final IPresetFunc presetFunc)
+    {
         if (colorScheme.getRange() != presetFunc.getSchemeRange()) {
             throw new IllegalArgumentException("colorScheme.getRange() (" + colorScheme.getRange() +
                     ") must match presetFunc.getSchemeRange() (" + presetFunc.getSchemeRange() + ")");

@@ -48,9 +48,10 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc {
     /**
      * Starts linear: knots {@code (0, 0)} and {@code (1, 1)}.
      */
-    public CustomInterpPresetFunc(final double min, final double max, final double schemeRange) {
+    public CustomInterpPresetFunc(final double min, final double max, final double schemeRange)
+    {
         super(min, max, schemeRange);
-        setKnots(new double[]{0.0, 1.0}, new double[]{0.0, 1.0});
+        this.setKnots(new double[]{0.0, 1.0}, new double[]{0.0, 1.0});
     }
 
     /**
@@ -58,7 +59,8 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc {
      * @param values scheme-value fractions in {@code [0, 1]}; need not be ascending.
      * @throws IllegalArgumentException as {@link #requireValidKnots}.
      */
-    public void setKnots(final double[] ts, final double[] values) {
+    public void setKnots(final double[] ts, final double[] values)
+    {
         requireValidKnots(ts, values);
 
         this.knotTs = ts.clone();
@@ -70,7 +72,8 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc {
      *                                  {@code ts} is not strictly ascending, or any entry is
      *                                  outside {@code [0, 1]}.
      */
-    public static void requireValidKnots(final double[] ts, final double[] values) {
+    public static void requireValidKnots(final double[] ts, final double[] values)
+    {
         Objects.requireNonNull(ts, "ts");
         Objects.requireNonNull(values, "values");
         if (ts.length != values.length) {
@@ -95,45 +98,50 @@ public class CustomInterpPresetFunc extends AbstractPresetFunc {
         }
     }
 
-    public double[] getKnotTs() {
-        return knotTs.clone();
+    public double[] getKnotTs()
+    {
+        return this.knotTs.clone();
     }
 
-    public double[] getKnotValues() {
-        return knotValues.clone();
+    public double[] getKnotValues()
+    {
+        return this.knotValues.clone();
     }
 
     /**
      * Knots carry over unchanged; they are domain fractions.
      */
     @Override
-    public CustomInterpPresetFunc withRange(final double min, final double max) {
-        final CustomInterpPresetFunc copy = new CustomInterpPresetFunc(min, max, getSchemeRange());
-        copy.setKnots(knotTs, knotValues);
+    public CustomInterpPresetFunc withRange(final double min, final double max)
+    {
+        final CustomInterpPresetFunc copy = new CustomInterpPresetFunc(min, max, this.getSchemeRange());
+        copy.setKnots(this.knotTs, this.knotValues);
         return copy;
     }
 
     @Override
-    double shape(final double t) {
-        return interpolate(t);
+    double shape(final double t)
+    {
+        return this.interpolate(t);
     }
 
-    private double interpolate(final double t) {
-        final int lastIndex = knotTs.length - 1;
-        if (t <= knotTs[0]) {
-            return knotValues[0];
+    private double interpolate(final double t)
+    {
+        final int lastIndex = this.knotTs.length - 1;
+        if (t <= this.knotTs[0]) {
+            return this.knotValues[0];
         }
-        if (t >= knotTs[lastIndex]) {
-            return knotValues[lastIndex];
+        if (t >= this.knotTs[lastIndex]) {
+            return this.knotValues[lastIndex];
         }
 
         int lo = 0;
-        while (lo + 1 < knotTs.length && knotTs[lo + 1] <= t) {
+        while (lo + 1 < this.knotTs.length && this.knotTs[lo + 1] <= t) {
             lo++;
         }
         final int hi = lo + 1;
 
-        final double frac = (t - knotTs[lo]) / (knotTs[hi] - knotTs[lo]);
-        return knotValues[lo] + frac * (knotValues[hi] - knotValues[lo]);
+        final double frac = (t - this.knotTs[lo]) / (this.knotTs[hi] - this.knotTs[lo]);
+        return this.knotValues[lo] + frac * (this.knotValues[hi] - this.knotValues[lo]);
     }
 }

@@ -65,25 +65,29 @@ public enum PresetShape {
 
     private final IPresetFuncFactory factory;
 
-    PresetShape(final String label, final IPresetFuncFactory factory) {
+    PresetShape(final String label, final IPresetFuncFactory factory)
+    {
         this.label = label;
         this.factory = factory;
     }
 
     @Override
-    public String toString() {
-        return label;
+    public String toString()
+    {
+        return this.label;
     }
 
-    public IPresetFunc create(final double min, final double max, final double schemeRange) {
-        return factory.create(min, max, schemeRange);
+    public IPresetFunc create(final double min, final double max, final double schemeRange)
+    {
+        return this.factory.create(min, max, schemeRange);
     }
 
     /**
      * The shape whose control points these are, or {@code null} once they have
      * been edited.
      */
-    public static PresetShape matching(final double[] xs, final double[] ys) {
+    public static PresetShape matching(final double[] xs, final double[] ys)
+    {
         for (final PresetShape shape : values()) {
             if (closeTo(shape.xs(), xs) && closeTo(shape.ys(), ys)) {
                 return shape;
@@ -92,7 +96,8 @@ public enum PresetShape {
         return null;
     }
 
-    private static boolean closeTo(final double[] expected, final double[] actual) {
+    private static boolean closeTo(final double[] expected, final double[] actual)
+    {
         if (expected.length != actual.length) {
             return false;
         }
@@ -107,7 +112,8 @@ public enum PresetShape {
     /**
      * Control point x positions in [0, 1].
      */
-    public double[] xs() {
+    public double[] xs()
+    {
         if (this == LINEAR) {
             return new double[]{0.0, 1.0};
         }
@@ -121,13 +127,14 @@ public enum PresetShape {
     /**
      * Control point values in [0, 1], matching {@link #xs()}.
      */
-    public double[] ys() {
+    public double[] ys()
+    {
         if (this == LINEAR) {
             return new double[]{0.0, 1.0};
         }
         // over [0, 1] with a scheme range of 1, raw and scheme values are the fractions themselves
-        final IPresetFunc shape = create(0.0, 1.0, 1);
-        final double[] xs = xs();
+        final IPresetFunc shape = this.create(0.0, 1.0, 1);
+        final double[] xs = this.xs();
         final double[] ys = new double[xs.length];
         for (int i = 0; i < xs.length; i++) {
             ys[i] = Math.max(0.0, Math.min(1.0, shape.getSchemeValueForRaw(xs[i])));

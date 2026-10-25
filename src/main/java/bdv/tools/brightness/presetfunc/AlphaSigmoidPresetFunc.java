@@ -35,12 +35,14 @@ package bdv.tools.brightness.presetfunc;
 public class AlphaSigmoidPresetFunc extends AbstractPresetFunc {
     private static final double ALPHA = 0.5;
 
-    public AlphaSigmoidPresetFunc(final double min, final double max, final double schemeRange) {
+    public AlphaSigmoidPresetFunc(final double min, final double max, final double schemeRange)
+    {
         super(min, max, schemeRange);
     }
 
     @Override
-    double shape(final double t) {
+    double shape(final double t)
+    {
         final double tp = Math.pow(t, ALPHA);
         final double tq = Math.pow(1.0 - t, ALPHA);
         if (tp + tq == 0) {
@@ -50,7 +52,8 @@ public class AlphaSigmoidPresetFunc extends AbstractPresetFunc {
     }
 
     @Override
-    public AlphaSigmoidPresetFunc withRange(final double min, final double max) {
-        return new AlphaSigmoidPresetFunc(min, max, getSchemeRange());
+    public AlphaSigmoidPresetFunc withRange(final double min, final double max)
+    {
+        return new AlphaSigmoidPresetFunc(min, max, this.getSchemeRange());
     }
 }

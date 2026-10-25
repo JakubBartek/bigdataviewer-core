@@ -45,7 +45,8 @@ abstract class AbstractFixesBasedColorScheme implements IColorScheme {
     /**
      * @param argbFixes copied, so a scheme is immutable and can be shared.
      */
-    AbstractFixesBasedColorScheme(final int[] argbFixes) {
+    AbstractFixesBasedColorScheme(final int[] argbFixes)
+    {
         if (argbFixes.length < 2) {
             throw new IllegalArgumentException("a color scheme needs at least 2 color fixes, got " + argbFixes.length);
         }
@@ -53,31 +54,36 @@ abstract class AbstractFixesBasedColorScheme implements IColorScheme {
     }
 
     @Override
-    public final int getRGBA(final double schemeValue) {
+    public final int getRGBA(final double schemeValue)
+    {
         return this.colorAt(schemeValue);
     }
 
     @Override
-    public final int getRGB(final double schemeValue) {
+    public final int getRGB(final double schemeValue)
+    {
         return ColorSchemeHelpers.opaque(this.colorAt(schemeValue));
     }
 
-    public final int getFixCount() {
+    public final int getFixCount()
+    {
         return this.fixes.length;
     }
 
-    public final int[] getFixesRef() {
+    public final int[] getFixesRef()
+    {
         return this.fixes;
     }
 
     final boolean hasSameFixes(final AbstractFixesBasedColorScheme other)
     {
-        return Arrays.equals(fixes, other.fixes);
+        return Arrays.equals(this.fixes, other.fixes);
     }
 
     @Override
-    public String toString() {
-        return getClass().getSimpleName() + "[" + fixes.length + " fixes]";
+    public String toString()
+    {
+        return this.getClass().getSimpleName() + "[" + this.fixes.length + " fixes]";
     }
 
     /**

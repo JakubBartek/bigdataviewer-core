@@ -46,7 +46,8 @@ abstract class AbstractPresetFunc implements IPresetFunc {
 
     private final double schemeRange;
 
-    AbstractPresetFunc(final double min, final double max, final double schemeRange) {
+    AbstractPresetFunc(final double min, final double max, final double schemeRange)
+    {
         if (!(max > min)) {
             throw new IllegalArgumentException("max must be strictly greater than min, got min=" + min + ", max=" + max);
         }
@@ -60,24 +61,28 @@ abstract class AbstractPresetFunc implements IPresetFunc {
     }
 
     @Override
-    public final double getMin() {
-        return min;
+    public final double getMin()
+    {
+        return this.min;
     }
 
     @Override
-    public final double getMax() {
-        return max;
+    public final double getMax()
+    {
+        return this.max;
     }
 
     @Override
-    public final double getSchemeRange() {
-        return schemeRange;
+    public final double getSchemeRange()
+    {
+        return this.schemeRange;
     }
 
     @Override
-    public final double getSchemeValueForRaw(final double rawValue) {
-        final double clampedRaw = Math.max(min, Math.min(max, rawValue));
-        return schemeValueForClampedRaw(clampedRaw);
+    public final double getSchemeValueForRaw(final double rawValue)
+    {
+        final double clampedRaw = Math.max(this.min, Math.min(this.max, rawValue));
+        return this.schemeValueForClampedRaw(clampedRaw);
     }
 
     /**
@@ -85,8 +90,9 @@ abstract class AbstractPresetFunc implements IPresetFunc {
      * back up. Overridden by {@link StepPresetFunc}, for which that round trip
      * lands fix boundaries a hair off their integers.
      */
-    double schemeValueForClampedRaw(final double clampedRaw) {
-        return shape((clampedRaw - min) / (max - min)) * schemeRange;
+    double schemeValueForClampedRaw(final double clampedRaw)
+    {
+        return this.shape((clampedRaw - this.min) / (this.max - this.min)) * this.schemeRange;
     }
 
     /**
@@ -103,7 +109,8 @@ abstract class AbstractPresetFunc implements IPresetFunc {
      * a cancelling subtraction inherits the numerator's absolute error, which can
      * be far more than {@code x}'s own ULPs.
      */
-    static double snappedToWhole(final double x, final double tolerance) {
+    static double snappedToWhole(final double x, final double tolerance)
+    {
         final double whole = Math.rint(x);
         return Math.abs(x - whole) <= tolerance ? whole : x;
     }
@@ -111,7 +118,8 @@ abstract class AbstractPresetFunc implements IPresetFunc {
     /**
      * Rescales {@code f} so that {@code f(0) -> 0} and {@code f(1) -> 1}.
      */
-    static double normalized(final double t, final DoubleUnaryOperator f) {
+    static double normalized(final double t, final DoubleUnaryOperator f)
+    {
         final double v = f.applyAsDouble(t);
         final double v0 = f.applyAsDouble(0.0);
         final double v1 = f.applyAsDouble(1.0);

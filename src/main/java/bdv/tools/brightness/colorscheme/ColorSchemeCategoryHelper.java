@@ -60,10 +60,12 @@ public final class ColorSchemeCategoryHelper {
 
     private static final Map<String, String> CATEGORY_BY_NAME = buildCategoryByName();
 
-    private ColorSchemeCategoryHelper() {
+    private ColorSchemeCategoryHelper()
+    {
     }
 
-    public static String categoryOf(final String schemeName) {
+    public static String categoryOf(final String schemeName)
+    {
         final String base = schemeName.endsWith("_r") ? schemeName.substring(0, schemeName.length() - 2) : schemeName;
         return CATEGORY_BY_NAME.getOrDefault(base, MISCELLANEOUS);
     }
@@ -71,7 +73,8 @@ public final class ColorSchemeCategoryHelper {
     /**
      * In matplotlib's category order, names sorted case-insensitively, empty categories omitted.
      */
-    public static Map<String, List<String>> groupByCategory(final Collection<String> names) {
+    public static Map<String, List<String>> groupByCategory(final Collection<String> names)
+    {
         final Map<String, List<String>> grouped = new LinkedHashMap<>();
         for (final String category : CATEGORY_ORDER) {
             grouped.put(category, new ArrayList<>());
@@ -84,7 +87,8 @@ public final class ColorSchemeCategoryHelper {
         return grouped;
     }
 
-    private static Map<String, String> buildCategoryByName() {
+    private static Map<String, String> buildCategoryByName()
+    {
         final Map<String, String> m = new HashMap<>();
         put(m, PERCEPTUALLY_UNIFORM_SEQUENTIAL,
                 "viridis", "plasma", "inferno", "magma", "cividis");
@@ -111,7 +115,8 @@ public final class ColorSchemeCategoryHelper {
         return m;
     }
 
-    private static void put(final Map<String, String> m, final String category, final String... names) {
+    private static void put(final Map<String, String> m, final String category, final String... names)
+    {
         for (final String name : names) {
             m.put(name, category);
         }

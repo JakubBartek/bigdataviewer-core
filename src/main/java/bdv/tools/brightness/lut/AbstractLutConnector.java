@@ -10,23 +10,25 @@ import net.imglib2.type.numeric.RealType;
  *
  * @param <T> Imglib2 pixel type for real numbers (note: that includes integers too)
  */
-public abstract class AbstractLutConnector <T extends RealType<T>> {
-	public AbstractLutConnector(final T type) {
-		this.type = type;
-	}
+public abstract class AbstractLutConnector<T extends RealType<T>> {
+    public AbstractLutConnector(final T type)
+    {
+        this.type = type;
+    }
 
-	private final T type;
+    private final T type;
 
-	//package protected
-	T getType() {
-		return type;
-	}
+    //package protected
+    T getType()
+    {
+        return this.type;
+    }
 
-	/**
-	 * Provides access to a converter that delivers the appropriate color
-	 * from the underlying LUT, based on the settings of that LUT.
-	 *
-	 * @return converter that samples from LUT
-	 */
-	abstract Converter<T, ARGBType> getConverter();
+    /**
+     * Provides access to a converter that delivers the appropriate color
+     * from the underlying LUT, based on the settings of that LUT.
+     *
+     * @return converter that samples from LUT
+     */
+    abstract Converter<T, ARGBType> getConverter();
 }

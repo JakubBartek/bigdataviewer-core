@@ -47,7 +47,8 @@ public class ContinuousColorScheme extends AbstractFixesBasedColorScheme {
     public static final ContinuousColorScheme DEFAULT = new ContinuousColorScheme(
             new int[]{ARGBType.rgba(0, 0, 0, 255), ARGBType.rgba(255, 255, 255, 255)});
 
-    public ContinuousColorScheme(final int[] argbFixes) {
+    public ContinuousColorScheme(final int[] argbFixes)
+    {
         super(argbFixes);
     }
 
@@ -56,7 +57,8 @@ public class ContinuousColorScheme extends AbstractFixesBasedColorScheme {
      * its {@code lookupARGB(min, max, value)} maps raw values, which could only
      * be answered here by assuming a linear transfer function.
      */
-    public static ContinuousColorScheme of(final ColorTable colorTable) {
+    public static ContinuousColorScheme of(final ColorTable colorTable)
+    {
         final int n = colorTable.getLength();
         // RGB-only tables (e.g. grayscale ColorTable8) are opaque
         final boolean hasAlpha = colorTable.getComponentCount() > ColorTable.ALPHA;
@@ -72,26 +74,30 @@ public class ContinuousColorScheme extends AbstractFixesBasedColorScheme {
     }
 
     @Override
-    public double getRange() {
-        return fixes.length - 1;
+    public double getRange()
+    {
+        return this.fixes.length - 1;
     }
 
     @Override
-    int colorAt(final double schemeValue) {
-        final int lastIndex = fixes.length - 1;
+    int colorAt(final double schemeValue)
+    {
+        final int lastIndex = this.fixes.length - 1;
         final double clamped = Math.max(0.0, Math.min(lastIndex, schemeValue));
         final int index = Math.min(lastIndex - 1, (int) Math.floor(clamped));
         final double frac = clamped - index;
-        return ColorSchemeHelpers.interpolateRGBA(fixes[index], fixes[index + 1], frac);
+        return ColorSchemeHelpers.interpolateRGBA(this.fixes[index], this.fixes[index + 1], frac);
     }
 
     @Override
-    public final boolean equals(final Object obj) {
-        return obj instanceof ContinuousColorScheme && hasSameFixes((ContinuousColorScheme) obj);
+    public final boolean equals(final Object obj)
+    {
+        return obj instanceof ContinuousColorScheme && this.hasSameFixes((ContinuousColorScheme) obj);
     }
 
     @Override
-    public final int hashCode() {
-        return Arrays.hashCode(fixes);
+    public final int hashCode()
+    {
+        return Arrays.hashCode(this.fixes);
     }
 }

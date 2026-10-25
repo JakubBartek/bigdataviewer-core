@@ -50,7 +50,8 @@ public final class LegacyBdvColorScheme extends ContinuousColorScheme {
     /**
      * @param argb the converter's color; its alpha is kept on both fixes.
      */
-    public LegacyBdvColorScheme(final int argb) {
+    public LegacyBdvColorScheme(final int argb)
+    {
         super(new int[]{ARGBType.rgba(0, 0, 0, ARGBType.alpha(argb)), argb});
         this.color = argb;
     }
@@ -58,12 +59,14 @@ public final class LegacyBdvColorScheme extends ContinuousColorScheme {
     /**
      * The color this scheme ramps up to from black, packed ARGB.
      */
-    public int getColor() {
-        return color;
+    public int getColor()
+    {
+        return this.color;
     }
 
     @Override
-    public String toString() {
-        return String.format("LegacyBdvColorScheme[%08x]", color);
+    public String toString()
+    {
+        return String.format("LegacyBdvColorScheme[%08x]", this.color);
     }
 }

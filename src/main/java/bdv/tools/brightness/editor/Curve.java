@@ -44,14 +44,15 @@ public class Curve {
      * Adds a control point, or updates the y of one already at {@code x}.
      * Both are clamped to {@code [0, 1]}.
      */
-    public void addPoint(final double x, final double y) {
+    public void addPoint(final double x, final double y)
+    {
         final double cx = clamp(x);
         final double cy = clamp(y);
-        int insertIdx = points.size();
-        for (int i = 0; i < points.size(); i++) {
-            final double px = points.get(i).x;
+        int insertIdx = this.points.size();
+        for (int i = 0; i < this.points.size(); i++) {
+            final double px = this.points.get(i).x;
             if (Math.abs(px - cx) < 1e-6) {
-                points.set(i, new Point(px, cy));
+                this.points.set(i, new Point(px, cy));
                 return;
             }
             if (px > cx) {
@@ -59,29 +60,31 @@ public class Curve {
                 break;
             }
         }
-        points.add(insertIdx, new Point(cx, cy));
+        this.points.add(insertIdx, new Point(cx, cy));
     }
 
     /**
      * Cannot remove the first or last point.
      */
-    public void removePoint(final int index) {
-        if (index <= 0 || index >= points.size() - 1) {
+    public void removePoint(final int index)
+    {
+        if (index <= 0 || index >= this.points.size() - 1) {
             return;
         }
-        points.remove(index);
+        this.points.remove(index);
     }
 
     /**
      * The index of the point nearest to {@code (x, y)} within {@code tolerance}, or -1.
      */
-    public int findNearestPoint(final double x, final double y, final double tolerance) {
+    public int findNearestPoint(final double x, final double y, final double tolerance)
+    {
         int bestIdx = -1;
         double bestDist = tolerance;
 
-        for (int i = 0; i < points.size(); i++) {
-            final double dx = x - points.get(i).x;
-            final double dy = y - points.get(i).y;
+        for (int i = 0; i < this.points.size(); i++) {
+            final double dx = x - this.points.get(i).x;
+            final double dy = y - this.points.get(i).y;
             final double dist = Math.sqrt(dx * dx + dy * dy);
             if (dist < bestDist) {
                 bestDist = dist;
@@ -92,24 +95,28 @@ public class Curve {
         return bestIdx;
     }
 
-    public double getX(final int index) {
-        return points.get(index).x;
+    public double getX(final int index)
+    {
+        return this.points.get(index).x;
     }
 
-    public double getY(final int index) {
-        return points.get(index).y;
+    public double getY(final int index)
+    {
+        return this.points.get(index).y;
     }
 
-    public int getPointCount() {
-        return points.size();
+    public int getPointCount()
+    {
+        return this.points.size();
     }
 
     /**
      * {@code y} is clamped to {@code [0, 1]}.
      */
-    public void setPoint(final int index, final double y) {
-        if (index >= 0 && index < points.size()) {
-            points.set(index, new Point(points.get(index).x, clamp(y)));
+    public void setPoint(final int index, final double y)
+    {
+        if (index >= 0 && index < this.points.size()) {
+            this.points.set(index, new Point(this.points.get(index).x, clamp(y)));
         }
     }
 
@@ -119,36 +126,41 @@ public class Curve {
      * @throws IllegalArgumentException if either array is missing or the points
      *                                  are not valid {@link CustomInterpPresetFunc#requireValidKnots knots}.
      */
-    public void setPoints(final double[] xs, final double[] ys) {
+    public void setPoints(final double[] xs, final double[] ys)
+    {
         if (xs == null || ys == null) {
             throw new IllegalArgumentException("curve points are missing");
         }
         CustomInterpPresetFunc.requireValidKnots(xs, ys);
-        points.clear();
+        this.points.clear();
         for (int i = 0; i < xs.length; i++) {
-            points.add(new Point(xs[i], ys[i]));
+            this.points.add(new Point(xs[i], ys[i]));
         }
     }
 
-    public double[] xsArray() {
-        return points.stream().mapToDouble(p -> p.x).toArray();
+    public double[] xsArray()
+    {
+        return this.points.stream().mapToDouble(p -> p.x).toArray();
     }
 
-    public double[] ysArray() {
-        return points.stream().mapToDouble(p -> p.y).toArray();
+    public double[] ysArray()
+    {
+        return this.points.stream().mapToDouble(p -> p.y).toArray();
     }
 
     /**
      * Flips the curve vertically: each y becomes {@code 1 - y}.
      */
-    public void invert() {
-        points.replaceAll(p -> new Point(p.x, 1.0 - p.y));
+    public void invert()
+    {
+        this.points.replaceAll(p -> new Point(p.x, 1.0 - p.y));
     }
 
     /**
      * @throws IllegalArgumentException for NaN, which no clamp can place.
      */
-    private static double clamp(final double v) {
+    private static double clamp(final double v)
+    {
         if (Double.isNaN(v)) {
             throw new IllegalArgumentException("curve coordinate is NaN");
         }
@@ -160,7 +172,8 @@ public class Curve {
 
         final double y;
 
-        Point(final double x, final double y) {
+        Point(final double x, final double y)
+        {
             this.x = x;
             this.y = y;
         }

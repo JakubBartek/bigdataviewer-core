@@ -46,7 +46,8 @@ public class StepPresetFunc extends AbstractPresetFunc {
      *                                  {@code min} is too large for the scheme's width to
      *                                  change it.
      */
-    public StepPresetFunc(final double min, final double schemeRange, final double stepSize) {
+    public StepPresetFunc(final double min, final double schemeRange, final double stepSize)
+    {
         super(min, min + requirePositive(stepSize) * schemeRange, schemeRange);
         this.stepSize = stepSize;
     }
@@ -54,7 +55,8 @@ public class StepPresetFunc extends AbstractPresetFunc {
     /**
      * Rejects NaN too.
      */
-    private static double requirePositive(final double stepSize) {
+    private static double requirePositive(final double stepSize)
+    {
         if (!(stepSize > 0.0)) {
             throw new IllegalArgumentException("stepSize must be strictly positive, got " + stepSize);
         }
@@ -64,23 +66,26 @@ public class StepPresetFunc extends AbstractPresetFunc {
     /**
      * The step size that spreads the scheme exactly once across {@code [min, max]}.
      */
-    public static double defaultStepSize(final double min, final double max, final double schemeRange) {
+    public static double defaultStepSize(final double min, final double max, final double schemeRange)
+    {
         return (max - min) / schemeRange;
     }
 
     /**
      * How many raw values one color fix covers.
      */
-    public double getStepSize() {
-        return stepSize;
+    public double getStepSize()
+    {
+        return this.stepSize;
     }
 
     /**
      * Keeps the step size and ignores {@code max}.
      */
     @Override
-    public StepPresetFunc withRange(final double min, final double max) {
-        return new StepPresetFunc(min, getSchemeRange(), stepSize);
+    public StepPresetFunc withRange(final double min, final double max)
+    {
+        return new StepPresetFunc(min, this.getSchemeRange(), this.stepSize);
     }
 
     /**
@@ -89,20 +94,22 @@ public class StepPresetFunc extends AbstractPresetFunc {
      * them a hair below, one fix back.
      */
     @Override
-    double schemeValueForClampedRaw(final double clampedRaw) {
-        final double min = getMin();
+    double schemeValueForClampedRaw(final double clampedRaw)
+    {
+        final double min = this.getMin();
         // Tolerance in raw ULPs, since subtracting min cancels the low bits:
         // near raw 4610 with step 0.3 a boundary came out ~2700 ULPs of the
         // quotient short.
         final double rawTolerance = SNAP_ULPS * Math.ulp(Math.max(Math.abs(clampedRaw), Math.abs(min)));
-        return snappedToWhole((clampedRaw - min) / stepSize, rawTolerance / stepSize);
+        return snappedToWhole((clampedRaw - min) / this.stepSize, rawTolerance / this.stepSize);
     }
 
     /**
      * Delegates to {@link #schemeValueForClampedRaw(double)} so there is one implementation.
      */
     @Override
-    double shape(final double t) {
-        return schemeValueForClampedRaw(getMin() + t * (getMax() - getMin())) / getSchemeRange();
+    double shape(final double t)
+    {
+        return this.schemeValueForClampedRaw(this.getMin() + t * (this.getMax() - this.getMin())) / this.getSchemeRange();
     }
 }

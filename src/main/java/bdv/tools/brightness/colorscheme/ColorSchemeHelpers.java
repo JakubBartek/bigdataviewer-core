@@ -34,7 +34,8 @@ import net.imglib2.type.numeric.ARGBType;
  * Channels are 8-bit; pack and unpack them with {@link ARGBType}.
  */
 public final class ColorSchemeHelpers {
-    private ColorSchemeHelpers() {
+    private ColorSchemeHelpers()
+    {
     }
 
     /**
@@ -42,14 +43,16 @@ public final class ColorSchemeHelpers {
      * {@code from} and {@code to}, whereas an extrapolated channel would wrap
      * when packed by {@link ARGBType#rgba(int, int, int, int)}.
      */
-    public static int interpolateValue(final int from, final int to, final double t) {
+    public static int interpolateValue(final int from, final int to, final double t)
+    {
         return (int) Math.round(from + t * (to - from));
     }
 
     /**
      * Each channel interpolated independently by {@link #interpolateValue}.
      */
-    public static int interpolateRGBA(final int fromARGB, final int toARGB, final double t) {
+    public static int interpolateRGBA(final int fromARGB, final int toARGB, final double t)
+    {
         final int r = interpolateValue(ARGBType.red(fromARGB), ARGBType.red(toARGB), t);
         final int g = interpolateValue(ARGBType.green(fromARGB), ARGBType.green(toARGB), t);
         final int b = interpolateValue(ARGBType.blue(fromARGB), ARGBType.blue(toARGB), t);
@@ -57,14 +60,16 @@ public final class ColorSchemeHelpers {
         return ARGBType.rgba(r, g, b, a);
     }
 
-    public static int opaque(final int argb) {
+    public static int opaque(final int argb)
+    {
         return argb | 0xff000000;
     }
 
     /**
      * A {@code [0, 1]} color component as an 8-bit channel, clamped.
      */
-    public static int unitToChannel(final double unit) {
+    public static int unitToChannel(final double unit)
+    {
         return Math.max(0, Math.min(255, (int) Math.round(unit * 255.0)));
     }
 }

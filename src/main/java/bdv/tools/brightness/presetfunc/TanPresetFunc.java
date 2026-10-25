@@ -35,17 +35,20 @@ package bdv.tools.brightness.presetfunc;
 public class TanPresetFunc extends AbstractPresetFunc {
     private static final double K = 1.4;
 
-    public TanPresetFunc(final double min, final double max, final double schemeRange) {
+    public TanPresetFunc(final double min, final double max, final double schemeRange)
+    {
         super(min, max, schemeRange);
     }
 
     @Override
-    double shape(final double t) {
+    double shape(final double t)
+    {
         return normalized(t, x -> Math.tan(K * (x - 0.5)));
     }
 
     @Override
-    public TanPresetFunc withRange(final double min, final double max) {
-        return new TanPresetFunc(min, max, getSchemeRange());
+    public TanPresetFunc withRange(final double min, final double max)
+    {
+        return new TanPresetFunc(min, max, this.getSchemeRange());
     }
 }

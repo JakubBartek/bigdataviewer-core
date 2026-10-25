@@ -34,17 +34,20 @@ package bdv.tools.brightness.presetfunc;
 public class LogPresetFunc extends AbstractPresetFunc {
     private static final double K = 20.0;
 
-    public LogPresetFunc(final double min, final double max, final double schemeRange) {
+    public LogPresetFunc(final double min, final double max, final double schemeRange)
+    {
         super(min, max, schemeRange);
     }
 
     @Override
-    double shape(final double t) {
+    double shape(final double t)
+    {
         return Math.log1p(K * t) / Math.log1p(K);
     }
 
     @Override
-    public LogPresetFunc withRange(final double min, final double max) {
-        return new LogPresetFunc(min, max, getSchemeRange());
+    public LogPresetFunc withRange(final double min, final double max)
+    {
+        return new LogPresetFunc(min, max, this.getSchemeRange());
     }
 }

@@ -34,32 +34,37 @@ import java.util.Arrays;
  * half-open interval {@code [0, N)}; a scheme value is floored to its fix.
  */
 public class DiscreteColorScheme extends AbstractFixesBasedColorScheme {
-    public DiscreteColorScheme(final int[] argbFixes) {
+    public DiscreteColorScheme(final int[] argbFixes)
+    {
         super(argbFixes);
     }
 
     @Override
-    public double getRange() {
-        return fixes.length;
+    public double getRange()
+    {
+        return this.fixes.length;
     }
 
     @Override
-    int colorAt(final double schemeValue) {
-        final int lastIndex = fixes.length - 1;
+    int colorAt(final double schemeValue)
+    {
+        final int lastIndex = this.fixes.length - 1;
         final int index = Math.max(0, Math.min(lastIndex, (int) Math.floor(schemeValue)));
-        return fixes[index];
+        return this.fixes[index];
     }
 
     /**
      * Never equal to a {@link ContinuousColorScheme}, even with the same fixes.
      */
     @Override
-    public final boolean equals(final Object obj) {
-        return obj instanceof DiscreteColorScheme && hasSameFixes((DiscreteColorScheme) obj);
+    public final boolean equals(final Object obj)
+    {
+        return obj instanceof DiscreteColorScheme && this.hasSameFixes((DiscreteColorScheme) obj);
     }
 
     @Override
-    public final int hashCode() {
-        return Arrays.hashCode(fixes);
+    public final int hashCode()
+    {
+        return Arrays.hashCode(this.fixes);
     }
 }

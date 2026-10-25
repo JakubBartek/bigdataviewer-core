@@ -51,7 +51,8 @@ import net.imglib2.type.numeric.RealType;
  * widened by one raw unit.
  */
 public final class ColorSchemeConverterFactory {
-    private ColorSchemeConverterFactory() {
+    private ColorSchemeConverterFactory()
+    {
     }
 
     /**
@@ -59,7 +60,8 @@ public final class ColorSchemeConverterFactory {
      * volatile counterpart too, so the source never renders with two different
      * schemes while loading.
      */
-    public static boolean canApproximate(final SourceAndConverter<?> soc) {
+    public static boolean canApproximate(final SourceAndConverter<?> soc)
+    {
         if (soc == null) {
             return false;
         }
@@ -83,7 +85,8 @@ public final class ColorSchemeConverterFactory {
      * {@link bdv.tools.brightness.RealARGBColorConverterSetup#setConverters} and
      * {@link #colorConvertersOf}).
      */
-    public static ColorSchemeConverter<?> approximateInPlace(final SourceAndConverter<?> soc) {
+    public static ColorSchemeConverter<?> approximateInPlace(final SourceAndConverter<?> soc)
+    {
         if (!canApproximate(soc)) {
             return null;
         }
@@ -108,7 +111,8 @@ public final class ColorSchemeConverterFactory {
     /**
      * The {@link ColorConverter}s of {@code soc} and its volatile counterpart, i.e. what its {@code ConverterSetup} drives.
      */
-    public static List<ColorConverter> colorConvertersOf(final SourceAndConverter<?> soc) {
+    public static List<ColorConverter> colorConvertersOf(final SourceAndConverter<?> soc)
+    {
         final List<ColorConverter> converters = new ArrayList<>();
         if (soc != null) {
             addIfColorConverter(converters, soc);
@@ -117,12 +121,14 @@ public final class ColorSchemeConverterFactory {
         return converters;
     }
 
-    private static boolean isRealTyped(final SourceAndConverter<?> soc) {
+    private static boolean isRealTyped(final SourceAndConverter<?> soc)
+    {
         final Source<?> source = soc.getSpimSource();
         return source != null && source.getType() instanceof RealType;
     }
 
-    private static void addIfColorConverter(final List<ColorConverter> converters, final SourceAndConverter<?> soc) {
+    private static void addIfColorConverter(final List<ColorConverter> converters, final SourceAndConverter<?> soc)
+    {
         if (soc == null) {
             return;
         }
@@ -136,9 +142,10 @@ public final class ColorSchemeConverterFactory {
      * Raw types: the {@code RealType} is only checked at runtime ({@link #isRealTyped}).
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private static ColorSchemeConverter<?> install(final SourceAndConverter<?> soc, final PresetColorSchemeWrapper wrapper, final double min, final double max) {
+    private static ColorSchemeConverter<?> install(final SourceAndConverter<?> soc, final PresetColorSchemeWrapper wrapper, final double min, final double max)
+    {
         final ColorSchemeConverter converter = new ColorSchemeConverter<>(wrapper, min, max);
-        ((SourceAndConverter) soc).setConverter(converter);
+        soc.setConverter(converter);
         return converter;
     }
 }

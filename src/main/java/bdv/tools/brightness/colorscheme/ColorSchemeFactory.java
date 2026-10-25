@@ -65,13 +65,15 @@ public final class ColorSchemeFactory {
 
     private static final String RESOURCE_EXTENSION = ".json";
 
-    private ColorSchemeFactory() {
+    private ColorSchemeFactory()
+    {
     }
 
     /**
      * Resource file names without {@code .json}, sorted case-insensitively.
      */
-    public static List<String> discoverNames() {
+    public static List<String> discoverNames()
+    {
         final List<String> names = new ArrayList<>();
         try {
             final URL dirUrl = ColorSchemeFactory.class.getClassLoader().getResource(RESOURCE_DIR);
@@ -97,7 +99,8 @@ public final class ColorSchemeFactory {
         return names;
     }
 
-    private static void collectNames(final Stream<Path> paths, final Set<String> sorted) {
+    private static void collectNames(final Stream<Path> paths, final Set<String> sorted)
+    {
         paths.filter(p -> p.toString().endsWith(RESOURCE_EXTENSION))
                 .forEach(p ->
                 {
@@ -107,10 +110,11 @@ public final class ColorSchemeFactory {
     }
 
     /**
-     * @param argbFixes at least two packed ARGB colors.
+     * @param argbFixes    at least two packed ARGB colors.
      * @param interpolated picks {@link ContinuousColorScheme} over {@link DiscreteColorScheme}.
      */
-    public static IColorScheme load(final int[] argbFixes, final boolean interpolated) {
+    public static IColorScheme load(final int[] argbFixes, final boolean interpolated)
+    {
         return interpolated ? new ContinuousColorScheme(argbFixes) : new DiscreteColorScheme(argbFixes);
     }
 
@@ -121,7 +125,8 @@ public final class ColorSchemeFactory {
      *
      * @param name a name as returned by {@link #discoverNames()}.
      */
-    public static IColorScheme loadFromJson(final String name) {
+    public static IColorScheme loadFromJson(final String name)
+    {
         if (!exactNames().contains(name)) {
             return null;
         }
@@ -142,7 +147,8 @@ public final class ColorSchemeFactory {
      *
      * @throws IOException if the file cannot be read or is not a valid color scheme.
      */
-    public static IColorScheme loadFromJson(final Path file) throws IOException {
+    public static IColorScheme loadFromJson(final Path file) throws IOException
+    {
         try (final Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
             return parse(JsonParser.parseReader(reader).getAsJsonObject());
         } catch (final RuntimeException e) {
@@ -150,7 +156,8 @@ public final class ColorSchemeFactory {
         }
     }
 
-    private static IColorScheme parse(final JsonObject root) {
+    private static IColorScheme parse(final JsonObject root)
+    {
         final JsonArray colors = root.getAsJsonArray("fixes_RGBA");
         if (colors == null) {
             throw new IllegalArgumentException("missing fixes_RGBA array");
@@ -177,7 +184,8 @@ public final class ColorSchemeFactory {
     /**
      * Falls back to white, the old converter's default, when there is no color to read.
      */
-    public static LegacyBdvColorScheme loadFromLegacyConverter(final ColorConverter legacy) {
+    public static LegacyBdvColorScheme loadFromLegacyConverter(final ColorConverter legacy)
+    {
         final ARGBType color = legacy.supportsColor() ? legacy.getColor() : null;
         return new LegacyBdvColorScheme(color != null ? color.get() : DEFAULT_LEGACY_COLOR);
     }
@@ -190,7 +198,8 @@ public final class ColorSchemeFactory {
     /**
      * Cached so {@link #loadFromJson} does not walk the resources each time.
      */
-    private static synchronized Set<String> exactNames() {
+    private static synchronized Set<String> exactNames()
+    {
         if (exactNames == null) {
             exactNames = new HashSet<>(discoverNames());
         }
@@ -202,7 +211,8 @@ public final class ColorSchemeFactory {
      */
     private static Set<String> exactNames = null;
 
-    private static JsonObject readRoot(final String name) {
+    private static JsonObject readRoot(final String name)
+    {
         final String path = RESOURCE_DIR + "/" + name + RESOURCE_EXTENSION;
         try (final InputStream is = ColorSchemeFactory.class.getClassLoader().getResourceAsStream(path)) {
             if (is == null) {

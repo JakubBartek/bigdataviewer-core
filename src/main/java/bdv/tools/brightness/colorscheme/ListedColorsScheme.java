@@ -33,7 +33,8 @@ package bdv.tools.brightness.colorscheme;
  * like {@link DiscreteColorScheme}, and equals one with the same fixes.
  */
 public final class ListedColorsScheme extends DiscreteColorScheme {
-    public ListedColorsScheme(final int[] argbFixes) {
+    public ListedColorsScheme(final int[] argbFixes)
+    {
         super(argbFixes);
     }
 }

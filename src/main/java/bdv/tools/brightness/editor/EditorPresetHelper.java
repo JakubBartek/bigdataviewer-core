@@ -73,13 +73,15 @@ public final class EditorPresetHelper {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    private EditorPresetHelper() {
+    private EditorPresetHelper()
+    {
     }
 
     /**
      * {@code null} if there is no writable directory; built-in presets still load.
      */
-    private static String userDir() {
+    private static String userDir()
+    {
         final String override = System.getProperty(USER_DIR_OVERRIDE_PROPERTY);
         if (override != null) {
             return override;
@@ -91,7 +93,8 @@ public final class EditorPresetHelper {
     /**
      * {@code null} when not on the filesystem, e.g. in a jar.
      */
-    private static File resolveBuiltinResourceDir() {
+    private static File resolveBuiltinResourceDir()
+    {
         final URL dirUrl = EditorPresetHelper.class.getClassLoader().getResource(BUILTIN_RESOURCE_DIR);
         if (dirUrl == null) {
             return null;
@@ -103,7 +106,8 @@ public final class EditorPresetHelper {
         }
     }
 
-    private static File userFile(final String name) {
+    private static File userFile(final String name)
+    {
         final String dir = userDir();
         return dir == null ? null : new File(dir, canonicalName(name) + RESOURCE_EXTENSION);
     }
@@ -111,7 +115,8 @@ public final class EditorPresetHelper {
     /**
      * Built-in and user-saved names, de-duplicated and sorted case-insensitively.
      */
-    public static List<String> discoverNames() {
+    public static List<String> discoverNames()
+    {
         final TreeSet<String> sorted = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
         try {
             final URL dirUrl = EditorPresetHelper.class.getClassLoader().getResource(BUILTIN_RESOURCE_DIR);
@@ -145,19 +150,22 @@ public final class EditorPresetHelper {
         return new ArrayList<>(sorted);
     }
 
-    private static void collectNames(final Stream<Path> paths, final Set<String> sorted) {
+    private static void collectNames(final Stream<Path> paths, final Set<String> sorted)
+    {
         paths.filter(p -> p.toString().endsWith(RESOURCE_EXTENSION))
                 .forEach(p -> sorted.add(stripExtension(p.getFileName().toString())));
     }
 
-    private static String stripExtension(final String fileName) {
+    private static String stripExtension(final String fileName)
+    {
         return fileName.substring(0, fileName.length() - RESOURCE_EXTENSION.length());
     }
 
     /**
      * {@code true} if a user-saved file exists, even when a built-in one does too.
      */
-    public static boolean isUserDefined(final String name) {
+    public static boolean isUserDefined(final String name)
+    {
         final File file = userFile(name);
         return file != null && file.isFile();
     }
@@ -167,7 +175,8 @@ public final class EditorPresetHelper {
      *
      * @param name a name as returned by {@link #discoverNames()}.
      */
-    public static EditorPreset load(final String name) {
+    public static EditorPreset load(final String name)
+    {
         final File userFile = userFile(name);
         if (userFile != null && userFile.isFile()) {
             try (final FileReader reader = new FileReader(userFile)) {
@@ -196,7 +205,8 @@ public final class EditorPresetHelper {
      * @throws IllegalStateException    if there is no writable directory.
      * @throws IllegalArgumentException if the name is not {@link #canonicalName canonical}.
      */
-    public static void save(final EditorPreset preset) {
+    public static void save(final EditorPreset preset)
+    {
         final String name = preset.getName();
         if (!canonicalName(name).equals(name)) {
             throw new IllegalArgumentException("Preset name \"" + name + "\" is not canonical; "
@@ -220,7 +230,8 @@ public final class EditorPresetHelper {
      * Trimmed, with filesystem-significant characters replaced. Callers must
      * canonicalize a typed name before comparing it with {@link #discoverNames()}.
      */
-    public static String canonicalName(final String name) {
+    public static String canonicalName(final String name)
+    {
         return name.trim().replaceAll("[\\\\/:*?\"<>|]", "_");
     }
 }

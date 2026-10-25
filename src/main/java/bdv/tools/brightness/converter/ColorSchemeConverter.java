@@ -52,63 +52,73 @@ public class ColorSchemeConverter<R extends RealType<R>> extends AbstractLinearR
      * @param min     display-range minimum (maps to the start of the scheme).
      * @param max     display-range maximum (maps to the end of the scheme).
      */
-    public ColorSchemeConverter(final PresetColorSchemeWrapper wrapper, final double min, final double max) {
+    public ColorSchemeConverter(final PresetColorSchemeWrapper wrapper, final double min, final double max)
+    {
         super(min, max);
         this.wrapper = Objects.requireNonNull(wrapper, "wrapper");
         wrapper.setRawDomain(min, max);
     }
 
-    public PresetColorSchemeWrapper getWrapper() {
-        return wrapper;
+    public PresetColorSchemeWrapper getWrapper()
+    {
+        return this.wrapper;
     }
 
     /**
      * Swap in a different wrapper, re-applying the current display range to it.
      */
-    public void setWrapper(final PresetColorSchemeWrapper wrapper) {
+    public void setWrapper(final PresetColorSchemeWrapper wrapper)
+    {
         this.wrapper = Objects.requireNonNull(wrapper, "wrapper");
-        syncDomain();
+        this.syncDomain();
     }
 
     @Override
-    public void convert(final R input, final ARGBType output) {
+    public void convert(final R input, final ARGBType output)
+    {
         // RGBA keeps a transparent SPECIAL boundary color
-        output.set(wrapper.getRGBAForRaw(input.getRealDouble()));
+        output.set(this.wrapper.getRGBAForRaw(input.getRealDouble()));
     }
 
     @Override
-    public void setMin(final double min) {
+    public void setMin(final double min)
+    {
         super.setMin(min);
-        syncDomain();
+        this.syncDomain();
     }
 
     @Override
-    public void setMax(final double max) {
+    public void setMax(final double max)
+    {
         super.setMax(max);
-        syncDomain();
+        this.syncDomain();
     }
 
     /**
      * Skipped while the range is momentarily inverted between {@code setMin}/{@code setMax}.
      */
-    private void syncDomain() {
-        if (wrapper != null && max > min) {
-            wrapper.setRawDomain(min, max);
+    private void syncDomain()
+    {
+        if (this.wrapper != null && this.max > this.min) {
+            this.wrapper.setRawDomain(this.min, this.max);
         }
     }
 
     @Override
-    public ARGBType getColor() {
+    public ARGBType getColor()
+    {
         return new ARGBType(ARGBType.rgba(255, 255, 255, 255));
     }
 
     @Override
-    public void setColor(final ARGBType c) {
+    public void setColor(final ARGBType c)
+    {
         // colors come from the wrapper
     }
 
     @Override
-    public boolean supportsColor() {
+    public boolean supportsColor()
+    {
         return false;
     }
 }

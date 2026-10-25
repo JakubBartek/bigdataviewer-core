@@ -185,262 +185,293 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
 
     private Consumer<Boolean> editModeListener = null;
 
-    public MappingCurvePanel(final LutEditorMapping model) {
+    public MappingCurvePanel(final LutEditorMapping model)
+    {
         this.model = model;
-        setPreferredSize(new Dimension(280, BASE_PREFERRED_HEIGHT));
-        setBackground(Color.WHITE);
-        addMouseListener(this);
-        addMouseMotionListener(this);
+        this.setPreferredSize(new Dimension(280, BASE_PREFERRED_HEIGHT));
+        this.setBackground(Color.WHITE);
+        this.addMouseListener(this);
+        this.addMouseMotionListener(this);
 
         model.addChangeListener(this::repaint);
 
-        setLayout(null);
-        for (final JTextField field : new JTextField[]{minField, maxField}) {
+        this.setLayout(null);
+        for (final JTextField field : new JTextField[]{this.minField, this.maxField}) {
             field.setHorizontalAlignment(SwingConstants.CENTER);
-            add(field);
+            this.add(field);
         }
-        minField.setText(formatValue(rangeMin));
-        maxField.setText(formatValue(rangeMax));
-        minField.addActionListener(e -> commitMinField());
-        maxField.addActionListener(e -> commitMaxField());
-        minField.addFocusListener(new FocusAdapter() {
+        this.minField.setText(formatValue(this.rangeMin));
+        this.maxField.setText(formatValue(this.rangeMax));
+        this.minField.addActionListener(e -> this.commitMinField());
+        this.maxField.addActionListener(e -> this.commitMaxField());
+        this.minField.addFocusListener(new FocusAdapter() {
             @Override
-            public void focusLost(final FocusEvent e) {
-                commitMinField();
+            public void focusLost(final FocusEvent e)
+            {
+                MappingCurvePanel.this.commitMinField();
             }
         });
-        maxField.addFocusListener(new FocusAdapter() {
+        this.maxField.addFocusListener(new FocusAdapter() {
             @Override
-            public void focusLost(final FocusEvent e) {
-                commitMaxField();
+            public void focusLost(final FocusEvent e)
+            {
+                MappingCurvePanel.this.commitMaxField();
             }
         });
 
-        buttonEditCurve.setToolTipText(EDIT_TOOLTIP);
-        buttonEditCurve.setFocusable(false);
-        buttonEditCurve.setMargin(new Insets(0, 0, 0, 0));
-        buttonEditCurve.addActionListener(e -> setEditMode(buttonEditCurve.isSelected()));
-        add(buttonEditCurve);
+        this.buttonEditCurve.setToolTipText(EDIT_TOOLTIP);
+        this.buttonEditCurve.setFocusable(false);
+        this.buttonEditCurve.setMargin(new Insets(0, 0, 0, 0));
+        this.buttonEditCurve.addActionListener(e -> this.setEditMode(this.buttonEditCurve.isSelected()));
+        this.add(this.buttonEditCurve);
     }
 
     @Override
-    public void doLayout() {
-        if (getWidth() <= 0 || getHeight() <= 0) {
+    public void doLayout()
+    {
+        if (this.getWidth() <= 0 || this.getHeight() <= 0) {
             return;
         }
-        final int y = transformBarBottom() + 2;
-        final int left = plotLeft();
+        final int y = this.transformBarBottom() + 2;
+        final int left = this.plotLeft();
 
         // centered on the plot edges, min clamped so it never overlaps max
-        final int maxFieldX = curveXToPixelX(1) - RANGE_FIELD_WIDTH / 2;
+        final int maxFieldX = this.curveXToPixelX(1) - RANGE_FIELD_WIDTH / 2;
         final int minFieldX = Math.min(left - RANGE_FIELD_WIDTH / 2, maxFieldX - RANGE_FIELD_WIDTH);
 
-        minField.setBounds(minFieldX, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT);
-        maxField.setBounds(maxFieldX, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT);
+        this.minField.setBounds(minFieldX, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT);
+        this.maxField.setBounds(maxFieldX, y, RANGE_FIELD_WIDTH, RANGE_FIELD_HEIGHT);
 
         // beside the plot, not over the curve
-        buttonEditCurve.setBounds(plotRight() + PENCIL_MARGIN_X,
-                plotTop() + PENCIL_MARGIN_Y, EDIT_TOGGLE_SIZE, EDIT_TOGGLE_SIZE);
+        this.buttonEditCurve.setBounds(this.plotRight() + PENCIL_MARGIN_X,
+                this.plotTop() + PENCIL_MARGIN_Y, EDIT_TOGGLE_SIZE, EDIT_TOGGLE_SIZE);
     }
 
     /**
      * Set the actual data range represented by the horizontal axis.
      */
-    public void setRange(final double min, final double max) {
+    public void setRange(final double min, final double max)
+    {
         this.rangeMin = min;
         this.rangeMax = max;
-        minField.setText(formatValue(min));
-        maxField.setText(formatValue(max));
-        revalidate();
-        repaint();
+        this.minField.setText(formatValue(min));
+        this.maxField.setText(formatValue(max));
+        this.revalidate();
+        this.repaint();
     }
 
     /**
      * Notified when the user edits the range boxes.
      */
-    public void setRangeChangeListener(final BiConsumer<Double, Double> listener) {
+    public void setRangeChangeListener(final BiConsumer<Double, Double> listener)
+    {
         this.rangeChangeListener = listener;
     }
 
     /**
      * Notified when the pencil toggle changes edit mode.
      */
-    public void setEditModeListener(final Consumer<Boolean> listener) {
+    public void setEditModeListener(final Consumer<Boolean> listener)
+    {
         this.editModeListener = listener;
     }
 
-    public int minimumGraphWidth() {
-        return plotLeft() + MIN_PLOT_WIDTH + RIGHT_MARGIN;
+    public int minimumGraphWidth()
+    {
+        return this.plotLeft() + MIN_PLOT_WIDTH + RIGHT_MARGIN;
     }
 
-    private void commitMinField() {
+    private void commitMinField()
+    {
         try {
-            final double v = Double.parseDouble(minField.getText().trim());
-            if (v < rangeMax) {
-                rangeMin = v;
-                if (rangeChangeListener != null) {
-                    rangeChangeListener.accept(rangeMin, rangeMax);
+            final double v = Double.parseDouble(this.minField.getText().trim());
+            if (v < this.rangeMax) {
+                this.rangeMin = v;
+                if (this.rangeChangeListener != null) {
+                    this.rangeChangeListener.accept(this.rangeMin, this.rangeMax);
                 }
             }
         } catch (final NumberFormatException ignored) {
         }
-        minField.setText(formatValue(rangeMin));
-        repaint();
+        this.minField.setText(formatValue(this.rangeMin));
+        this.repaint();
     }
 
-    private void commitMaxField() {
+    private void commitMaxField()
+    {
         try {
-            final double v = Double.parseDouble(maxField.getText().trim());
-            if (v > rangeMin) {
-                rangeMax = v;
-                if (rangeChangeListener != null) {
-                    rangeChangeListener.accept(rangeMin, rangeMax);
+            final double v = Double.parseDouble(this.maxField.getText().trim());
+            if (v > this.rangeMin) {
+                this.rangeMax = v;
+                if (this.rangeChangeListener != null) {
+                    this.rangeChangeListener.accept(this.rangeMin, this.rangeMax);
                 }
             }
         } catch (final NumberFormatException ignored) {
         }
-        maxField.setText(formatValue(rangeMax));
-        repaint();
+        this.maxField.setText(formatValue(this.rangeMax));
+        this.repaint();
     }
 
     /**
      * Set the color scheme used to render the color bar.
      */
-    public void setColorScheme(final IColorScheme colorScheme) {
+    public void setColorScheme(final IColorScheme colorScheme)
+    {
         this.colorScheme = colorScheme == null ? ContinuousColorScheme.DEFAULT : colorScheme;
-        syncEditability();
+        this.syncEditability();
     }
 
     /**
      * Whether curve control points are shown and editable.
      */
-    public void setEditMode(final boolean editMode) {
+    public void setEditMode(final boolean editMode)
+    {
         if (this.editMode == editMode) {
             return;
         }
         this.editMode = editMode;
-        buttonEditCurve.setSelected(editMode);
+        this.buttonEditCurve.setSelected(editMode);
         if (!editMode) {
-            hoveredPoint = null;
+            this.hoveredPoint = null;
         }
-        if (editModeListener != null) {
-            editModeListener.accept(editMode);
+        if (this.editModeListener != null) {
+            this.editModeListener.accept(editMode);
         }
-        repaint();
+        this.repaint();
     }
 
-    public boolean isEditMode() {
-        return editMode;
+    public boolean isEditMode()
+    {
+        return this.editMode;
     }
 
     /**
      * A discrete scheme has no curve to edit, so the pencil is disabled.
      */
-    private void syncEditability() {
-        final boolean editable = !isDiscrete();
+    private void syncEditability()
+    {
+        final boolean editable = !this.isDiscrete();
         if (!editable) {
-            setEditMode(false);
+            this.setEditMode(false);
         }
-        buttonEditCurve.setEnabled(editable);
-        buttonEditCurve.setToolTipText(editable ? EDIT_TOOLTIP : EDIT_TOOLTIP_DISCRETE);
-        repaint();
+        this.buttonEditCurve.setEnabled(editable);
+        this.buttonEditCurve.setToolTipText(editable ? EDIT_TOOLTIP : EDIT_TOOLTIP_DISCRETE);
+        this.repaint();
     }
 
-    private boolean isDiscrete() {
-        return colorScheme instanceof DiscreteColorScheme;
+    private boolean isDiscrete()
+    {
+        return this.colorScheme instanceof DiscreteColorScheme;
     }
 
-    private int plotLeft() {
+    private int plotLeft()
+    {
         return LABEL_WIDTH + COLORBAR_WIDTH + COLORBAR_GAP;
     }
 
-    private int plotRight() {
-        return getWidth() - RIGHT_MARGIN;
+    private int plotRight()
+    {
+        return this.getWidth() - RIGHT_MARGIN;
     }
 
-    private int plotTop() {
+    private int plotTop()
+    {
         return TOP_MARGIN;
     }
 
-    private int plotBottom() {
-        return getHeight() - LABEL_HEIGHT - COLORBAR_GAP - COLORBAR_WIDTH;
+    private int plotBottom()
+    {
+        return this.getHeight() - LABEL_HEIGHT - COLORBAR_GAP - COLORBAR_WIDTH;
     }
 
-    private int transformBarTop() {
-        return plotBottom() + COLORBAR_GAP;
+    private int transformBarTop()
+    {
+        return this.plotBottom() + COLORBAR_GAP;
     }
 
-    private int transformBarBottom() {
-        return transformBarTop() + COLORBAR_WIDTH;
+    private int transformBarBottom()
+    {
+        return this.transformBarTop() + COLORBAR_WIDTH;
     }
 
-    private int plotWidth() {
-        return Math.max(1, plotRight() - plotLeft());
+    private int plotWidth()
+    {
+        return Math.max(1, this.plotRight() - this.plotLeft());
     }
 
-    private int plotHeight() {
-        return Math.max(1, plotBottom() - plotTop());
+    private int plotHeight()
+    {
+        return Math.max(1, this.plotBottom() - this.plotTop());
     }
 
     // -- Coordinate conversions, named <from>To<to> --------------------------
     // pixels, raw values [rangeMin, rangeMax], curve x and y [0, 1], drawing output [0, 255]
 
-    private double pixelXToValue(final int pixelX) {
-        final double normX = Math.max(0.0, Math.min(1.0, (pixelX - plotLeft()) / (double) plotWidth()));
-        return rangeMin + normX * (rangeMax - rangeMin);
+    private double pixelXToValue(final int pixelX)
+    {
+        final double normX = Math.max(0.0, Math.min(1.0, (pixelX - this.plotLeft()) / (double) this.plotWidth()));
+        return this.rangeMin + normX * (this.rangeMax - this.rangeMin);
     }
 
-    private double valueToCurveX(final double value) {
-        final double span = rangeMax - rangeMin;
-        final double frac = span > 0 ? (value - rangeMin) / span : 0.0;
+    private double valueToCurveX(final double value)
+    {
+        final double span = this.rangeMax - this.rangeMin;
+        final double frac = span > 0 ? (value - this.rangeMin) / span : 0.0;
         return Math.max(0.0, Math.min(1.0, frac));
     }
 
-    private int curveXToPixelX(final double normX) {
-        return plotLeft() + (int) Math.round(normX * plotWidth());
+    private int curveXToPixelX(final double normX)
+    {
+        return this.plotLeft() + (int) Math.round(normX * this.plotWidth());
     }
 
-    private double pixelYToCurveY(final int pixelY) {
-        final double v = (plotBottom() - pixelY) / (double) plotHeight();
+    private double pixelYToCurveY(final int pixelY)
+    {
+        final double v = (this.plotBottom() - pixelY) / (double) this.plotHeight();
         return Math.max(0.0, Math.min(1.0, v));
     }
 
-    private int curveYToPixelY(final double curveY) {
-        return plotBottom() - (int) Math.round(curveY * plotHeight());
+    private int curveYToPixelY(final double curveY)
+    {
+        return this.plotBottom() - (int) Math.round(curveY * this.plotHeight());
     }
 
-    private int outputToPixelY(final int outputValue) {
-        return plotBottom() - (int) Math.round(outputValue / 255.0 * plotHeight());
+    private int outputToPixelY(final int outputValue)
+    {
+        return this.plotBottom() - (int) Math.round(outputValue / 255.0 * this.plotHeight());
     }
 
     /**
      * The scale the y axis is labelled in.
      */
-    private double curveYToColorIndex(final double curveY) {
-        return curveY * colorScheme.getRange();
+    private double curveYToColorIndex(final double curveY)
+    {
+        return curveY * this.colorScheme.getRange();
     }
 
     @Override
-    protected void paintComponent(final Graphics g) {
+    protected void paintComponent(final Graphics g)
+    {
         super.paintComponent(g);
         final Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         // rebuilt per paint so the preview is always in sync
-        final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build(colorScheme, model, rangeMin, rangeMax);
+        final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build(this.colorScheme, this.model, this.rangeMin, this.rangeMax);
         final double schemeRange = wrapper.getColorScheme().getRange();
-        final int[] fixBoundaries = isDiscrete() ? fixBoundaryColumns(wrapper) : null;
+        final int[] fixBoundaries = this.isDiscrete() ? this.fixBoundaryColumns(wrapper) : null;
 
-        drawGrid(g2, fixBoundaries, schemeRange);
-        drawDomainEdge(g2, wrapper);
-        drawCurve(g2, wrapper);
-        if (editMode && !isDiscrete()) {
-            drawControlPoints(g2);
+        this.drawGrid(g2, fixBoundaries, schemeRange);
+        this.drawDomainEdge(g2, wrapper);
+        this.drawCurve(g2, wrapper);
+        if (this.editMode && !this.isDiscrete()) {
+            this.drawControlPoints(g2);
         }
-        drawOutputColorBar(g2, wrapper.getColorScheme());
-        drawTransformColorBar(g2, wrapper, fixBoundaries);
+        this.drawOutputColorBar(g2, wrapper.getColorScheme());
+        this.drawTransformColorBar(g2, wrapper, fixBoundaries);
         // last, so its guides draw over the color bars
-        drawHoverHint(g2);
+        this.drawHoverHint(g2);
     }
 
     /**
@@ -448,17 +479,18 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
      * shows the discreteness. {@code fixBoundaries} is {@code null} for a
      * continuous scheme.
      */
-    private void drawGrid(final Graphics2D g, final int[] fixBoundaries, final double schemeRange) {
-        final int left = plotLeft();
-        final int right = plotRight();
-        final int top = plotTop();
-        final int bottom = plotBottom();
+    private void drawGrid(final Graphics2D g, final int[] fixBoundaries, final double schemeRange)
+    {
+        final int left = this.plotLeft();
+        final int right = this.plotRight();
+        final int top = this.plotTop();
+        final int bottom = this.plotBottom();
 
         g.setStroke(THIN_STROKE);
-        if (drawsFixGrid(fixBoundaries, schemeRange)) {
+        if (this.drawsFixGrid(fixBoundaries, schemeRange)) {
             g.setColor(FIX_GRID_COLOR);
             for (int fix = 1; fix < schemeRange; fix++) {
-                final int y = outputToPixelY((int) Math.round(fix / (double) schemeRange * 255.0));
+                final int y = this.outputToPixelY((int) Math.round(fix / schemeRange * 255.0));
                 g.drawLine(left, y, right, y);
             }
             for (final int x : fixBoundaries) {
@@ -478,14 +510,15 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         g.drawRect(left, top, right - left, bottom - top);
     }
 
-    private boolean drawsFixGrid(final int[] fixBoundaries, final double schemeRange) {
+    private boolean drawsFixGrid(final int[] fixBoundaries, final double schemeRange)
+    {
         if (fixBoundaries == null) {
             return false;
         }
-        if (plotHeight() / (double) schemeRange < MIN_FIX_SPACING) {
+        if (this.plotHeight() / schemeRange < MIN_FIX_SPACING) {
             return false;
         }
-        return fixBoundaries.length == 0 || plotWidth() / (double) fixBoundaries.length >= MIN_FIX_SPACING;
+        return fixBoundaries.length == 0 || this.plotWidth() / (double) fixBoundaries.length >= MIN_FIX_SPACING;
     }
 
     /**
@@ -493,15 +526,16 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
      * wrapper rather than computed, so CYCLE wraps are included and it matches
      * the color bar.
      */
-    private int[] fixBoundaryColumns(final PresetColorSchemeWrapper wrapper) {
+    private int[] fixBoundaryColumns(final PresetColorSchemeWrapper wrapper)
+    {
         final double schemeRange = wrapper.getColorScheme().getRange();
-        final int left = plotLeft();
-        final int right = plotRight();
+        final int left = this.plotLeft();
+        final int right = this.plotRight();
         final int[] columns = new int[Math.max(1, right - left + 1)];
         int count = 0;
         int previousFix = Integer.MIN_VALUE;
         for (int px = left; px <= right; px++) {
-            final int fix = fixIndex(wrapper.getSchemeValueForRaw(pixelXToValue(px)), schemeRange);
+            final int fix = fixIndex(wrapper.getSchemeValueForRaw(this.pixelXToValue(px)), schemeRange);
             if (previousFix != Integer.MIN_VALUE && fix != previousFix) {
                 columns[count++] = px;
             }
@@ -515,22 +549,24 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     /**
      * As {@link bdv.tools.brightness.colorscheme.DiscreteColorScheme} resolves it.
      */
-    private static int fixIndex(final double schemeValue, final double schemeRange) {
+    private static int fixIndex(final double schemeValue, final double schemeRange)
+    {
         return (int) Math.max(0, Math.min(schemeRange - 1, Math.floor(schemeValue)));
     }
 
     /**
      * Marks where the domain ends inside the display range (only happens for a discrete scheme).
      */
-    private void drawDomainEdge(final Graphics2D g, final PresetColorSchemeWrapper wrapper) {
+    private void drawDomainEdge(final Graphics2D g, final PresetColorSchemeWrapper wrapper)
+    {
         final double domainMax = wrapper.getPresetFunc().getMax();
-        if (!(domainMax > rangeMin) || !(domainMax < rangeMax)) {
+        if (!(domainMax > this.rangeMin) || !(domainMax < this.rangeMax)) {
             return;
         }
-        final int x = curveXToPixelX(valueToCurveX(domainMax));
+        final int x = this.curveXToPixelX(this.valueToCurveX(domainMax));
         g.setColor(DOMAIN_EDGE_COLOR);
         g.setStroke(DASHED_THIN_STROKE);
-        g.drawLine(x, plotTop(), x, plotBottom());
+        g.drawLine(x, this.plotTop(), x, this.plotBottom());
     }
 
     /**
@@ -539,13 +575,14 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
      * Dashed outside the domain; two whole paths so the dash pattern does not
      * restart at every pixel.
      */
-    private void drawCurve(final Graphics2D g, final PresetColorSchemeWrapper wrapper) {
+    private void drawCurve(final Graphics2D g, final PresetColorSchemeWrapper wrapper)
+    {
         final IPresetFunc presetFunc = wrapper.getPresetFunc();
         final double domainMin = presetFunc.getMin();
         final double domainMax = presetFunc.getMax();
         final double schemeRange = wrapper.getColorScheme().getRange();
-        final int left = plotLeft();
-        final int right = plotRight();
+        final int left = this.plotLeft();
+        final int right = this.plotRight();
 
         final Path2D.Double inDomain = new Path2D.Double();
         final Path2D.Double outOfDomain = new Path2D.Double();
@@ -555,9 +592,9 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         boolean previousIn = false;
         boolean started = false;
         for (int px = left; px <= right; px++) {
-            final double value = pixelXToValue(px);
+            final double value = this.pixelXToValue(px);
             final boolean in = value >= domainMin && value <= domainMax;
-            final int py = outputToPixelY(schemeValueToOutput(wrapper.getSchemeValueForRaw(value), schemeRange));
+            final int py = this.outputToPixelY(schemeValueToOutput(wrapper.getSchemeValueForRaw(value), schemeRange));
             final Path2D.Double path = in ? inDomain : outOfDomain;
             if (!started) {
                 path.moveTo(px, py);
@@ -582,20 +619,23 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         g.draw(outOfDomain);
     }
 
-    private static int schemeValueToOutput(final double schemeValue, final double schemeRange) {
+    private static int schemeValueToOutput(final double schemeValue, final double schemeRange)
+    {
         final double clamped = Math.max(0.0, Math.min(schemeRange, schemeValue));
         return (int) Math.round(clamped / schemeRange * 255.0);
     }
 
-    private void drawControlPoints(final Graphics2D g) {
-        final Curve curve = model.getCurve();
-        final int highlighted = annotatedPoint();
+    private void drawControlPoints(final Graphics2D g)
+    {
+        final Curve curve = this.model.getCurve();
+        final int highlighted = this.annotatedPoint();
         for (int i = 0; i < curve.getPointCount(); i++) {
-            drawControlPointAt(g, curveXToPixelX(curve.getX(i)), curveYToPixelY(curve.getY(i)), i == highlighted);
+            this.drawControlPointAt(g, this.curveXToPixelX(curve.getX(i)), this.curveYToPixelY(curve.getY(i)), i == highlighted);
         }
     }
 
-    private void drawControlPointAt(final Graphics2D g, final int px, final int py, final boolean highlighted) {
+    private void drawControlPointAt(final Graphics2D g, final int px, final int py, final boolean highlighted)
+    {
         g.setColor(highlighted ? POINT_BORDER : POINT_FILL);
         g.fillOval(px - POINT_RADIUS, py - POINT_RADIUS, 2 * POINT_RADIUS, 2 * POINT_RADIUS);
         g.setColor(POINT_BORDER);
@@ -606,15 +646,16 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     /**
      * The color scheme itself, labelled in color indices rather than 0-255.
      */
-    private void drawOutputColorBar(final Graphics2D g, final IColorScheme scheme) {
+    private void drawOutputColorBar(final Graphics2D g, final IColorScheme scheme)
+    {
         final int barLeft = LABEL_WIDTH;
-        final int top = plotTop();
-        final int bottom = plotBottom();
+        final int top = this.plotTop();
+        final int bottom = this.plotBottom();
 
         final double schemeRange = scheme.getRange();
 
         for (int py = top; py < bottom; py++) {
-            final double t = (bottom - py) / (double) plotHeight();
+            final double t = (bottom - py) / (double) this.plotHeight();
             g.setColor(new Color(scheme.getRGB(t * schemeRange)));
             // fillRect: an antialiased drawLine with a leftover 2px stroke smears rows
             g.fillRect(barLeft, py, COLORBAR_WIDTH + 1, 1);
@@ -625,25 +666,27 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         g.drawRect(barLeft, top, COLORBAR_WIDTH, bottom - top);
 
         g.setColor(Color.DARK_GRAY);
-        if (labelsEveryBand(schemeRange, g.getFontMetrics())) {
-            drawBandLabels(g, barLeft, schemeRange);
+        if (this.labelsEveryBand(schemeRange, g.getFontMetrics())) {
+            this.drawBandLabels(g, barLeft, schemeRange);
         } else {
-            drawFractionLabels(g, barLeft);
+            this.drawFractionLabels(g, barLeft);
         }
     }
 
     /**
      * Only for a discrete scheme whose bands are tall enough for text.
      */
-    private boolean labelsEveryBand(final double schemeRange, final FontMetrics fm) {
-        return isDiscrete() && plotHeight() / (double) schemeRange >= fm.getHeight() + 2;
+    private boolean labelsEveryBand(final double schemeRange, final FontMetrics fm)
+    {
+        return this.isDiscrete() && this.plotHeight() / schemeRange >= fm.getHeight() + 2;
     }
 
-    private void drawBandLabels(final Graphics2D g, final int barLeft, final double schemeRange) {
+    private void drawBandLabels(final Graphics2D g, final int barLeft, final double schemeRange)
+    {
         final FontMetrics fm = g.getFontMetrics();
         for (int fix = 0; fix < schemeRange; fix++) {
             final String text = Integer.toString(fix);
-            final int py = outputToPixelY((int) Math.round((fix + 0.5) / schemeRange * 255.0));
+            final int py = this.outputToPixelY((int) Math.round((fix + 0.5) / schemeRange * 255.0));
             g.drawString(text, barLeft - fm.stringWidth(text) - 6, py + fm.getAscent() / 2 - 1);
         }
     }
@@ -652,14 +695,15 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
      * Whole indices for a discrete scheme, whose color index is always whole; a continuous scheme
      * blends between fixes, so its fractional indices are real.
      */
-    private void drawFractionLabels(final Graphics2D g, final int barLeft) {
+    private void drawFractionLabels(final Graphics2D g, final int barLeft)
+    {
         final FontMetrics fm = g.getFontMetrics();
-        final double lastColor = isDiscrete() ? colorScheme.getRange() - 1 : colorScheme.getRange();
+        final double lastColor = this.isDiscrete() ? this.colorScheme.getRange() - 1 : this.colorScheme.getRange();
         final String[] continuousLabels = quarterTickLabels(0, lastColor);
         for (int i = 0; i <= 4; i++) {
             final double frac = i / 4.0;
-            final String text = isDiscrete() ? Long.toString(Math.round(frac * lastColor)) : continuousLabels[i];
-            final int py = outputToPixelY((int) Math.round(frac * 255.0));
+            final String text = this.isDiscrete() ? Long.toString(Math.round(frac * lastColor)) : continuousLabels[i];
+            final int py = this.outputToPixelY((int) Math.round(frac * 255.0));
             g.drawString(text, barLeft - fm.stringWidth(text) - 6, py + fm.getAscent() / 2 - 1);
         }
     }
@@ -667,14 +711,15 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     /**
      * The rendered color for each raw value, with a tick under each discrete color change.
      */
-    private void drawTransformColorBar(final Graphics2D g, final PresetColorSchemeWrapper wrapper, final int[] fixBoundaries) {
-        final int left = plotLeft();
-        final int right = plotRight();
-        final int top = transformBarTop();
-        final int bottom = transformBarBottom();
+    private void drawTransformColorBar(final Graphics2D g, final PresetColorSchemeWrapper wrapper, final int[] fixBoundaries)
+    {
+        final int left = this.plotLeft();
+        final int right = this.plotRight();
+        final int top = this.transformBarTop();
+        final int bottom = this.transformBarBottom();
 
         for (int px = left; px < right; px++) {
-            final double value = pixelXToValue(px);
+            final double value = this.pixelXToValue(px);
             g.setColor(new Color(wrapper.getRGBForRaw(value)));
             g.fillRect(px, top, 1, bottom - top + 1);
         }
@@ -683,7 +728,7 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         g.setStroke(THIN_STROKE);
         g.drawRect(left, top, right - left, bottom - top);
 
-        if (drawsFixGrid(fixBoundaries, wrapper.getColorScheme().getRange())) {
+        if (this.drawsFixGrid(fixBoundaries, wrapper.getColorScheme().getRange())) {
             for (final int x : fixBoundaries) {
                 g.drawLine(x, bottom + 1, x, bottom + 4);
             }
@@ -692,10 +737,10 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         // min and max are the range boxes
         g.setColor(Color.DARK_GRAY);
         final FontMetrics fm = g.getFontMetrics();
-        final String[] labels = quarterTickLabels(rangeMin, rangeMax);
+        final String[] labels = quarterTickLabels(this.rangeMin, this.rangeMax);
         for (int i = 1; i <= 3; i++) {
             final String text = labels[i];
-            final int px = curveXToPixelX(i / 4.0);
+            final int px = this.curveXToPixelX(i / 4.0);
             g.drawString(text, px - fm.stringWidth(text) / 2, bottom + fm.getAscent() + 4);
         }
     }
@@ -704,7 +749,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
      * Labels for the ticks at 0, 1/4, ..., 4/4 of {@code [min, max]}, all with the fewest decimals
      * that move no tick by more than {@link #TICK_LABEL_TOLERANCE} of the tick spacing.
      */
-    static String[] quarterTickLabels(final double min, final double max) {
+    static String[] quarterTickLabels(final double min, final double max)
+    {
         final double[] ticks = quarterTicks(min, max);
         final int decimals = tickDecimals(min, max);
         final String[] labels = new String[5];
@@ -718,7 +764,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
      * An arbitrary value on the axis of {@link #quarterTickLabels}: at least the ticks' decimals,
      * and more where the ticks are exact but other values would round off by more than the tolerance.
      */
-    static String axisValueLabel(final double value, final double min, final double max) {
+    static String axisValueLabel(final double value, final double min, final double max)
+    {
         // slack: a spacing like (4.1 - 0.1) / 4 lands a hair under its exact boundary
         final double tolerance = tickLabelTolerance(min, max) * (1 + 1e-9);
         int decimals = tickDecimals(min, max);
@@ -728,7 +775,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         return roundTo(value, decimals).toPlainString();
     }
 
-    private static int tickDecimals(final double min, final double max) {
+    private static int tickDecimals(final double min, final double max)
+    {
         final double[] ticks = quarterTicks(min, max);
         final double tolerance = tickLabelTolerance(min, max);
         int decimals = 0;
@@ -738,7 +786,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         return decimals;
     }
 
-    private static double[] quarterTicks(final double min, final double max) {
+    private static double[] quarterTicks(final double min, final double max)
+    {
         final double[] ticks = new double[5];
         for (int i = 0; i <= 4; i++) {
             ticks[i] = min + i / 4.0 * (max - min);
@@ -746,11 +795,13 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         return ticks;
     }
 
-    private static double tickLabelTolerance(final double min, final double max) {
+    private static double tickLabelTolerance(final double min, final double max)
+    {
         return TICK_LABEL_TOLERANCE * (max - min) / 4;
     }
 
-    private static boolean roundsWithin(final double[] values, final int decimals, final double tolerance) {
+    private static boolean roundsWithin(final double[] values, final int decimals, final double tolerance)
+    {
         for (final double v : values) {
             if (Math.abs(roundTo(v, decimals).doubleValue() - v) > tolerance) {
                 return false;
@@ -762,57 +813,61 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     /**
      * {@link BigDecimal} rather than {@code String.format}: no locale decimal comma, no {@code "-0.0"}.
      */
-    private static BigDecimal roundTo(final double value, final int decimals) {
+    private static BigDecimal roundTo(final double value, final int decimals)
+    {
         return BigDecimal.valueOf(value).setScale(decimals, RoundingMode.HALF_UP);
     }
 
     /**
      * The dragged point, else the hovered one, else {@code -1}.
      */
-    private int annotatedPoint() {
-        if (draggedPoint != null && draggedPoint >= 0) {
-            return draggedPoint;
+    private int annotatedPoint()
+    {
+        if (this.draggedPoint != null && this.draggedPoint >= 0) {
+            return this.draggedPoint;
         }
-        return hoveredPoint == null ? -1 : hoveredPoint;
+        return this.hoveredPoint == null ? -1 : this.hoveredPoint;
     }
 
     /**
      * Labels the annotated point with its raw value and color index, with guides to both color bars.
      */
-    private void drawHoverHint(final Graphics2D g) {
-        if (!editMode || isDiscrete()) {
+    private void drawHoverHint(final Graphics2D g)
+    {
+        if (!this.editMode || this.isDiscrete()) {
             return;
         }
-        final int index = annotatedPoint();
-        final Curve curve = model.getCurve();
+        final int index = this.annotatedPoint();
+        final Curve curve = this.model.getCurve();
         if (index < 0 || index >= curve.getPointCount()) {
             return;
         }
 
-        final int px = curveXToPixelX(curve.getX(index));
-        final int py = curveYToPixelY(curve.getY(index));
+        final int px = this.curveXToPixelX(curve.getX(index));
+        final int py = this.curveYToPixelY(curve.getY(index));
 
         g.setColor(POINT_BORDER);
         g.setStroke(GUIDE_STROKE);
         g.drawLine(LABEL_WIDTH, py, px, py);
-        g.drawLine(px, py, px, transformBarBottom());
+        g.drawLine(px, py, px, this.transformBarBottom());
 
-        final double value = rangeMin + curve.getX(index) * (rangeMax - rangeMin);
+        final double value = this.rangeMin + curve.getX(index) * (this.rangeMax - this.rangeMin);
         // the fraction is the blend between neighbouring fixes, so its precision is independent of the fix count
-        final String colorIndex = roundTo(curveYToColorIndex(curve.getY(index)), 2).toPlainString();
-        drawChip(g, px, py, axisValueLabel(value, rangeMin, rangeMax) + "  →  " + colorIndex);
+        final String colorIndex = roundTo(this.curveYToColorIndex(curve.getY(index)), 2).toPlainString();
+        this.drawChip(g, px, py, axisValueLabel(value, this.rangeMin, this.rangeMax) + "  →  " + colorIndex);
     }
 
     /**
      * Right of the point unless that would run off the plot.
      */
-    private void drawChip(final Graphics2D g, final int px, final int py, final String text) {
+    private void drawChip(final Graphics2D g, final int px, final int py, final String text)
+    {
         final FontMetrics fm = g.getFontMetrics();
         final int w = fm.stringWidth(text) + 14;
         final int h = fm.getHeight() + 4;
         final int gap = POINT_RADIUS + 5;
-        final int x = px + gap + w <= plotRight() ? px + gap : px - gap - w;
-        final int y = Math.max(plotTop(), Math.min(plotBottom() - h, py - h / 2));
+        final int x = px + gap + w <= this.plotRight() ? px + gap : px - gap - w;
+        final int y = Math.max(this.plotTop(), Math.min(this.plotBottom() - h, py - h / 2));
 
         g.setColor(CHIP_BACKGROUND);
         g.fillRoundRect(x, y, w, h, 6, 6);
@@ -820,7 +875,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         g.drawString(text, x + 7, y + fm.getAscent() + 2);
     }
 
-    private static String formatValue(final double value) {
+    private static String formatValue(final double value)
+    {
         if (Math.abs(value - Math.round(value)) < 1e-6) {
             return Long.toString(Math.round(value));
         }
@@ -828,84 +884,92 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
     }
 
     @Override
-    public void mousePressed(final MouseEvent e) {
-        if (!editMode || isDiscrete()) {
+    public void mousePressed(final MouseEvent e)
+    {
+        if (!this.editMode || this.isDiscrete()) {
             return;
         }
 
-        final Curve curve = model.getCurve();
-        final double x = valueToCurveX(pixelXToValue(e.getX()));
-        final double y = pixelYToCurveY(e.getY());
+        final Curve curve = this.model.getCurve();
+        final double x = this.valueToCurveX(this.pixelXToValue(e.getX()));
+        final double y = this.pixelYToCurveY(e.getY());
 
         if (e.getButton() == MouseEvent.BUTTON1) {
-            draggedPoint = curve.findNearestPoint(x, y, 0.05);
-            if (draggedPoint < 0) {
+            this.draggedPoint = curve.findNearestPoint(x, y, 0.05);
+            if (this.draggedPoint < 0) {
                 curve.addPoint(x, y);
-                draggedPoint = curve.findNearestPoint(x, y, 0.01);
+                this.draggedPoint = curve.findNearestPoint(x, y, 0.01);
             }
-            model.notifyCurveEdited();
-            repaint();
+            this.model.notifyCurveEdited();
+            this.repaint();
         } else if (e.getButton() == MouseEvent.BUTTON3) {
             final int idx = curve.findNearestPoint(x, y, 0.05);
             if (idx >= 0) {
                 curve.removePoint(idx);
-                hoveredPoint = null;
-                model.notifyCurveEdited();
-                repaint();
+                this.hoveredPoint = null;
+                this.model.notifyCurveEdited();
+                this.repaint();
             }
         }
     }
 
     @Override
-    public void mouseDragged(final MouseEvent e) {
-        if (editMode && !isDiscrete() && draggedPoint != null && draggedPoint >= 0) {
-            model.getCurve().setPoint(draggedPoint, pixelYToCurveY(e.getY()));
-            model.notifyCurveEdited();
-            repaint();
+    public void mouseDragged(final MouseEvent e)
+    {
+        if (this.editMode && !this.isDiscrete() && this.draggedPoint != null && this.draggedPoint >= 0) {
+            this.model.getCurve().setPoint(this.draggedPoint, this.pixelYToCurveY(e.getY()));
+            this.model.notifyCurveEdited();
+            this.repaint();
         }
     }
 
     @Override
-    public void mouseReleased(final MouseEvent e) {
-        draggedPoint = null;
-        updateHoveredPoint(e);
+    public void mouseReleased(final MouseEvent e)
+    {
+        this.draggedPoint = null;
+        this.updateHoveredPoint(e);
     }
 
     @Override
-    public void mouseClicked(final MouseEvent e) {
+    public void mouseClicked(final MouseEvent e)
+    {
     }
 
     @Override
-    public void mouseEntered(final MouseEvent e) {
+    public void mouseEntered(final MouseEvent e)
+    {
     }
 
     @Override
-    public void mouseExited(final MouseEvent e) {
-        if (hoveredPoint != null) {
-            hoveredPoint = null;
-            repaint();
+    public void mouseExited(final MouseEvent e)
+    {
+        if (this.hoveredPoint != null) {
+            this.hoveredPoint = null;
+            this.repaint();
         }
     }
 
     @Override
-    public void mouseMoved(final MouseEvent e) {
-        updateHoveredPoint(e);
+    public void mouseMoved(final MouseEvent e)
+    {
+        this.updateHoveredPoint(e);
     }
 
     /**
      * Repaints only when the hovered point changes; repainting is expensive.
      */
-    private void updateHoveredPoint(final MouseEvent e) {
-        if (!editMode || isDiscrete()) {
+    private void updateHoveredPoint(final MouseEvent e)
+    {
+        if (!this.editMode || this.isDiscrete()) {
             return;
         }
-        final double x = valueToCurveX(pixelXToValue(e.getX()));
-        final double y = pixelYToCurveY(e.getY());
-        final int found = model.getCurve().findNearestPoint(x, y, 0.04);
+        final double x = this.valueToCurveX(this.pixelXToValue(e.getX()));
+        final double y = this.pixelYToCurveY(e.getY());
+        final int found = this.model.getCurve().findNearestPoint(x, y, 0.04);
         final Integer updated = found < 0 ? null : found;
-        if (!Objects.equals(updated, hoveredPoint)) {
-            hoveredPoint = updated;
-            repaint();
+        if (!Objects.equals(updated, this.hoveredPoint)) {
+            this.hoveredPoint = updated;
+            this.repaint();
         }
     }
 
@@ -920,7 +984,8 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         private static final Color DISABLED_COLOR = new Color(168, 168, 168);
 
         @Override
-        public void paintIcon(final Component c, final Graphics g, final int x, final int y) {
+        public void paintIcon(final Component c, final Graphics g, final int x, final int y)
+        {
             final Graphics2D g2 = (Graphics2D) g.create();
             try {
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -944,12 +1009,14 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         }
 
         @Override
-        public int getIconWidth() {
+        public int getIconWidth()
+        {
             return SIZE;
         }
 
         @Override
-        public int getIconHeight() {
+        public int getIconHeight()
+        {
             return SIZE;
         }
     }
