@@ -51,8 +51,30 @@ public class CreateConverterToARGBTest
 		final Object converter = BigDataViewer.createConverterToARGB( new UnsignedByteType() );
 		Assert.assertTrue( converter instanceof ColorSchemeConverter );
 		Assert.assertTrue( converter instanceof ColorConverter );
-		Assert.assertFalse( ( ( ColorConverter ) converter ).supportsColor() );
+		Assert.assertTrue(((ColorConverter) converter).supportsColor());
 	}
+
+    /**
+     * Regression: a color set through the setup, as {@code BdvStackSource.setColor} does, was ignored.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testDefaultConverterTakesAColorFromItsSetup()
+    {
+        final ColorSchemeConverter<UnsignedByteType> converter =
+                (ColorSchemeConverter<UnsignedByteType>) BigDataViewer.createConverterToARGB(new UnsignedByteType());
+        final RealARGBColorConverterSetup setup = new RealARGBColorConverterSetup(0, converter);
+        final int green = ARGBType.rgba(0, 255, 0, 255);
+
+        setup.setColor(new ARGBType(green));
+
+        Assert.assertEquals(green, setup.getColor().get());
+        final ARGBType output = new ARGBType();
+        converter.convert(new UnsignedByteType(255), output);
+        Assert.assertEquals(green, output.get());
+        converter.convert(new UnsignedByteType(0), output);
+        Assert.assertEquals(ARGBType.rgba(0, 0, 0, 255), output.get());
+    }
 
 	@Test
 	public void usesColorSchemeConverterForDoubleTypesInZeroToOneRange()
@@ -60,7 +82,7 @@ public class CreateConverterToARGBTest
 		final Object converter = BigDataViewer.createConverterToARGB( new DoubleType() );
 		Assert.assertTrue( converter instanceof ColorSchemeConverter );
 		Assert.assertTrue( converter instanceof ColorConverter );
-		Assert.assertFalse( ( ( ColorConverter ) converter ).supportsColor() );
+		Assert.assertTrue(((ColorConverter) converter).supportsColor());
 
 		// Default grayscale ramp over [0, 1]: black at the bottom, white at the top.
 		final ARGBType output = new ARGBType();

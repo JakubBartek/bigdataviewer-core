@@ -30,6 +30,8 @@ package bdv.tools.brightness.converter;
 
 import java.util.Objects;
 
+import bdv.tools.brightness.colorscheme.IColorScheme;
+import bdv.tools.brightness.colorscheme.LegacyBdvColorScheme;
 import net.imglib2.converter.Converter;
 import net.imglib2.display.AbstractLinearRange;
 import net.imglib2.display.ColorConverter;
@@ -104,21 +106,32 @@ public class ColorSchemeConverter<R extends RealType<R>> extends AbstractLinearR
         }
     }
 
+    /**
+     * The {@link LegacyBdvColorScheme}'s color, otherwise white: any other
+     * scheme has no single color, and white is what an untinted source reports.
+     */
     @Override
     public ARGBType getColor()
     {
-        return new ARGBType(ARGBType.rgba(255, 255, 255, 255));
+        final IColorScheme scheme = this.wrapper.getColorScheme();
+        return new ARGBType(scheme instanceof LegacyBdvColorScheme
+                ? ((LegacyBdvColorScheme) scheme).getColor()
+                : ARGBType.rgba(255, 255, 255, 255));
     }
 
+    /**
+     * Replaces the scheme, curve and boundary conditions with a black-to-{@code c}
+     * {@link LegacyBdvColorScheme}, so the source looks as under {@code RealARGBColorConverter}.
+     */
     @Override
     public void setColor(final ARGBType c)
     {
-        // colors come from the wrapper
+        this.setWrapper(ColorSchemeConverterFactory.legacyWrapper(new LegacyBdvColorScheme(c.get()), this.min, this.max));
     }
 
     @Override
     public boolean supportsColor()
     {
-        return false;
+        return true;
     }
 }

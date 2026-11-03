@@ -32,7 +32,9 @@ import org.junit.Test;
 
 import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.DiscreteColorScheme;
+import bdv.tools.brightness.colorscheme.LegacyBdvColorScheme;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
+import net.imglib2.display.RealARGBColorConverter;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.real.DoubleType;
 
@@ -144,15 +146,84 @@ public class ColorSchemeConverterTest
 
 	// -- ColorConverter contract ---------------------------------------------
 
-	@Test
-	public void testDoesNotSupportASingleColor()
-	{
-		final ContinuousColorScheme scheme = new ContinuousColorScheme( new int[] { RED, GREEN } );
-		final PresetColorSchemeWrapper wrapper = new PresetColorSchemeWrapper( scheme, new LinearPresetFunc( 0f, 1f, 1 ) );
-		final ColorSchemeConverter< DoubleType > converter = new ColorSchemeConverter<>( wrapper, 0, 1 );
+    @Test
+    public void testSupportsAColor()
+    {
+        final ContinuousColorScheme scheme = new ContinuousColorScheme(new int[]{RED, GREEN});
+        final PresetColorSchemeWrapper wrapper = new PresetColorSchemeWrapper(scheme, new LinearPresetFunc(0f, 1f, 1));
+        final ColorSchemeConverter<DoubleType> converter = new ColorSchemeConverter<>(wrapper, 0, 1);
 
-		Assert.assertFalse( converter.supportsColor() );
-	}
+        Assert.assertTrue(converter.supportsColor());
+    }
+
+    /**
+     * Also replaces the curve and boundary conditions: the discrete scheme and
+     * transparent left boundary must not show through. Fidelity in detail is
+     * {@code LegacyBdvColorSchemeTest}'s.
+     */
+    @Test
+    public void testSetColorRendersLikeTheLegacyConverter()
+    {
+        final double min = 10;
+        final double max = 250;
+        final int[] colors = {GREEN, ARGBType.rgba(255, 128, 0, 255), ARGBType.rgba(30, 144, 255, 128)};
+        for (final int color : colors) {
+            final ColorSchemeConverter<DoubleType> converter = new ColorSchemeConverter<>(discreteWrapperWithTransparentBackground(), min, max);
+            converter.setColor(new ARGBType(color));
+            final RealARGBColorConverter<DoubleType> legacy = RealARGBColorConverter.create(new DoubleType(), min, max);
+            legacy.setColor(new ARGBType(color));
+
+            for (double raw = 0; raw <= max; raw += 0.25) {
+                final ARGBType expected = new ARGBType();
+                legacy.convert(new DoubleType(raw), expected);
+                final int actual = convert(converter, raw);
+                final String where = String.format("color %08x, raw %s: legacy %08x, converter %08x", color, raw, expected.get(), actual);
+                Assert.assertTrue(where, Math.abs(ARGBType.red(expected.get()) - ARGBType.red(actual)) <= 1);
+                Assert.assertTrue(where, Math.abs(ARGBType.green(expected.get()) - ARGBType.green(actual)) <= 1);
+                Assert.assertTrue(where, Math.abs(ARGBType.blue(expected.get()) - ARGBType.blue(actual)) <= 1);
+                Assert.assertEquals(where, ARGBType.alpha(expected.get()), ARGBType.alpha(actual));
+            }
+        }
+    }
+
+    @Test
+    public void testGetColorIsTheTintOrWhite()
+    {
+        final ColorSchemeConverter<DoubleType> converter = new ColorSchemeConverter<>(discreteWrapperWithTransparentBackground(), 10, 40);
+        Assert.assertEquals(ARGBType.rgba(255, 255, 255, 255), converter.getColor().get());
+
+        final int orange = ARGBType.rgba(255, 128, 0, 255);
+        converter.setColor(new ARGBType(orange));
+        Assert.assertEquals(orange, converter.getColor().get());
+        Assert.assertEquals(new LegacyBdvColorScheme(orange), converter.getWrapper().getColorScheme());
+    }
+
+    @Test
+    public void testATintFollowsLaterDisplayRangeChanges()
+    {
+        final ColorSchemeConverter<DoubleType> converter = new ColorSchemeConverter<>(discreteWrapperWithTransparentBackground(), 10, 40);
+        converter.setColor(new ARGBType(GREEN));
+
+        converter.setMin(0);
+        converter.setMax(100);
+
+        Assert.assertEquals(ARGBType.rgba(0, 0, 0, 255), convert(converter, 0));
+        Assert.assertEquals(GREEN, convert(converter, 100));
+    }
+
+    /**
+     * A collapsed range is tolerated by {@code RealARGBColorConverter}, so a tint set on one must be too.
+     */
+    @Test
+    public void testSetColorOnACollapsedRangeDoesNotThrow()
+    {
+        final ColorSchemeConverter<DoubleType> converter = new ColorSchemeConverter<>(discreteWrapperWithTransparentBackground(), 10, 40);
+        converter.setMax(10);
+
+        converter.setColor(new ARGBType(GREEN));
+
+        Assert.assertEquals(new LegacyBdvColorScheme(GREEN), converter.getWrapper().getColorScheme());
+    }
 
 	@Test
 	public void testExposesDisplayRangeAsMinMax()
@@ -164,4 +235,10 @@ public class ColorSchemeConverterTest
 		Assert.assertEquals( 5.0, converter.getMin(), 0.0 );
 		Assert.assertEquals( 42.0, converter.getMax(), 0.0 );
 	}
+
+    private static PresetColorSchemeWrapper discreteWrapperWithTransparentBackground()
+    {
+        final DiscreteColorScheme scheme = new DiscreteColorScheme(new int[]{RED, GREEN, BLUE});
+        return new PresetColorSchemeWrapper(scheme, new LinearPresetFunc(0f, 1f, 3), BoundaryCondition.SPECIAL, BoundaryCondition.CLAMP);
+    }
 }

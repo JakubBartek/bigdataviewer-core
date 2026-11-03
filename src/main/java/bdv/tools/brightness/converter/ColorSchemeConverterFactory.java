@@ -32,7 +32,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import bdv.tools.brightness.colorscheme.ColorSchemeFactory;
-import bdv.tools.brightness.colorscheme.ContinuousColorScheme;
 import bdv.tools.brightness.colorscheme.LegacyBdvColorScheme;
 import bdv.tools.brightness.presetfunc.LinearPresetFunc;
 import bdv.viewer.Source;
@@ -95,17 +94,25 @@ public final class ColorSchemeConverterFactory {
         final double min = legacy.getMin();
         final double max = legacy.getMax();
 
-        final ContinuousColorScheme scheme = ColorSchemeFactory.loadFromLegacyConverter(legacy);
-        // the legacy converter tolerates a collapsed range, the wrapper does not
-        final double hi = max > min ? max : min + 1;
-        final PresetColorSchemeWrapper wrapper = new PresetColorSchemeWrapper(scheme,
-                new LinearPresetFunc(min, hi, scheme.getRange()));
+        final PresetColorSchemeWrapper wrapper = legacyWrapper(ColorSchemeFactory.loadFromLegacyConverter(legacy), min, max);
+        final double hi = wrapper.getPresetFunc().getMax();
 
         final ColorSchemeConverter<?> converted = install(soc, wrapper, min, hi);
         if (soc.asVolatile() != null) {
             install(soc.asVolatile(), wrapper, min, hi);
         }
         return converted;
+    }
+
+    /**
+     * Linear and clamped over {@code [min, max]}, as {@code RealARGBColorConverter}
+     * maps. The legacy converter tolerates a collapsed range and the wrapper does
+     * not, so one is widened by one raw unit.
+     */
+    static PresetColorSchemeWrapper legacyWrapper(final LegacyBdvColorScheme scheme, final double min, final double max)
+    {
+        final double hi = max > min ? max : min + 1;
+        return new PresetColorSchemeWrapper(scheme, new LinearPresetFunc(min, hi, scheme.getRange()));
     }
 
     /**

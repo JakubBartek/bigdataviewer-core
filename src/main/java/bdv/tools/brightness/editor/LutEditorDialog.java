@@ -129,7 +129,7 @@ public class LutEditorDialog extends JDialog {
      * between sessions or miss one put in place by {@link #repointConverterSetup}.
      */
     private final SetupChangeListener setupChangeListener = setup ->
-            SwingUtilities.invokeLater(() -> this.followDisplayRange(setup));
+            SwingUtilities.invokeLater(() -> this.followSetup(setup));
 
     private final JComboBox<Object> comboColorScheme;
     private final JComboBox<Object> comboEditorPreset;
@@ -407,6 +407,10 @@ public class LutEditorDialog extends JDialog {
             this.labelStatus.setText("");
         }
 
+        final LegacyBdvColorScheme outsideColor = this.colorSetElsewhere(this.activeConverter);
+        if (outsideColor != null) {
+            this.rememberLegacyState(this.activeConverter, outsideColor);
+        }
         this.loadIntoEditor(this.initialStateFor(this.activeConverter, this.activeSetup));
         this.baseline = this.captureEditorState();
     }
@@ -461,16 +465,42 @@ public class LutEditorDialog extends JDialog {
             return null;
         }
 
+        this.rememberLegacyState(converted, scheme);
+        this.repointConverterSetup(soc);
+        this.repaintAction.run();
+        return converted;
+    }
+
+    /**
+     * Lists {@code scheme} and remembers it for {@code converter} with the
+     * clamped linear mapping {@link ColorSchemeConverterFactory} renders it with.
+     */
+    private void rememberLegacyState(final ColorSchemeConverter<?> converter, final LegacyBdvColorScheme scheme)
+    {
         final String name = legacySchemeName(scheme);
         this.addColorScheme(LEGACY_SCHEME_CATEGORY, name, scheme);
         final LutEditorMapping mapping = defaultMapping();
         mapping.setLeftBoundaryCondition(BoundaryCondition.CLAMP);
         mapping.setRightBoundaryCondition(BoundaryCondition.CLAMP);
-        this.converterStates.put(converted, new EditorState(scheme, name, mapping, converted.getMin(), converted.getMax()));
+        this.converterStates.put(converter, new EditorState(scheme, name, mapping, converter.getMin(), converter.getMax()));
+    }
 
-        this.repointConverterSetup(soc);
-        this.repaintAction.run();
-        return converted;
+    /**
+     * The color given by {@code ColorSchemeConverter.setColor} since this editor
+     * last pushed to {@code converter}, else {@code null}. Pushing the remembered
+     * state would paint over it.
+     */
+    private LegacyBdvColorScheme colorSetElsewhere(final ColorSchemeConverter<?> converter)
+    {
+        if (converter == null) {
+            return null;
+        }
+        final IColorScheme scheme = converter.getWrapper().getColorScheme();
+        if (!(scheme instanceof LegacyBdvColorScheme)) {
+            return null;
+        }
+        final EditorState remembered = this.converterStates.get(converter);
+        return remembered != null && remembered.scheme.equals(scheme) ? null : (LegacyBdvColorScheme) scheme;
     }
 
     /**
@@ -783,6 +813,18 @@ public class LutEditorDialog extends JDialog {
             this.activeSetup.setDisplayRange(this.editedRangeMin, this.editedRangeMax);
         }
         this.repaintAction.run();
+    }
+
+    /**
+     * A color set elsewhere restarts the session on it, so Reset returns to it.
+     */
+    private void followSetup(final ConverterSetup setup)
+    {
+        if (this.isVisible() && setup == this.activeSetup && this.colorSetElsewhere(this.activeConverter) != null) {
+            this.beginSession(this.sessionSource);
+            return;
+        }
+        this.followDisplayRange(setup);
     }
 
     /**

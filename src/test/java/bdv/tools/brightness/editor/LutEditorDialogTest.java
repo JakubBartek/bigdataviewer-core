@@ -478,6 +478,75 @@ public class LutEditorDialogTest
 		}
 	}
 
+    // -- a color set outside the editor ------------------------------------
+
+    /**
+     * Must also survive a later display range change, which re-pushes the editor's state.
+     */
+    @Test
+    public void testShowsAColorSetElsewhereWhileOpen() throws Exception
+    {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+
+        final SourceAndConverter<DoubleType> soc = schemeSource(10, 210);
+        final BasicViewerState state = new BasicViewerState();
+        state.addSource(soc);
+        state.setCurrentSource(soc);
+        final ConverterSetups setups = new ConverterSetups(state);
+        final RealARGBColorConverterSetup setup = new RealARGBColorConverterSetup(0, (ColorConverter) soc.getConverter());
+        setups.put(soc, setup);
+        final int green = ARGBType.rgba(0, 255, 0, 255);
+
+        final LutEditorDialog dialog = new LutEditorDialog(null, setups, state, () -> {});
+        try {
+            dialog.setVisible(true);
+            dialog.getColorSchemeCombo().setSelectedItem("viridis");
+
+            setup.setColor(new ARGBType(green));
+            SwingUtilities.invokeAndWait(() -> {});
+            assertEquals(new LegacyBdvColorScheme(green), dialog.getCurrentColorScheme());
+            assertEquals("BDV #00FF00", dialog.getColorSchemeCombo().getSelectedItem());
+
+            setup.setDisplayRange(50, 100);
+            SwingUtilities.invokeAndWait(() -> {});
+            final ColorSchemeConverter<?> converter = (ColorSchemeConverter<?>) soc.getConverter();
+            assertEquals(new LegacyBdvColorScheme(green), converter.getWrapper().getColorScheme());
+        } finally {
+            dialog.dispose();
+        }
+    }
+
+    @Test
+    public void testOpensOnAColorSetElsewhereWhileClosed() throws Exception
+    {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+
+        final SourceAndConverter<DoubleType> soc = schemeSource(10, 210);
+        final BasicViewerState state = new BasicViewerState();
+        state.addSource(soc);
+        state.setCurrentSource(soc);
+        final ConverterSetups setups = new ConverterSetups(state);
+        final RealARGBColorConverterSetup setup = new RealARGBColorConverterSetup(0, (ColorConverter) soc.getConverter());
+        setups.put(soc, setup);
+        final int orange = ARGBType.rgba(255, 128, 0, 255);
+
+        final LutEditorDialog dialog = new LutEditorDialog(null, setups, state, () -> {});
+        try {
+            dialog.setVisible(true);
+            dialog.getColorSchemeCombo().setSelectedItem("viridis");
+            dialog.setVisible(false);
+
+            setup.setColor(new ARGBType(orange));
+            SwingUtilities.invokeAndWait(() -> {});
+            dialog.setVisible(true);
+
+            assertEquals(new LegacyBdvColorScheme(orange), dialog.getCurrentColorScheme());
+            assertEquals("BDV #FF8000", dialog.getColorSchemeCombo().getSelectedItem());
+        } finally {
+            dialog.dispose();
+        }
+    }
+
 	/** {@code Class.getSimpleName()} throws on imglib2's class copy. */
 	@Test
 	public void testConverterKindNamesAClassCopiedConverter()
