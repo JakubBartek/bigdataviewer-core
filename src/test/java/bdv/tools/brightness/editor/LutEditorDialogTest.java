@@ -55,6 +55,7 @@ import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.real.DoubleType;
 import org.scijava.listeners.Listeners;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -230,7 +231,8 @@ public class LutEditorDialogTest
 
 			dialog.getColorSchemeCombo().setSelectedItem( "tab10" );
 
-			assertEquals( PresetShape.LINEAR, dialog.getMapping().getPreset() );
+			final Curve curve = dialog.getMapping().getCurve();
+			assertSame( PresetShape.LINEAR, PresetShape.matching( curve.xsArray(), curve.ysArray() ) );
 			assertEquals( 2, dialog.getMapping().getCurve().getPointCount() );
 		}
 		finally
@@ -262,6 +264,37 @@ public class LutEditorDialogTest
 			dialog.dispose();
 		}
 	}
+
+    @Test
+    public void testEditingTheCurveShowsCustomPreset()
+    {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+
+        final LutEditorDialog dialog = new LutEditorDialog(null, new ConverterSetups(new BasicViewerState()), new BasicViewerState(), () -> {});
+        try {
+            final JComboBox<Object> combo = dialog.getMappingPresetCombo();
+            dialog.getColorSchemeCombo().setSelectedItem("viridis");
+            combo.setSelectedItem(PresetShape.LOG);
+            assertSame(PresetShape.LOG, combo.getSelectedItem());
+
+            dialog.getMapping().getCurve().addPoint(0.3, 0.8);
+            dialog.getMapping().notifyCurveEdited();
+            assertEquals("Custom", combo.getSelectedItem());
+
+            final double[] editedYs = dialog.getMapping().getCurve().ysArray();
+            combo.setSelectedItem("Custom");
+            assertArrayEquals(editedYs, dialog.getMapping().getCurve().ysArray(), 0.0);
+
+            combo.setSelectedItem(PresetShape.SIGMOID);
+            assertSame(PresetShape.SIGMOID, combo.getSelectedItem());
+            assertEquals(PresetShape.values().length, combo.getItemCount());
+
+            dialog.getMapping().invertCurve();
+            assertEquals("Custom", combo.getSelectedItem());
+        } finally {
+            dialog.dispose();
+        }
+    }
 
 	/** Every kind of switch reaches the converter, not only the one into a discrete scheme. */
 	@Test

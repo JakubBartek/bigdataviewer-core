@@ -162,7 +162,12 @@ public class LutEditorDialog extends JDialog {
 
     private static final int MAX_HELP_WIDTH = 720;
 
-    private final JComboBox<PresetShape> comboMappingPreset;
+    /**
+     * Holds the {@link PresetShape}s, plus {@link #CUSTOM_PRESET} while the curve matches none of them.
+     */
+    private final JComboBox<Object> comboMappingPreset;
+
+    private static final String CUSTOM_PRESET = "Custom";
     private final JButton buttonInvertCurve;
     private final JTextField fieldStepSize;
 
@@ -733,6 +738,14 @@ public class LutEditorDialog extends JDialog {
         return this.comboColorScheme;
     }
 
+    /**
+     * For tests.
+     */
+    JComboBox<Object> getMappingPresetCombo()
+    {
+        return this.comboMappingPreset;
+    }
+
     private EditorState captureEditorState()
     {
         final LutEditorMapping mapping = new LutEditorMapping();
@@ -929,10 +942,32 @@ public class LutEditorDialog extends JDialog {
         this.withoutFeedback(() ->
         {
             this.layoutShape.show(this.panelShape, this.isDiscrete() ? SHAPE_CARD_DISCRETE : SHAPE_CARD_CONTINUOUS);
-            this.comboMappingPreset.setSelectedItem(this.mappingModel.getPreset());
+            this.syncMappingPresetSelection();
             this.updateStepSizeField();
             this.labelSchemeKind.setText(this.schemeKindText());
             this.updateCurveHint();
+        });
+    }
+
+    /**
+     * Shows the shape the curve renders as (see {@link PresetShape#matching}), or {@link #CUSTOM_PRESET}.
+     */
+    private void syncMappingPresetSelection()
+    {
+        final Curve curve = this.mappingModel.getCurve();
+        final PresetShape shape = PresetShape.matching(curve.xsArray(), curve.ysArray());
+        final DefaultComboBoxModel<Object> model = (DefaultComboBoxModel<Object>) this.comboMappingPreset.getModel();
+        this.withoutFeedback(() ->
+        {
+            if (shape == null) {
+                if (model.getIndexOf(CUSTOM_PRESET) < 0) {
+                    model.addElement(CUSTOM_PRESET);
+                }
+                model.setSelectedItem(CUSTOM_PRESET);
+            } else {
+                model.setSelectedItem(shape);
+                model.removeElement(CUSTOM_PRESET);
+            }
         });
     }
 
@@ -1233,7 +1268,10 @@ public class LutEditorDialog extends JDialog {
             if (this.loadingControls) {
                 return;
             }
-            this.mappingModel.applyPreset((PresetShape) this.comboMappingPreset.getSelectedItem());
+            final Object selected = this.comboMappingPreset.getSelectedItem();
+            if (selected instanceof PresetShape) {
+                this.mappingModel.applyPreset((PresetShape) selected);
+            }
         });
 
         this.fieldStepSize.addActionListener(e -> this.commitStepSizeField());
@@ -1265,6 +1303,7 @@ public class LutEditorDialog extends JDialog {
         this.mappingModel.addChangeListener(this.panelMappingCurve::repaint);
         this.mappingModel.addChangeListener(this.panelSchemeSwatch::repaint);
         this.mappingModel.addChangeListener(this::pushLiveEdits);
+        this.mappingModel.addChangeListener(this::syncMappingPresetSelection);
         this.mappingModel.addChangeListener(() ->
         {
             if (!this.loadingControls) {

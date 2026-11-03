@@ -40,7 +40,6 @@ public class LutEditorMappingTest
 	public void testDefaultIsLinear()
 	{
 		final LutEditorMapping model = new LutEditorMapping();
-		Assert.assertEquals( PresetShape.LINEAR, model.getPreset() );
 
 		// The default curve is the identity ramp, exactly its two endpoints.
 		final Curve curve = model.getCurve();
@@ -64,8 +63,8 @@ public class LutEditorMappingTest
 		final LutEditorMapping model = new LutEditorMapping();
 		model.applyPreset( PresetShape.LOG );
 
-		Assert.assertEquals( PresetShape.LOG, model.getPreset() );
 		final Curve curve = model.getCurve();
+		Assert.assertSame( PresetShape.LOG, PresetShape.matching( curve.xsArray(), curve.ysArray() ) );
 		final int last = curve.getPointCount() - 1;
 		Assert.assertEquals( 0.0, curve.getY( 0 ), 0.0 );
 		Assert.assertEquals( 1.0, curve.getY( last ), 0.0 );
@@ -121,7 +120,8 @@ public class LutEditorMappingTest
 		copy.copyFrom( source );
 
 		Assert.assertTrue( source.hasSameState( copy ) );
-		Assert.assertEquals( source.getPreset(), copy.getPreset() );
+		Assert.assertArrayEquals( source.getCurve().xsArray(), copy.getCurve().xsArray(), 0.0 );
+		Assert.assertArrayEquals( source.getCurve().ysArray(), copy.getCurve().ysArray(), 0.0 );
 		Assert.assertEquals( source.getLeftBoundaryCondition(), copy.getLeftBoundaryCondition() );
 		Assert.assertEquals( source.getRightBoundaryCondition(), copy.getRightBoundaryCondition() );
 		Assert.assertEquals( source.getLeftSpecialColor(), copy.getLeftSpecialColor() );
@@ -135,7 +135,7 @@ public class LutEditorMappingTest
 		source.setLeftSpecialColor( LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR );
 		source.setRightSpecialColor( LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR );
 		source.setStepSize( LutEditorMapping.AUTO_STEP_SIZE );
-		Assert.assertEquals( PresetShape.SIGMOID, copy.getPreset() );
+		Assert.assertSame( PresetShape.SIGMOID, PresetShape.matching( copy.getCurve().xsArray(), copy.getCurve().ysArray() ) );
 		Assert.assertEquals( BoundaryCondition.SPECIAL, copy.getLeftBoundaryCondition() );
 		Assert.assertEquals( BoundaryCondition.CYCLE, copy.getRightBoundaryCondition() );
 		Assert.assertEquals( 0xffaabbcc, copy.getLeftSpecialColor() );

@@ -72,11 +72,6 @@ public class LutEditorMapping {
      */
     private double stepSize = AUTO_STEP_SIZE;
 
-    /**
-     * The shape {@link #curve} was last seeded from.
-     */
-    private PresetShape preset;
-
     private final List<Runnable> changeListeners = new ArrayList<>();
 
     public LutEditorMapping()
@@ -156,17 +151,11 @@ public class LutEditorMapping {
 
     // -- curve ---------------------------------------------------------------
 
-    public PresetShape getPreset()
-    {
-        return this.preset;
-    }
-
     /**
      * Replaces the curve's control points with the preset's shape.
      */
     public void applyPreset(final PresetShape preset)
     {
-        this.preset = preset;
         this.curve.setPoints(preset.xs(), preset.ys());
         this.fireChangeListeners();
     }
@@ -189,7 +178,6 @@ public class LutEditorMapping {
         this.leftSpecialColor = other.leftSpecialColor;
         this.rightSpecialColor = other.rightSpecialColor;
         this.stepSize = other.stepSize;
-        this.preset = other.preset;
         this.curve.setPoints(other.curve.xsArray(), other.curve.ysArray());
         this.fireChangeListeners();
     }
@@ -204,7 +192,6 @@ public class LutEditorMapping {
                 && this.leftSpecialColor == other.leftSpecialColor
                 && this.rightSpecialColor == other.rightSpecialColor
                 && Double.compare(this.stepSize, other.stepSize) == 0
-                && this.preset == other.preset
                 && Arrays.equals(this.curve.xsArray(), other.curve.xsArray())
                 && Arrays.equals(this.curve.ysArray(), other.curve.ysArray());
     }
