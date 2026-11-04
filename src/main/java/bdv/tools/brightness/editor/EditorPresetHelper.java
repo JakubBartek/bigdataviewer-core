@@ -52,8 +52,12 @@ import java.util.stream.Stream;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import mpicbg.spim.data.XmlHelpers;
+import org.jdom2.Element;
+
 /**
- * Discovers, loads and saves {@link EditorPreset}s: built-in ones under
+ * Converts {@link EditorPreset}s to and from settings XML, and discovers,
+ * loads and saves them as files: built-in ones under
  * {@value #BUILTIN_RESOURCE_DIR}, and user-saved ones in its
  * {@value #USER_SUBDIR} subdirectory (git-ignored), which take precedence.
  * Saving only works when the resource directory is on the filesystem, not in
@@ -72,6 +76,15 @@ public final class EditorPresetHelper {
     static final String USER_DIR_OVERRIDE_PROPERTY = "bdv.tools.brightness.editor.EditorPresetHelper.userDir";
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
+    private static final String XML_COLOR_SCHEME_NAME = "colorSchemeName";
+    private static final String XML_LEFT_BOUNDARY_CONDITION = "leftBoundaryCondition";
+    private static final String XML_RIGHT_BOUNDARY_CONDITION = "rightBoundaryCondition";
+    private static final String XML_LEFT_SPECIAL_COLOR = "leftSpecialColor";
+    private static final String XML_RIGHT_SPECIAL_COLOR = "rightSpecialColor";
+    private static final String XML_STEP_SIZE = "stepSize";
+    private static final String XML_CURVE_XS = "curveXs";
+    private static final String XML_CURVE_VALUES = "curveValues";
 
     private EditorPresetHelper()
     {
@@ -230,6 +243,45 @@ public final class EditorPresetHelper {
      * Trimmed, with filesystem-significant characters replaced. Callers must
      * canonicalize a typed name before comparing it with {@link #discoverNames()}.
      */
+    /**
+     * The preset's fields as children of a new {@code elementName} element; the
+     * preset's own name is not written.
+     */
+    static Element toXml(final EditorPreset preset, final String elementName)
+    {
+        final Element elem = new Element(elementName);
+        if (preset.getColorSchemeName() != null) {
+            elem.addContent(XmlHelpers.textElement(XML_COLOR_SCHEME_NAME, preset.getColorSchemeName()));
+        }
+        elem.addContent(XmlHelpers.textElement(XML_LEFT_BOUNDARY_CONDITION, preset.getLeftBoundaryCondition().name()));
+        elem.addContent(XmlHelpers.textElement(XML_RIGHT_BOUNDARY_CONDITION, preset.getRightBoundaryCondition().name()));
+        elem.addContent(XmlHelpers.intElement(XML_LEFT_SPECIAL_COLOR, preset.getLeftSpecialColor()));
+        elem.addContent(XmlHelpers.intElement(XML_RIGHT_SPECIAL_COLOR, preset.getRightSpecialColor()));
+        elem.addContent(XmlHelpers.doubleElement(XML_STEP_SIZE, preset.getStepSize()));
+        if (preset.getCurveXs() != null && preset.getCurveValues() != null) {
+            elem.addContent(XmlHelpers.doubleArrayElement(XML_CURVE_XS, preset.getCurveXs()));
+            elem.addContent(XmlHelpers.doubleArrayElement(XML_CURVE_VALUES, preset.getCurveValues()));
+        }
+        return elem;
+    }
+
+    /**
+     * Inverse of {@link #toXml}; a missing child takes {@link EditorPreset}'s default.
+     *
+     * @throws NumberFormatException if a number is malformed.
+     */
+    static EditorPreset fromXml(final Element elem)
+    {
+        return new EditorPreset(null, XmlHelpers.getText(elem, XML_COLOR_SCHEME_NAME),
+                EditorPreset.parse(XmlHelpers.getText(elem, XML_LEFT_BOUNDARY_CONDITION)),
+                EditorPreset.parse(XmlHelpers.getText(elem, XML_RIGHT_BOUNDARY_CONDITION)),
+                XmlHelpers.getInt(elem, XML_LEFT_SPECIAL_COLOR, LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR),
+                XmlHelpers.getInt(elem, XML_RIGHT_SPECIAL_COLOR, LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR),
+                XmlHelpers.getDouble(elem, XML_STEP_SIZE, LutEditorMapping.AUTO_STEP_SIZE),
+                XmlHelpers.getDoubleArray(elem, XML_CURVE_XS, null),
+                XmlHelpers.getDoubleArray(elem, XML_CURVE_VALUES, null));
+    }
+
     public static String canonicalName(final String name)
     {
         return name.trim().replaceAll("[\\\\/:*?\"<>|]", "_");

@@ -34,7 +34,8 @@ import bdv.tools.brightness.converter.BoundaryCondition;
  * A named snapshot of the LUT editor's mapping settings, excluding the display
  * range, which belongs to the source.
  * <p>
- * Gson-serialized by {@link EditorPresetHelper}; field names are the JSON keys.
+ * Gson-serialized by {@link EditorPresetHelper}; field names are the JSON keys,
+ * and the element names of {@link EditorPresetHelper#toXml}.
  * The legacy keys {@code cyclic}/{@code treatMinAsBackground}/{@code backgroundColor}
  * are read but never written. Fields are boxed so Gson can tell "absent" from
  * "false"/"0".
@@ -176,10 +177,13 @@ public class EditorPreset {
     }
 
     /**
-     * Unknown names fall back to {@link BoundaryCondition#CLAMP}; preset files are user-editable.
+     * Unknown or missing names fall back to {@link BoundaryCondition#CLAMP}; preset files are user-editable.
      */
-    private static BoundaryCondition parse(final String name)
+    static BoundaryCondition parse(final String name)
     {
+        if (name == null) {
+            return BoundaryCondition.CLAMP;
+        }
         try {
             return BoundaryCondition.valueOf(name);
         } catch (final IllegalArgumentException e) {

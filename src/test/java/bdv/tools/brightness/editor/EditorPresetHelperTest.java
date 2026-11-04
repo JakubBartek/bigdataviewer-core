@@ -29,6 +29,7 @@
 package bdv.tools.brightness.editor;
 
 import java.io.File;
+import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
@@ -40,6 +41,11 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.jdom2.Document;
+import org.jdom2.Element;
+import org.jdom2.input.SAXBuilder;
+import org.jdom2.output.Format;
+import org.jdom2.output.XMLOutputter;
 
 import bdv.tools.brightness.converter.BoundaryCondition;
 
@@ -290,4 +296,68 @@ public class EditorPresetHelperTest
 		Assert.assertTrue( EditorPresetHelper.discoverNames().contains( canonical ) );
 		Assert.assertEquals( canonical, EditorPresetHelper.load( canonical ).getName() );
 	}
+
+    // -- settings XML --------------------------------------------------------
+
+    /**
+     * Through text, as a settings file stores it; doubles that have no short decimal form must survive exactly.
+     */
+    @Test
+    public void testXmlRoundTripsEveryField() throws Exception
+    {
+        final double[] xs = {0, 1.0 / 3, 0.1 + 0.2, 1};
+        final double[] values = {0, 2.0 / 3, Math.nextUp(0.5), 1};
+        final EditorPreset preset = new EditorPreset(null, "viridis", BoundaryCondition.SPECIAL, BoundaryCondition.CYCLE,
+                0x00994499, 0xff123456, 0.3, xs, values);
+
+        final EditorPreset restored = EditorPresetHelper.fromXml(throughText(EditorPresetHelper.toXml(preset, "Entry")));
+
+        Assert.assertEquals("viridis", restored.getColorSchemeName());
+        Assert.assertEquals(BoundaryCondition.SPECIAL, restored.getLeftBoundaryCondition());
+        Assert.assertEquals(BoundaryCondition.CYCLE, restored.getRightBoundaryCondition());
+        Assert.assertEquals(0x00994499, restored.getLeftSpecialColor());
+        Assert.assertEquals(0xff123456, restored.getRightSpecialColor());
+        Assert.assertEquals(0.3, restored.getStepSize(), 0.0);
+        Assert.assertArrayEquals(xs, restored.getCurveXs(), 0.0);
+        Assert.assertArrayEquals(values, restored.getCurveValues(), 0.0);
+    }
+
+    @Test
+    public void testXmlMissingChildrenTakeTheDefaults()
+    {
+        final EditorPreset restored = EditorPresetHelper.fromXml(new Element("Entry"));
+
+        Assert.assertNull(restored.getColorSchemeName());
+        Assert.assertEquals(BoundaryCondition.CLAMP, restored.getLeftBoundaryCondition());
+        Assert.assertEquals(BoundaryCondition.CLAMP, restored.getRightBoundaryCondition());
+        Assert.assertEquals(LutEditorMapping.DEFAULT_LEFT_SPECIAL_COLOR, restored.getLeftSpecialColor());
+        Assert.assertEquals(LutEditorMapping.DEFAULT_RIGHT_SPECIAL_COLOR, restored.getRightSpecialColor());
+        Assert.assertEquals(LutEditorMapping.AUTO_STEP_SIZE, restored.getStepSize(), 0.0);
+        Assert.assertNull(restored.getCurveXs());
+        Assert.assertNull(restored.getCurveValues());
+    }
+
+    @Test
+    public void testXmlUnknownBoundaryConditionFallsBackToClamp()
+    {
+        final Element elem = new Element("Entry");
+        elem.addContent(new Element("leftBoundaryCondition").setText("WRAP_AROUND"));
+
+        Assert.assertEquals(BoundaryCondition.CLAMP, EditorPresetHelper.fromXml(elem).getLeftBoundaryCondition());
+    }
+
+    @Test
+    public void testXmlWithoutASchemeNameWritesNone()
+    {
+        final EditorPreset preset = new EditorPreset(null, null, BoundaryCondition.CLAMP, BoundaryCondition.CLAMP,
+                0, 0, LutEditorMapping.AUTO_STEP_SIZE, new double[]{0, 1}, new double[]{0, 1});
+
+        Assert.assertNull(EditorPresetHelper.toXml(preset, "Entry").getChild("colorSchemeName"));
+    }
+
+    private static Element throughText(final Element elem) throws Exception
+    {
+        final String text = new XMLOutputter(Format.getPrettyFormat()).outputString(new Document(elem));
+        return new SAXBuilder().build(new StringReader(text)).getRootElement();
+    }
 }

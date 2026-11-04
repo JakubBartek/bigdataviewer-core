@@ -28,16 +28,23 @@
 package bdv.tools.brightness.editor;
 
 import java.awt.GraphicsEnvironment;
+import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.JComboBox;
 import javax.swing.SwingUtilities;
 
+import org.jdom2.Document;
+import org.jdom2.Element;
+import org.jdom2.input.SAXBuilder;
+import org.jdom2.output.Format;
+import org.jdom2.output.XMLOutputter;
 import org.junit.Test;
 
 import bdv.tools.brightness.ConverterSetup.SetupChangeListener;
 import bdv.tools.brightness.RealARGBColorConverterSetup;
+import bdv.tools.brightness.converter.BoundaryCondition;
 import bdv.tools.brightness.converter.ColorSchemeConverter;
 import bdv.tools.brightness.converter.ColorSchemeConverterFactoryTest.TypeOnlySource;
 import bdv.tools.brightness.converter.PresetColorSchemeWrapper;
@@ -547,6 +554,159 @@ public class LutEditorDialogTest
         }
     }
 
+    // -- settings XML --------------------------------------------------------
+
+    /**
+     * Every kind of state the editor can leave on a source -- a named continuous
+     * scheme with an edited curve and special boundaries, a discrete scheme, a
+     * converted legacy color with an edited curve, and the unnamed neutral scheme
+     * -- must render identically in a fresh viewer after a save and load.
+     */
+    @Test
+    public void testSettingsRestoreRendersTheSameAsSaved() throws Exception
+    {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+
+        final Viewer saved = new Viewer();
+        saved.add(schemeSource(10, 210));
+        saved.add(schemeSource(0, 40));
+        saved.add(legacySource(10, 210, ARGBType.rgba(255, 128, 0, 255)));
+        saved.add(schemeSource(10, 210));
+
+        final LutEditorDialog editor = new LutEditorDialog(null, saved.setups, saved.state, () -> {});
+        final Element root = new Element("Settings");
+        try {
+            editor.setVisible(true);
+            saved.select(0);
+            editor.getColorSchemeCombo().setSelectedItem("viridis");
+            editCurve(editor);
+            editor.getMapping().setLeftBoundaryCondition(BoundaryCondition.SPECIAL);
+            editor.getMapping().setLeftSpecialColor(0x00994499);
+            editor.getMapping().setRightBoundaryCondition(BoundaryCondition.CYCLE);
+
+            saved.select(1);
+            editor.getColorSchemeCombo().setSelectedItem("tab10");
+            editor.getMapping().setRightBoundaryCondition(BoundaryCondition.CYCLE);
+
+            saved.select(2);
+            editCurve(editor);
+
+            saved.select(3);
+            editCurve(editor);
+
+            root.addContent(throughText(editor.toXml()));
+        } finally {
+            editor.dispose();
+        }
+
+        final Viewer loaded = new Viewer();
+        loaded.add(schemeSource(0, 255));
+        loaded.add(schemeSource(0, 255));
+        loaded.add(legacySource(0, 255, ARGBType.rgba(255, 255, 255, 255)));
+        loaded.add(schemeSource(0, 255));
+        for (int id = 0; id < saved.sources.size(); id++) {
+            // what SetupAssignments.restoreFromXml does first
+            loaded.setup(id).setDisplayRange(saved.setup(id).getDisplayRangeMin(), saved.setup(id).getDisplayRangeMax());
+        }
+
+        final LutEditorDialog restorer = new LutEditorDialog(null, loaded.setups, loaded.state, () -> {});
+        try {
+            restorer.setVisible(true);
+            restorer.restoreFromXml(root);
+
+            assertEquals(ColorSchemeFactory.loadFromJson("viridis"), restorer.getCurrentColorScheme());
+            for (int id = 0; id < saved.sources.size(); id++) {
+                final double min = saved.setup(id).getDisplayRangeMin();
+                final double max = saved.setup(id).getDisplayRangeMax();
+                for (double raw = min - 20; raw <= max + 20; raw += 0.25) {
+                    assertEquals("setup " + id + ", raw " + raw, render(saved.sources.get(id), raw), render(loaded.sources.get(id), raw));
+                }
+            }
+        } finally {
+            restorer.dispose();
+        }
+    }
+
+    /**
+     * Regression: an entry for the editor's older state would override the color on load.
+     */
+    @Test
+    public void testSettingsLeaveOutAColorSetWhileClosed() throws Exception
+    {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+
+        final Viewer viewer = new Viewer();
+        viewer.add(schemeSource(10, 210));
+        final LutEditorDialog dialog = new LutEditorDialog(null, viewer.setups, viewer.state, () -> {});
+        try {
+            dialog.setVisible(true);
+            dialog.getColorSchemeCombo().setSelectedItem("viridis");
+            dialog.setVisible(false);
+
+            viewer.setup(0).setColor(new ARGBType(ARGBType.rgba(0, 255, 0, 255)));
+            SwingUtilities.invokeAndWait(() -> {});
+
+            assertTrue(dialog.toXml().getChildren().isEmpty());
+        } finally {
+            dialog.dispose();
+        }
+    }
+
+    @Test
+    public void testSettingsSkipAnUnrestorableSetupAndRestoreTheRest() throws Exception
+    {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+
+        final Viewer saved = new Viewer();
+        saved.add(schemeSource(10, 210));
+        saved.add(schemeSource(10, 210));
+        final LutEditorDialog editor = new LutEditorDialog(null, saved.setups, saved.state, () -> {});
+        final Element root = new Element("Settings");
+        try {
+            editor.setVisible(true);
+            saved.select(0);
+            editor.getColorSchemeCombo().setSelectedItem("viridis");
+            saved.select(1);
+            editor.getColorSchemeCombo().setSelectedItem("magma");
+            root.addContent(editor.toXml());
+        } finally {
+            editor.dispose();
+        }
+        root.getChild("LutEditor").getChildren("ConverterSetup").get(0).getChild("colorSchemeName").setText("no-such-scheme");
+
+        final Viewer loaded = new Viewer();
+        loaded.add(schemeSource(10, 210));
+        loaded.add(schemeSource(10, 210));
+        final PresetColorSchemeWrapper untouched = ((ColorSchemeConverter<?>) loaded.sources.get(0).getConverter()).getWrapper();
+        final LutEditorDialog restorer = new LutEditorDialog(null, loaded.setups, loaded.state, () -> {});
+        try {
+            restorer.restoreFromXml(root);
+
+            assertSame(untouched, ((ColorSchemeConverter<?>) loaded.sources.get(0).getConverter()).getWrapper());
+            assertEquals(ColorSchemeFactory.loadFromJson("magma"),
+                    ((ColorSchemeConverter<?>) loaded.sources.get(1).getConverter()).getWrapper().getColorScheme());
+        } finally {
+            restorer.dispose();
+        }
+    }
+
+    @Test
+    public void testSettingsWithoutAnEditorElementChangeNothing()
+    {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+
+        final Viewer viewer = new Viewer();
+        viewer.add(schemeSource(10, 210));
+        final PresetColorSchemeWrapper before = ((ColorSchemeConverter<?>) viewer.sources.get(0).getConverter()).getWrapper();
+        final LutEditorDialog dialog = new LutEditorDialog(null, viewer.setups, viewer.state, () -> {});
+        try {
+            dialog.restoreFromXml(new Element("Settings"));
+            assertSame(before, ((ColorSchemeConverter<?>) viewer.sources.get(0).getConverter()).getWrapper());
+        } finally {
+            dialog.dispose();
+        }
+    }
+
 	/** {@code Class.getSimpleName()} throws on imglib2's class copy. */
 	@Test
 	public void testConverterKindNamesAClassCopiedConverter()
@@ -572,6 +732,59 @@ public class LutEditorDialogTest
 		final PresetColorSchemeWrapper wrapper = new PresetColorSchemeWrapper( scheme, new LinearPresetFunc( min, max, scheme.getRange() ) );
 		return new SourceAndConverter<>( new TypeOnlySource<>( new DoubleType() ), new ColorSchemeConverter<>( wrapper, min, max ) );
 	}
+
+    private static SourceAndConverter<DoubleType> legacySource(final double min, final double max, final int argb)
+    {
+        final RealARGBColorConverter<DoubleType> legacy = RealARGBColorConverter.create(new DoubleType(), min, max);
+        legacy.setColor(new ARGBType(argb));
+        return new SourceAndConverter<>(new TypeOnlySource<>(new DoubleType()), legacy);
+    }
+
+    /**
+     * Sources with setup ids 0, 1, ... in the order added.
+     */
+    private static final class Viewer {
+        final BasicViewerState state = new BasicViewerState();
+        final ConverterSetups setups = new ConverterSetups(this.state);
+        final List<SourceAndConverter<DoubleType>> sources = new ArrayList<>();
+
+        void add(final SourceAndConverter<DoubleType> soc)
+        {
+            this.setups.put(soc, new RealARGBColorConverterSetup(this.sources.size(), (ColorConverter) soc.getConverter()));
+            this.state.addSource(soc);
+            this.sources.add(soc);
+        }
+
+        RealARGBColorConverterSetup setup(final int id)
+        {
+            return (RealARGBColorConverterSetup) this.setups.getConverterSetup(this.sources.get(id));
+        }
+
+        void select(final int id) throws Exception
+        {
+            this.state.setCurrentSource(this.sources.get(id));
+            SwingUtilities.invokeAndWait(() -> {});
+        }
+    }
+
+    private static void editCurve(final LutEditorDialog dialog)
+    {
+        dialog.getMapping().getCurve().addPoint(0.3, 0.8);
+        dialog.getMapping().notifyCurveEdited();
+    }
+
+    private static int render(final SourceAndConverter<DoubleType> soc, final double raw)
+    {
+        final ARGBType out = new ARGBType();
+        soc.getConverter().convert(new DoubleType(raw), out);
+        return out.get();
+    }
+
+    private static Element throughText(final Element elem) throws Exception
+    {
+        final String text = new XMLOutputter(Format.getPrettyFormat()).outputString(new Document(elem));
+        return new SAXBuilder().build(new StringReader(text)).getRootElement().detach();
+    }
 
 	private static int countSetupListeners( final ConverterSetups setups )
 	{

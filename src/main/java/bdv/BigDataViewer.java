@@ -721,6 +721,7 @@ public class BigDataViewer
 		root.addContent( setupAssignments.toXml() );
 		root.addContent( manualTransformation.toXml() );
 		root.addContent( bookmarks.toXml() );
+		root.addContent(this.lutEditorDialog.toXml());
 		final Document doc = new Document( root );
 		final XMLOutputter xout = new XMLOutputter( Format.getPrettyFormat() );
 		xout.output( doc, new FileWriter( xmlFilename ) );
@@ -803,6 +804,7 @@ public class BigDataViewer
 		final Element root = doc.getRootElement();
 		viewer.stateFromXml( root );
 		setupAssignments.restoreFromXml( root );
+		this.lutEditorDialog.restoreFromXml(root);
 		manualTransformation.restoreFromXml( root );
 		bookmarks.restoreFromXml( root );
 		activeSourcesDialog.update();

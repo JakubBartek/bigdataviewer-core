@@ -41,6 +41,7 @@ import java.awt.LayoutManager;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -90,10 +91,12 @@ import bdv.viewer.SourceAndConverter;
 import bdv.viewer.ViewerState;
 import bdv.viewer.ViewerStateChange;
 import bdv.viewer.ViewerStateChangeListener;
+import mpicbg.spim.data.XmlHelpers;
 import net.imglib2.converter.Converter;
 import net.imglib2.display.ColorConverter;
 import net.imglib2.display.RealARGBColorConverter;
 import net.imglib2.type.numeric.ARGBType;
+import org.jdom2.Element;
 
 /**
  * A non-modal LUT editor: a configuration strip ({@link EditorPreset}) over a
@@ -184,6 +187,11 @@ public class LutEditorDialog extends JDialog {
     private final Map<String, IColorScheme> addedSchemes = new HashMap<>();
 
     private static final String LEGACY_SCHEME_CATEGORY = "Legacy BDV Colors";
+
+    private static final String XML_ELEMENT = "LutEditor";
+    private static final String XML_SETUP_ELEMENT = "ConverterSetup";
+    private static final String XML_SETUP_ID = "id";
+    private static final String XML_LEGACY_COLOR = "legacyColor";
 
     /**
      * Label images use 0 as background, so it falls below the range.
@@ -850,6 +858,173 @@ public class LutEditorDialog extends JDialog {
         this.pushLiveEdits();
     }
 
+    // -- Settings XML ------------------------------------------------------
+
+    /**
+     * The scheme and mapping of each source this editor has set, by setup id.
+     * A color set through {@code setColor} that this editor has not adopted yet
+     * is left out, since {@code SetupAssignments} saves it and this would override it.
+     */
+    public Element toXml()
+    {
+        final Element elem = new Element(XML_ELEMENT);
+        runOnEdt(() ->
+        {
+            for (final SourceAndConverter<?> soc : this.viewerState.getSources()) {
+                final Element elemSetup = this.setupToXml(soc);
+                if (elemSetup != null) {
+                    elem.addContent(elemSetup);
+                }
+            }
+        });
+        return elem;
+    }
+
+    /**
+     * {@code null} if this editor has nothing to save for {@code soc}.
+     */
+    private Element setupToXml(final SourceAndConverter<?> soc)
+    {
+        final ColorSchemeConverter<?> converter = asColorSchemeConverter(soc.getConverter());
+        final ConverterSetup setup = this.converterSetups.getConverterSetup(soc);
+        final EditorState state = converter == null ? null : this.converterStates.get(converter);
+        if (setup == null || state == null || this.colorSetElsewhere(converter) != null) {
+            return null;
+        }
+        // an unnamed state is the neutral one; anything else could not be found again
+        if (state.schemeName == null && !state.scheme.equals(ContinuousColorScheme.DEFAULT)) {
+            return null;
+        }
+
+        final Element elemSetup = EditorPresetHelper.toXml(presetOf(null, state.schemeName, state.mapping), XML_SETUP_ELEMENT);
+        elemSetup.addContent(0, XmlHelpers.intElement(XML_SETUP_ID, setup.getSetupId()));
+        if (state.scheme instanceof LegacyBdvColorScheme) {
+            elemSetup.addContent(XmlHelpers.intElement(XML_LEGACY_COLOR, ((LegacyBdvColorScheme) state.scheme).getColor()));
+        }
+        return elemSetup;
+    }
+
+    /**
+     * Restores what {@link #toXml()} wrote over the display range and color
+     * {@code SetupAssignments.restoreFromXml} restores, so call it after that.
+     * Setups not listed keep their state; ones that cannot be restored are
+     * skipped and reported on {@code System.err}.
+     */
+    public void restoreFromXml(final Element parent)
+    {
+        final Element elem = parent.getChild(XML_ELEMENT);
+        if (elem == null) {
+            return;
+        }
+        runOnEdt(() ->
+        {
+            for (final Element elemSetup : elem.getChildren(XML_SETUP_ELEMENT)) {
+                final String problem = this.restoreSetup(elemSetup);
+                if (problem != null) {
+                    System.err.println("LUT editor settings not restored: " + problem);
+                }
+            }
+            if (this.isVisible()) {
+                this.beginSession(this.sessionSource);
+            }
+            this.repaintAction.run();
+        });
+    }
+
+    /**
+     * {@code null} on success, else why not.
+     */
+    private String restoreSetup(final Element elemSetup)
+    {
+        final int id;
+        final EditorPreset preset;
+        final Integer legacyColor;
+        try {
+            id = XmlHelpers.getInt(elemSetup, XML_SETUP_ID);
+            preset = EditorPresetHelper.fromXml(elemSetup);
+            final String legacyColorText = XmlHelpers.getText(elemSetup, XML_LEGACY_COLOR);
+            legacyColor = legacyColorText == null ? null : Integer.valueOf(legacyColorText);
+        } catch (final NumberFormatException e) {
+            return "malformed entry: " + e.getMessage();
+        }
+
+        final SourceAndConverter<?> soc = this.sourceWithSetupId(id);
+        if (soc == null) {
+            return "setup " + id + ": no such source";
+        }
+
+        final IColorScheme scheme;
+        final String schemeName;
+        if (legacyColor != null) {
+            final LegacyBdvColorScheme legacy = new LegacyBdvColorScheme(legacyColor);
+            scheme = legacy;
+            schemeName = legacySchemeName(legacy);
+            this.addColorScheme(LEGACY_SCHEME_CATEGORY, schemeName, legacy);
+        } else if (preset.getColorSchemeName() == null) {
+            scheme = NEUTRAL_STATE.scheme;
+            schemeName = null;
+        } else {
+            schemeName = preset.getColorSchemeName();
+            scheme = this.resolveScheme(schemeName);
+            if (scheme == null) {
+                return "setup " + id + ": color scheme not found: " + schemeName;
+            }
+        }
+
+        final LutEditorMapping mapping;
+        try {
+            mapping = mappingFromPreset(preset, scheme.getType());
+        } catch (final IllegalArgumentException e) {
+            return "setup " + id + ": invalid curve: " + e.getMessage();
+        }
+
+        final ColorSchemeConverter<?> converter = this.editableConverterOf(soc);
+        if (converter == null) {
+            return "setup " + id + ": " + converterKind(soc.getConverter()) + " cannot use a color scheme";
+        }
+        // after editableConverterOf, which may replace the setup
+        final ConverterSetup setup = this.converterSetups.getConverterSetup(soc);
+        final double min = setup.getDisplayRangeMin();
+        final double max = setup.getDisplayRangeMax();
+        final PresetColorSchemeWrapper wrapper = ColorSchemeWrapperFactory.build(scheme, mapping, min, max);
+        converter.setWrapper(wrapper);
+        final ColorSchemeConverter<?> volatileConverter = volatileConverterOf(soc);
+        if (volatileConverter != null) {
+            volatileConverter.setWrapper(wrapper);
+        }
+        this.converterStates.put(converter, new EditorState(scheme, schemeName, mapping, min, max));
+        return null;
+    }
+
+    private SourceAndConverter<?> sourceWithSetupId(final int id)
+    {
+        for (final SourceAndConverter<?> soc : this.viewerState.getSources()) {
+            final ConverterSetup setup = this.converterSetups.getConverterSetup(soc);
+            if (setup != null && setup.getSetupId() == id) {
+                return soc;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Settings are saved and loaded off the EDT too, e.g. when BDV opens a dataset.
+     */
+    private static void runOnEdt(final Runnable task)
+    {
+        if (SwingUtilities.isEventDispatchThread()) {
+            task.run();
+            return;
+        }
+        try {
+            SwingUtilities.invokeAndWait(task);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (final InvocationTargetException e) {
+            throw new RuntimeException(e.getCause());
+        }
+    }
+
     // -- Configurations (saved presets) ------------------------------------
 
     /**
@@ -897,6 +1072,15 @@ public class LutEditorDialog extends JDialog {
             mapping.getCurve().setPoints(preset.getCurveXs(), preset.getCurveValues());
         }
         return mapping;
+    }
+
+    private static EditorPreset presetOf(final String name, final String schemeName, final LutEditorMapping mapping)
+    {
+        return new EditorPreset(name, schemeName,
+                mapping.getLeftBoundaryCondition(), mapping.getRightBoundaryCondition(),
+                mapping.getLeftSpecialColor(), mapping.getRightSpecialColor(),
+                mapping.getStepSize(),
+                mapping.getCurve().xsArray(), mapping.getCurve().ysArray());
     }
 
     /**
@@ -956,11 +1140,7 @@ public class LutEditorDialog extends JDialog {
         }
 
         try {
-            EditorPresetHelper.save(new EditorPreset(name, this.currentSchemeName,
-                    this.mappingModel.getLeftBoundaryCondition(), this.mappingModel.getRightBoundaryCondition(),
-                    this.mappingModel.getLeftSpecialColor(), this.mappingModel.getRightSpecialColor(),
-                    this.mappingModel.getStepSize(),
-                    this.mappingModel.getCurve().xsArray(), this.mappingModel.getCurve().ysArray()));
+            EditorPresetHelper.save(presetOf(name, this.currentSchemeName, this.mappingModel));
         } catch (final RuntimeException e) {
             this.labelStatus.setText("Failed to save configuration: " + e.getMessage());
             return;
