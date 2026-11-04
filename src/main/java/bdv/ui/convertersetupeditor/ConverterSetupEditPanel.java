@@ -53,6 +53,29 @@ public class ConverterSetupEditPanel extends JPanel
 
 	public ConverterSetupEditPanel(
 			final SourceGroupTree tree,
+			final ConverterSetups converterSetups )
+	{
+		this(tree, converterSetups, null);
+	}
+
+	public ConverterSetupEditPanel(
+			final SourceTable table,
+			final ConverterSetups converterSetups )
+	{
+		this(table, converterSetups, null);
+	}
+
+	public ConverterSetupEditPanel()
+	{
+		this((Runnable) null);
+	}
+
+    /**
+     * @param colorButtonAction run when the color button is clicked, instead of
+     *                          opening a color chooser; {@code null} for the chooser.
+     */
+	public ConverterSetupEditPanel(
+			final SourceGroupTree tree,
 			final ConverterSetups converterSetups,
 			final Runnable colorButtonAction)
 	{
@@ -61,6 +84,9 @@ public class ConverterSetupEditPanel extends JPanel
 		new ColorEditor( tree, converterSetups, colorPanel );
 	}
 
+    /**
+     * @param colorButtonAction see {@link #ConverterSetupEditPanel(SourceGroupTree, ConverterSetups, Runnable)}.
+     */
 	public ConverterSetupEditPanel(
 			final SourceTable table,
 			final ConverterSetups converterSetups,
@@ -71,6 +97,9 @@ public class ConverterSetupEditPanel extends JPanel
 		new ColorEditor( table, converterSetups, colorPanel );
 	}
 
+    /**
+     * @param colorButtonAction see {@link #ConverterSetupEditPanel(SourceGroupTree, ConverterSetups, Runnable)}.
+     */
 	public ConverterSetupEditPanel(final Runnable colorButtonAction)
 	{
 		super( new MigLayout( "ins 0, fillx, hidemode 3", "[]0[grow]", "" ) );
