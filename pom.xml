@@ -143,10 +143,6 @@
 		<license.licenseName>bsd_2</license.licenseName>
 		<license.copyrightOwners>BigDataViewer developers.</license.copyrightOwners>
 
-		<!-- NB: Parent pom-scijava sets Java 11. We override it here to stay compatible with FIJI stable / Java 8. -->
-		<scijava.jvm.version>11</scijava.jvm.version>
-		<scijava.jvm.build.version>11</scijava.jvm.build.version>
-
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 	</properties>
@@ -254,27 +250,5 @@
 			<artifactId>jmh-generator-annprocess</artifactId>
 			<scope>test</scope>
 		</dependency>
-		<dependency>
-			<groupId>ome.zarr</groupId>
-			<artifactId>ome-zarr-fiji-ui</artifactId>
-			<version>0.9.3</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>sc.fiji</groupId>
-			<artifactId>fiji</artifactId>
-			<scope>test</scope>
-		</dependency>
 	</dependencies>
-
-	<profiles>
-		<!-- Fast inner-loop run: brightness tests only, skipping the enforcer's ~90 s of release checks. -->
-		<profile>
-			<id>quick</id>
-			<properties>
-				<test>bdv.tools.brightness.**</test>
-				<enforcer.skip>true</enforcer.skip>
-			</properties>
-		</profile>
-	</profiles>
 </project>
