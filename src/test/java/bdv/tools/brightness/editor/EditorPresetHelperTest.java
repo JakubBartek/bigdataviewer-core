@@ -47,6 +47,7 @@ import org.jdom2.input.SAXBuilder;
 import org.jdom2.output.Format;
 import org.jdom2.output.XMLOutputter;
 
+import bdv.BigDataViewer;
 import bdv.tools.brightness.converter.BoundaryCondition;
 
 /** Each test points {@link EditorPresetHelper#USER_DIR_OVERRIDE_PROPERTY} at a {@link TemporaryFolder}. */
@@ -73,6 +74,47 @@ public class EditorPresetHelperTest
 				0xff112233, 0xff445566, 2.5,
 				new double[] { 0.0, 0.5, 1.0 }, new double[] { 0.0, 0.4, 1.0 } );
 	}
+
+    /**
+     * Regression: saving needed the presets resource directory on the filesystem, so failed from a jar.
+     */
+    @Test
+    public void testSavesIntoTheBdvConfigDirectory()
+    {
+        System.clearProperty(EditorPresetHelper.USER_DIR_OVERRIDE_PROPERTY);
+        final String configDir = BigDataViewer.configDir;
+        BigDataViewer.configDir = this.tmp.getRoot().getAbsolutePath();
+        try {
+            EditorPresetHelper.save(sample("mine"));
+
+            Assert.assertTrue(new File(this.tmp.getRoot(), "lut-editor-presets/mine.json").isFile());
+            Assert.assertTrue(EditorPresetHelper.discoverNames().contains("mine"));
+            Assert.assertTrue(EditorPresetHelper.isUserDefined("mine"));
+            Assert.assertEquals("tab10", EditorPresetHelper.load("mine").getColorSchemeName());
+        } finally {
+            BigDataViewer.configDir = configDir;
+        }
+    }
+
+    @Test
+    public void testWithoutAConfigDirectoryBuiltinsLoadButSavingFails()
+    {
+        System.clearProperty(EditorPresetHelper.USER_DIR_OVERRIDE_PROPERTY);
+        final String configDir = BigDataViewer.configDir;
+        BigDataViewer.configDir = null;
+        try {
+            Assert.assertTrue(EditorPresetHelper.discoverNames().contains("Labels (Cyclic, tab10)"));
+            Assert.assertFalse(EditorPresetHelper.isUserDefined("Labels (Cyclic, tab10)"));
+            try {
+                EditorPresetHelper.save(sample("mine"));
+                Assert.fail("expected IllegalStateException");
+            } catch (final IllegalStateException expected) {
+                // nowhere to write
+            }
+        } finally {
+            BigDataViewer.configDir = configDir;
+        }
+    }
 
 	@Test
 	public void testDiscoverNamesIncludesBuiltins()
@@ -231,8 +273,8 @@ public class EditorPresetHelperTest
 	}
 
 	/**
-	 * Regression: with no user directory (as in a jar) reads used to throw,
-	 * taking down the LUT editor. Simulated with a nonexistent path.
+	 * Regression: with no user directory yet (before the first save) reads
+	 * threw, taking down the LUT editor.
 	 */
 	@Test
 	public void testReadPathsDegradeWhenNoUserDirectoryExists()

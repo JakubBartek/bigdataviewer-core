@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
@@ -52,21 +51,21 @@ import java.util.stream.Stream;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import bdv.BigDataViewer;
 import mpicbg.spim.data.XmlHelpers;
 import org.jdom2.Element;
 
 /**
  * Converts {@link EditorPreset}s to and from settings XML, and discovers,
- * loads and saves them as files: built-in ones under
- * {@value #BUILTIN_RESOURCE_DIR}, and user-saved ones in its
- * {@value #USER_SUBDIR} subdirectory (git-ignored), which take precedence.
- * Saving only works when the resource directory is on the filesystem, not in
- * a jar.
+ * loads and saves them as files: built-in ones under the
+ * {@value #BUILTIN_RESOURCE_DIR} resource, and user-saved ones in
+ * {@value #USER_SUBDIR} under {@link BigDataViewer#configDir}, beside the
+ * keymaps, which take precedence.
  */
 public final class EditorPresetHelper {
     private static final String BUILTIN_RESOURCE_DIR = "bdv/ui/lut-editor-presets";
 
-    private static final String USER_SUBDIR = "user";
+    private static final String USER_SUBDIR = "lut-editor-presets";
 
     private static final String RESOURCE_EXTENSION = ".json";
 
@@ -91,7 +90,8 @@ public final class EditorPresetHelper {
     }
 
     /**
-     * {@code null} if there is no writable directory; built-in presets still load.
+     * Read on every call, as {@link BigDataViewer#configDir} can be reassigned.
+     * {@code null} if there is no config directory; built-in presets still load.
      */
     private static String userDir()
     {
@@ -99,24 +99,8 @@ public final class EditorPresetHelper {
         if (override != null) {
             return override;
         }
-        final File builtinDir = resolveBuiltinResourceDir();
-        return builtinDir == null ? null : new File(builtinDir, USER_SUBDIR).getAbsolutePath();
-    }
-
-    /**
-     * {@code null} when not on the filesystem, e.g. in a jar.
-     */
-    private static File resolveBuiltinResourceDir()
-    {
-        final URL dirUrl = EditorPresetHelper.class.getClassLoader().getResource(BUILTIN_RESOURCE_DIR);
-        if (dirUrl == null) {
-            return null;
-        }
-        try {
-            return new File(dirUrl.toURI());
-        } catch (final URISyntaxException | IllegalArgumentException e) {
-            return null;
-        }
+        final String configDir = BigDataViewer.configDir;
+        return configDir == null ? null : new File(configDir, USER_SUBDIR).getAbsolutePath();
     }
 
     private static File userFile(final String name)
@@ -215,7 +199,7 @@ public final class EditorPresetHelper {
     /**
      * Overwrites an existing file of the same name.
      *
-     * @throws IllegalStateException    if there is no writable directory.
+     * @throws IllegalStateException    if there is no config directory.
      * @throws IllegalArgumentException if the name is not {@link #canonicalName canonical}.
      */
     public static void save(final EditorPreset preset)
@@ -228,8 +212,7 @@ public final class EditorPresetHelper {
 
         final File file = userFile(name);
         if (file == null) {
-            throw new IllegalStateException("No writable settings directory available"
-                    + " (running from a packaged jar?); cannot save \"" + name + "\"");
+            throw new IllegalStateException("No BigDataViewer config directory; cannot save \"" + name + "\"");
         }
         file.getParentFile().mkdirs();
         try (final FileWriter writer = new FileWriter(file)) {
@@ -239,10 +222,6 @@ public final class EditorPresetHelper {
         }
     }
 
-    /**
-     * Trimmed, with filesystem-significant characters replaced. Callers must
-     * canonicalize a typed name before comparing it with {@link #discoverNames()}.
-     */
     /**
      * The preset's fields as children of a new {@code elementName} element; the
      * preset's own name is not written.
@@ -282,6 +261,10 @@ public final class EditorPresetHelper {
                 XmlHelpers.getDoubleArray(elem, XML_CURVE_VALUES, null));
     }
 
+    /**
+     * Trimmed, with filesystem-significant characters replaced. Callers must
+     * canonicalize a typed name before comparing it with {@link #discoverNames()}.
+     */
     public static String canonicalName(final String name)
     {
         return name.trim().replaceAll("[\\\\/:*?\"<>|]", "_");
