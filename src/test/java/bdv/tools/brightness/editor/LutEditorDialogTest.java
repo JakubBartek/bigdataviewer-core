@@ -523,6 +523,73 @@ public class LutEditorDialogTest
         }
     }
 
+    /**
+     * Regression: a hidden editor kept its session and pushed edits to that source.
+     */
+    @Test
+    public void testHiddenEditorDoesNotEditTheSource()
+    {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+
+        final Viewer viewer = new Viewer();
+        viewer.add(schemeSource(10, 210));
+        final ColorSchemeConverter<?> converter = (ColorSchemeConverter<?>) viewer.sources.get(0).getConverter();
+        final LutEditorDialog dialog = new LutEditorDialog(null, viewer.setups, viewer.state, () -> {});
+        try {
+            dialog.setVisible(true);
+            dialog.setVisible(false);
+            final PresetColorSchemeWrapper whenHidden = converter.getWrapper();
+
+            dialog.getColorSchemeCombo().setSelectedItem("viridis");
+
+            assertSame(whenHidden, converter.getWrapper());
+        } finally {
+            dialog.dispose();
+        }
+    }
+
+    /**
+     * {@code Window.dispose()} hides without calling {@code setVisible(false)}.
+     */
+    @Test
+    public void testDisposedEditorDoesNotEditTheSource()
+    {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+
+        final Viewer viewer = new Viewer();
+        viewer.add(schemeSource(10, 210));
+        final ColorSchemeConverter<?> converter = (ColorSchemeConverter<?>) viewer.sources.get(0).getConverter();
+        final LutEditorDialog dialog = new LutEditorDialog(null, viewer.setups, viewer.state, () -> {});
+        dialog.setVisible(true);
+        dialog.dispose();
+        final PresetColorSchemeWrapper whenDisposed = converter.getWrapper();
+
+        dialog.getColorSchemeCombo().setSelectedItem("viridis");
+
+        assertSame(whenDisposed, converter.getWrapper());
+    }
+
+    @Test
+    public void testHidingKeepsATypedButUncommittedStepSize()
+    {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+
+        final Viewer viewer = new Viewer();
+        viewer.add(schemeSource(10, 210));
+        final LutEditorDialog dialog = new LutEditorDialog(null, viewer.setups, viewer.state, () -> {});
+        try {
+            dialog.setVisible(true);
+            dialog.getColorSchemeCombo().setSelectedItem("tab10");
+            dialog.getStepSizeField().setText("3");
+            dialog.setVisible(false);
+            dialog.setVisible(true);
+
+            assertEquals(3, dialog.getMapping().getStepSize(), 0);
+        } finally {
+            dialog.dispose();
+        }
+    }
+
     @Test
     public void testOpensOnAColorSetElsewhereWhileClosed() throws Exception
     {

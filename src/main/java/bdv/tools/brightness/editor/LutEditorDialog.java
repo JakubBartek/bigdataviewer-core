@@ -343,20 +343,22 @@ public class LutEditorDialog extends JDialog {
     // -- Window lifecycle and following the viewer -------------------------
 
     /**
-     * Hiding keeps the live edits. Showing starts a new session with a fresh
-     * baseline; only then, because starting one may convert the source (see
-     * {@link #convertToColorScheme}), which should not happen unseen.
+     * Hiding keeps the live edits and ends the session. Showing starts a new
+     * session with a fresh baseline; only then, because starting one may
+     * convert the source (see {@link #convertToColorScheme}), which should not
+     * happen unseen.
      */
     @Override
     public void setVisible(final boolean visible)
     {
         final boolean showing = visible && !this.isVisible();
+        if (!visible) {
+            this.endSession();
+        }
         super.setVisible(visible);
         if (showing) {
             this.beginSession(this.viewerState.getCurrentSource());
         }
-
-        // TODO: Set null params
     }
 
     /**
@@ -369,6 +371,7 @@ public class LutEditorDialog extends JDialog {
     {
         this.viewerState.changeListeners().remove(this.viewerStateListener);
         this.converterSetups.listeners().remove(this.setupChangeListener);
+        this.endSession();
         super.dispose();
     }
 
@@ -421,6 +424,21 @@ public class LutEditorDialog extends JDialog {
         }
         this.loadIntoEditor(this.initialStateFor(this.activeConverter, this.activeSetup));
         this.baseline = this.captureEditorState();
+    }
+
+    /**
+     * Unbind from the source so a hidden editor neither edits it nor keeps it
+     * reachable. Field text is committed first: the focus-lost commit would
+     * only arrive after hiding, with nothing left to push to.
+     */
+    private void endSession()
+    {
+        this.commitStepSizeField();
+        this.panelMappingCurve.commitRangeFields();
+        this.sessionSource = null;
+        this.activeConverter = null;
+        this.activeVolatileConverter = null;
+        this.activeSetup = null;
     }
 
     /**
@@ -774,6 +792,14 @@ public class LutEditorDialog extends JDialog {
     JComboBox<Object> getColorSchemeCombo()
     {
         return this.comboColorScheme;
+    }
+
+    /**
+     * For tests.
+     */
+    JTextField getStepSizeField()
+    {
+        return this.fieldStepSize;
     }
 
     /**

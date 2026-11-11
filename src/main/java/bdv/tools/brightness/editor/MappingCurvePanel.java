@@ -281,6 +281,12 @@ public class MappingCurvePanel extends JPanel implements MouseListener, MouseMot
         return this.plotLeft() + MIN_PLOT_WIDTH + RIGHT_MARGIN;
     }
 
+    void commitRangeFields()
+    {
+        this.commitMinField();
+        this.commitMaxField();
+    }
+
     private void commitMinField()
     {
         try {
